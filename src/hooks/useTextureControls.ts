@@ -9,6 +9,7 @@ interface TextureControls {
   pixelSize: number;
   center: { x: number; y: number };
   isDragging: boolean;
+  setCenter: (center: { x: number; y: number }) => void;
 }
 
 export function useTextureControls({
@@ -39,11 +40,15 @@ export function useTextureControls({
     return () => window.removeEventListener('wheel', handleWheel);
   }, []);
 
-  // Mouse drag for panning
+  // Right-click drag for panning
   useEffect(() => {
     const handleMouseDown = (e: MouseEvent) => {
-      setIsDragging(true);
-      setDragStart({ x: e.clientX, y: e.clientY });
+      // Only right mouse button (button 2)
+      if (e.button === 2) {
+        e.preventDefault();
+        setIsDragging(true);
+        setDragStart({ x: e.clientX, y: e.clientY });
+      }
     };
 
     const handleMouseMove = (e: MouseEvent) => {
@@ -54,7 +59,7 @@ export function useTextureControls({
 
       // Convert screen pixels to texture coordinates
       // Negative because dragging right should move view left (showing content to the right)
-      const moveScale = (pixelSize / canvasSize) * (128 / pixelSize);
+      const moveScale = (pixelSize / canvasSize) * (512 / (pixelSize * pixelSize));
 
       setCenter((prev) => ({
         x: prev.x - deltaX * moveScale,
@@ -64,20 +69,26 @@ export function useTextureControls({
       setDragStart({ x: e.clientX, y: e.clientY });
     };
 
-    const handleMouseUp = () => {
-      setIsDragging(false);
+    const handleMouseUp = (e: MouseEvent) => {
+      if (e.button === 2) {
+        setIsDragging(false);
+      }
+    };
+
+    const handleContextMenu = (e: MouseEvent) => {
+      e.preventDefault(); // Prevent right-click context menu
     };
 
     window.addEventListener('mousedown', handleMouseDown);
     window.addEventListener('mousemove', handleMouseMove);
     window.addEventListener('mouseup', handleMouseUp);
-    window.addEventListener('mouseleave', handleMouseUp);
+    window.addEventListener('contextmenu', handleContextMenu);
 
     return () => {
       window.removeEventListener('mousedown', handleMouseDown);
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
-      window.removeEventListener('mouseleave', handleMouseUp);
+      window.removeEventListener('contextmenu', handleContextMenu);
     };
   }, [isDragging, dragStart, pixelSize, canvasSize]);
 
@@ -85,5 +96,6 @@ export function useTextureControls({
     pixelSize,
     center,
     isDragging,
+    setCenter,
   };
 }

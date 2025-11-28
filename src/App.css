@@ -1,30 +1,86 @@
 .app-container {
   width: 100vw;
   height: 100vh;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
+  position: relative;
   background: #1a1a1a;
-}
-
-h1 {
-  margin: 0;
-  padding: 1rem;
-  text-align: center;
-  color: #fff;
-  font-size: 2rem;
-  background: rgba(0, 0, 0, 0.5);
-  z-index: 10;
-}
-
-.canvas-wrapper {
+  overflow: hidden;
   display: flex;
-  justify-content: center;
   align-items: center;
-  flex: 1;
+  justify-content: center;
+  background-color: brown;
 }
 
-canvas {
+#main-canvas {
   display: block;
-  border: 2px solid #444;
+  background-color: black;
 }
+
+/* Top bar - overlay */
+.top-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 50px;
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 0 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  z-index: 100;
+  pointer-events: auto;
+}
+
+.icon-button {
+  background: rgba(68, 68, 68, 0.8);
+  color: #fff;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  width: 36px;
+  height: 36px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.icon-button:hover {
+  background: rgba(100, 100, 100, 0.8);
+  border-color: rgba(255, 255, 255, 0.4);
+  transform: scale(1.05);
+}
+
+.icon-button.active {
+  background: rgba(83, 91, 242, 0.9);
+  border-color: #535bf2;
+  box-shadow: 0 0 10px rgba(83, 91, 242, 0.5);
+}
+
+.divider {
+  width: 1px;
+  height: 24px;
+  background: rgba(255, 255, 255, 0.2);
+  margin: 0 0.25rem;
+}
+
+/* Status bar - overlay at bottom */
+.status-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(10px);
+  color: #aaa;
+  padding: 0.5rem 1rem;
+  font-size: 0.8rem;
+  font-family: monospace;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  z-index: 100;
+  pointer-events: none;
+}
+
