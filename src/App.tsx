@@ -50,10 +50,12 @@ function App() {
 
   // Reset world handler
   const handleResetWorld = useCallback(() => {
-    const newTexture = worldGen.initNewWorld({ grid: true });
+    // Create a completely new WorldGeneration instance to ensure clean slate
+    const newWorldGen = new WorldGeneration(2048, 2048);
+    const newTexture = newWorldGen.initNewWorld({ grid: true });
     setWorldTexture(newTexture);
     setCenter({ x: 0, y: 0 });
-  }, [worldGen, setCenter]);
+  }, [setCenter]);
 
   return (
     <div className="app-container">

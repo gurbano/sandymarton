@@ -94,6 +94,20 @@ function SimulationRenderer({ worldTexture, textureSize, onTextureUpdate, enable
     };
   }, [gl, outputRT]);
 
+  // Ping-pong render targets for iterative simulation
+  const pingRT = useMemo(() => generateRenderTarget(textureSize), [textureSize]);
+  const pongRT = useMemo(() => generateRenderTarget(textureSize), [textureSize]);
+
+  useEffect(() => {
+    gl.initRenderTarget(pingRT);
+    gl.initRenderTarget(pongRT);
+
+    return () => {
+      pingRT.dispose();
+      pongRT.dispose();
+    };
+  }, [gl, pingRT, pongRT]);
+
   // Run simulation each frame
   useFrame((_, delta) => {
     const simScene = simSceneRef.current;
@@ -101,22 +115,39 @@ function SimulationRenderer({ worldTexture, textureSize, onTextureUpdate, enable
       return;
     }
 
-    // Use the current worldTexture as input (may have particles drawn on it)
-    simScene.material.uniforms.uDeltaTime.value = delta;
+    // Run multiple iterations per frame for faster settling
+    const ITERATIONS_PER_FRAME = 4;
+
+    // Start with the current world texture
     simScene.material.uniforms.uCurrentState.value = worldTexture;
     simScene.material.uniforms.uTextureSize.value.set(textureSize, textureSize);
-
     simScene.camera.position.z = 1;
     simScene.camera.updateProjectionMatrix();
 
-    // Render simulation to output target
-    gl.setRenderTarget(outputRT);
-    gl.render(simScene.scene, simScene.camera);
-    gl.setRenderTarget(null);
+    // Divide delta time across iterations
+    const iterationDelta = delta / ITERATIONS_PER_FRAME;
+    simScene.material.uniforms.uDeltaTime.value = iterationDelta;
 
-    // Read back the result and update worldTexture
+    // Ping-pong between render targets
+    for (let i = 0; i < ITERATIONS_PER_FRAME; i++) {
+      const sourceRT = i === 0 ? null : (i % 2 === 0 ? pongRT : pingRT);
+      const targetRT = i % 2 === 0 ? pingRT : pongRT;
+
+      // Update source texture
+      if (sourceRT) {
+        simScene.material.uniforms.uCurrentState.value = sourceRT.texture;
+      }
+
+      // Render to target
+      gl.setRenderTarget(targetRT);
+      gl.render(simScene.scene, simScene.camera);
+      gl.setRenderTarget(null);
+    }
+
+    // Read final result from the last target used
+    const finalRT = (ITERATIONS_PER_FRAME - 1) % 2 === 0 ? pingRT : pongRT;
     const pixels = new Uint8Array(textureSize * textureSize * 4);
-    gl.readRenderTargetPixels(outputRT, 0, 0, textureSize, textureSize, pixels);
+    gl.readRenderTargetPixels(finalRT, 0, 0, textureSize, textureSize, pixels);
 
     // Update the worldTexture data in-place
     const worldData = worldTexture.image.data as Uint8Array;

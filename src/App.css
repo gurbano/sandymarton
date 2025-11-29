@@ -12,7 +12,7 @@
 
 #main-canvas {
   display: block;
-  background-color: black;
+  background-color: rgba(60, 60, 60, 0.8)
 }
 
 /* Top bar - overlay */
@@ -83,4 +83,3 @@
   z-index: 100;
   pointer-events: none;
 }
-

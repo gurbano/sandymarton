@@ -8,11 +8,15 @@ export enum ParticleType {
   EMPTY = 0,
   // VOID = 1,
 
-  // Solid particles (16-63)
-  // SOLID = 16,
-  SAND = 17,
-  DIRT = 32,
-  STONE = 48,
+  // static particles (16-32)
+  // STATIC = 16,
+  STONE = 17,
+
+  // Solid movable particles (33-63)
+  // SOLID = 33,
+  SAND = 35,
+  DIRT = 37,
+  GRAVEL = 39,
 
   // Liquid particles (64-111)
   // LIQUID = 64,
@@ -20,7 +24,7 @@ export enum ParticleType {
   LAVA = 80,
   SLIME = 96,
   ACID = 97,
-  
+
   // Gas particles (112-159)
   // GAS = 112,
   STEAM = 113,
@@ -79,9 +83,10 @@ const BaseGasAttributes: MaterialAttributes = {
  */
 export const ParticleColors: Record<number, [number, number, number, number]> = {
   [ParticleType.EMPTY]: [0, 0, 0, 0],           // Transparent
+  [ParticleType.STONE]: [128, 128, 128, 255],   // Opaque gray
   [ParticleType.SAND]: [255, 200, 100, 255],    // Opaque yellow-orange
   [ParticleType.DIRT]: [139, 90, 43, 255],      // Opaque brown
-  [ParticleType.STONE]: [128, 128, 128, 255],   // Opaque gray
+  [ParticleType.GRAVEL]: [100, 100, 100, 255],  // Opaque dark gray
   [ParticleType.WATER]: [0, 0, 223, 180],    // Semi-transparent blue
   [ParticleType.LAVA]: [255, 0, 0, 255],      // Opaque orange-red
   [ParticleType.SLIME]: [100, 255, 100, 200],   // Semi-transparent green

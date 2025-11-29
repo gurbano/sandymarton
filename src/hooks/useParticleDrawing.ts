@@ -22,6 +22,8 @@ export function useParticleDrawing({
 }: UseParticleDrawingProps) {
   const isDrawingRef = useRef(false);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const lastMousePosRef = useRef<{ x: number; y: number } | null>(null);
+  const drawIntervalRef = useRef<number | null>(null);
 
   // Convert screen coordinates to world texture coordinates
   // This mirrors the shader logic exactly
@@ -116,7 +118,20 @@ export function useParticleDrawing({
       // Only left mouse button (button 0)
       if (e.button === 0) {
         isDrawingRef.current = true;
+        lastMousePosRef.current = { x: e.clientX, y: e.clientY };
+
+        // Draw immediately
         drawParticle(e.clientX, e.clientY);
+
+        // Start continuous drawing interval
+        if (drawIntervalRef.current !== null) {
+          clearInterval(drawIntervalRef.current);
+        }
+        drawIntervalRef.current = window.setInterval(() => {
+          if (isDrawingRef.current && lastMousePosRef.current) {
+            drawParticle(lastMousePosRef.current.x, lastMousePosRef.current.y);
+          }
+        }, 50); // Draw every 50ms while holding
       }
     };
 
@@ -134,6 +149,7 @@ export function useParticleDrawing({
           return; // Mouse is outside canvas
         }
 
+        lastMousePosRef.current = { x: e.clientX, y: e.clientY };
         drawParticle(e.clientX, e.clientY);
       }
     };
@@ -141,6 +157,13 @@ export function useParticleDrawing({
     const handleMouseUp = (e: MouseEvent) => {
       if (e.button === 0) {
         isDrawingRef.current = false;
+        lastMousePosRef.current = null;
+
+        // Clear the drawing interval
+        if (drawIntervalRef.current !== null) {
+          clearInterval(drawIntervalRef.current);
+          drawIntervalRef.current = null;
+        }
       }
     };
 
@@ -152,6 +175,12 @@ export function useParticleDrawing({
       window.removeEventListener('mousedown', handleMouseDown);
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
+
+      // Clean up interval on unmount
+      if (drawIntervalRef.current !== null) {
+        clearInterval(drawIntervalRef.current);
+        drawIntervalRef.current = null;
+      }
     };
   }, [drawParticle]);
 }
