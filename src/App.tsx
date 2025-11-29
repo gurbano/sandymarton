@@ -1,15 +1,15 @@
 import { Canvas } from '@react-three/fiber';
 import { useState, useMemo, useCallback } from 'react';
-import { Texture } from 'three';
+import { DataTexture, Texture } from 'three';
 import './App.css';
 import TextureRenderer from './components/TextureRenderer';
+import SimulationRenderer from './components/SimulationRenderer';
 import { SideControls } from './components/SideControls';
 import { StatusBar } from './components/StatusBar';
 import { useTextureControls } from './hooks/useTextureControls';
 import { useParticleDrawing } from './hooks/useParticleDrawing';
 import { WorldGeneration } from './world/WorldGeneration';
 import { ParticleType } from './world/ParticleTypes';
-import SimulationRenderer from './components/SimulationRenderer';
 
 function Scene({ texture, pixelSize, center }: { texture: Texture; pixelSize: number; center: { x: number; y: number } }) {
   return <TextureRenderer texture={texture} pixelSize={pixelSize} center={center} />;
@@ -27,18 +27,15 @@ function App() {
   const worldGen = useMemo(() => new WorldGeneration(2048, 2048), []);
 
   // State for the world texture
-  const [worldTexture, setWorldTexture] = useState<Texture>(() => worldGen.initNewWorld({ grid: true }));
+  const [worldTexture, setWorldTexture] = useState<DataTexture>(() => worldGen.initNewWorld({ grid: true }));
 
   // State for selected particle type
   const [selectedParticle, setSelectedParticle] = useState<ParticleType>(ParticleType.SAND);
 
   // Handle drawing particles and updating texture
-  const handleDraw = useCallback(() => {
-    // Update the existing texture by triggering a re-render
-    setWorldTexture((prev) => {
-      prev.needsUpdate = true;
-      return prev;
-    });
+  const handleDraw = useCallback((texture: DataTexture) => {
+    // Texture is already updated in-place, just trigger a re-render
+    texture.needsUpdate = true;
   }, []);
 
   // Use particle drawing hook
@@ -48,6 +45,7 @@ function App() {
     pixelSize,
     center,
     onDraw: handleDraw,
+    worldTexture: worldTexture,
   });
 
   // Reset world handler
@@ -55,7 +53,7 @@ function App() {
     const newTexture = worldGen.initNewWorld({ grid: true });
     setWorldTexture(newTexture);
     setCenter({ x: 0, y: 0 });
-  }, [worldGen]);
+  }, [worldGen, setCenter]);
 
   return (
     <div className="app-container">
@@ -67,14 +65,14 @@ function App() {
         gl={{ preserveDrawingBuffer: true }}
         style={{ cursor: isDragging ? 'grabbing' : 'grab', height: '1024px', width: '1024px' }}
       >
-        {/* <SimulationRenderer
-          initialState={initialState}
+        <SimulationRenderer
+          worldTexture={worldTexture}
           textureSize={2048}
           onTextureUpdate={(newTexture) => {
             setWorldTexture(newTexture);
           }}
           enabled={true}
-        /> */}
+        />
         <Scene texture={worldTexture} pixelSize={pixelSize} center={center} />
       </Canvas>
 

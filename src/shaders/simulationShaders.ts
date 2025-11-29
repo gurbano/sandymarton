@@ -12,12 +12,6 @@ export const simulationVertexShader = `
   }
 `;
 
-// uniform sampler2D positions;
-// uniform float textureSize;
-// uniform float dt;
-// uniform float gravity;
-// varying vec2 vUv;
-
 
 export const simulationFragmentShader = `
   uniform sampler2D uCurrentState;  // Current simulation state

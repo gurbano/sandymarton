@@ -15,10 +15,9 @@ import {
 } from 'three';
 import { simulationFragmentShader, simulationVertexShader } from '../shaders/simulationShaders';
 import { useFrame, useThree } from '@react-three/fiber';
-import { WorldGeneration } from '../world/WorldGeneration';
 
 interface SimulationRendererProps {
-  initialState: Texture;
+  worldTexture: DataTexture;
   textureSize: number;
   onTextureUpdate: (texture: DataTexture) => void;
   enabled?: boolean;
@@ -62,20 +61,21 @@ const createSimulationResources = (size: number, initialTexture: Texture): Simul
 };
 
 /**
- * SimulationRenderer handles the GPU-based particle simulation using ping-pong rendering
- * It maintains two render targets and swaps between them each frame
+ * SimulationRenderer handles the GPU-based particle simulation
+ * It reads the worldTexture (which may have been modified by particle drawing),
+ * runs the simulation shader, and outputs a new texture each frame
  */
-function SimulationRenderer({ initialState, textureSize, onTextureUpdate, enabled = false }: SimulationRendererProps) {
+function SimulationRenderer({ worldTexture, textureSize, onTextureUpdate, enabled = false }: SimulationRendererProps) {
   const { gl } = useThree();
 
-  const rtA = useMemo(() => generateRenderTarget(textureSize), [textureSize]);
-  const rtB = useMemo(() => generateRenderTarget(textureSize), [textureSize]);
-  const ping = useRef(true);
+  // Single render target for output
+  const outputRT = useMemo(() => generateRenderTarget(textureSize), [textureSize]);
 
   const simSceneRef = useRef<SimulationResources | null>(null);
 
+  // Create simulation resources
   useEffect(() => {
-    const resources = createSimulationResources(textureSize, rtA.texture);
+    const resources = createSimulationResources(textureSize, worldTexture);
     simSceneRef.current = resources;
 
     return () => {
@@ -83,60 +83,49 @@ function SimulationRenderer({ initialState, textureSize, onTextureUpdate, enable
       resources.geometry.dispose();
       resources.material.dispose();
     };
-  }, [textureSize, rtA.texture]);
+  }, [textureSize, worldTexture]);
 
+  // Initialize render target once
   useEffect(() => {
-    const simScene = simSceneRef.current;
-    if (!simScene) {
-      return;
-    }
+    gl.initRenderTarget(outputRT);
 
-    // Initialize rtA with the provided initial state
-    gl.initRenderTarget(rtA);
-    gl.initRenderTarget(rtB);
-
-    gl.setRenderTarget(rtA);
-    gl.clear();
-    gl.copyTextureToTexture(initialState, rtA.texture);
-    gl.setRenderTarget(null);
-
-    simScene.material.uniforms.uCurrentState.value = rtA.texture;
-    console.log('Initialized simulation with initial state', rtA.texture, initialState);
-    // onTextureUpdate(rtA.texture as DataTexture);
-    onTextureUpdate(new WorldGeneration(2048, 2048).initNewWorld({ grid: true }) as DataTexture);
-
-    ping.current = true;
-  }, [simSceneRef.current]);
-
-  useEffect(() => {
     return () => {
-      rtA.dispose();
-      rtB.dispose();
+      outputRT.dispose();
     };
-  }, [rtA, rtB]);
+  }, [gl, outputRT]);
+
+  // Run simulation each frame
   useFrame((_, delta) => {
     const simScene = simSceneRef.current;
-    if (!enabled || !simScene || enabled) {
+    if (!enabled || !simScene) {
       return;
     }
 
-    const currentRT = ping.current ? rtA : rtB;
-    const nextRT = ping.current ? rtB : rtA;
-
+    // Use the current worldTexture as input (may have particles drawn on it)
     simScene.material.uniforms.uDeltaTime.value = delta;
-    simScene.material.uniforms.uCurrentState.value = currentRT.texture;
+    simScene.material.uniforms.uCurrentState.value = worldTexture;
     simScene.material.uniforms.uTextureSize.value.set(textureSize, textureSize);
 
     simScene.camera.position.z = 1;
     simScene.camera.updateProjectionMatrix();
 
-    gl.setRenderTarget(nextRT);
+    // Render simulation to output target
+    gl.setRenderTarget(outputRT);
     gl.render(simScene.scene, simScene.camera);
     gl.setRenderTarget(null);
 
-    onTextureUpdate(nextRT.texture as DataTexture);
-    ping.current = !ping.current;
-  }, 1);
+    // Read back the result and update worldTexture
+    const pixels = new Uint8Array(textureSize * textureSize * 4);
+    gl.readRenderTargetPixels(outputRT, 0, 0, textureSize, textureSize, pixels);
+
+    // Update the worldTexture data in-place
+    const worldData = worldTexture.image.data as Uint8Array;
+    worldData.set(pixels);
+    worldTexture.needsUpdate = true;
+
+    // Notify parent that texture was updated
+    onTextureUpdate(worldTexture);
+  });
 
   return null;
 }

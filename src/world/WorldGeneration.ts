@@ -17,12 +17,10 @@ export interface Particle {
 export class WorldGeneration {
   private width: number;
   private height: number;
-  private worldData: Uint8Array;
 
   constructor(width: number = 2048, height: number = 2048) {
     this.width = width;
     this.height = height;
-    this.worldData = new Uint8Array(4 * width * height);
   }
 
   /**
@@ -33,12 +31,12 @@ export class WorldGeneration {
     const width = options?.width ?? this.width;
     const height = options?.height ?? this.height;
 
-    // Reset world data if size changed
-    if (width !== this.width || height !== this.height) {
-      this.width = width;
-      this.height = height;
-      this.worldData = new Uint8Array(4 * width * height);
-    }
+    // Update dimensions
+    this.width = width;
+    this.height = height;
+
+    // Create new world data array
+    const worldData = new Uint8Array(4 * width * height);
 
     // Fill with empty particles
     // RGBA format:
@@ -48,10 +46,10 @@ export class WorldGeneration {
     // A = Additional data (density, temperature, etc.)
     for (let i = 0; i < width * height; i++) {
       const stride = i * 4;
-      this.worldData[stride] = ParticleType.EMPTY;  // Type
-      this.worldData[stride + 1] = encodeVelocity(0); // Velocity X
-      this.worldData[stride + 2] = encodeVelocity(0); // Velocity Y
-      this.worldData[stride + 3] = 255; // Data (fully opaque)
+      worldData[stride] = ParticleType.EMPTY;  // Type
+      worldData[stride + 1] = encodeVelocity(0); // Velocity X
+      worldData[stride + 2] = encodeVelocity(0); // Velocity Y
+      worldData[stride + 3] = 255; // Data (fully opaque)
     }
 
     if (options?.grid) {
@@ -59,70 +57,70 @@ export class WorldGeneration {
       for (let y = 0; y < height; y += 16) {
         for (let x = 0; x < width; x += 16) {
           const index = (y * width + x) * 4;
-          this.worldData[index] = ParticleType.SAND;
+          worldData[index] = ParticleType.SAND;
         }
       }
       // draw axis lines
       for (let x = 0; x < width; x++) {
         const midY = Math.floor(height / 2);
         const index = (midY * width + x) * 4;
-        this.worldData[index] = ParticleType.STONE;
+        worldData[index] = ParticleType.STONE;
       }
       for (let y = 0; y < height; y++) {
         const midX = Math.floor(width / 2);
         const index = (y * width + midX) * 4;
-        this.worldData[index] = ParticleType.STONE;
+        worldData[index] = ParticleType.STONE;
       }
     }
     // Create DataTexture
-    const texture = new DataTexture(this.worldData, width, height, RGBAFormat, UnsignedByteType);
+    const texture = new DataTexture(worldData, width, height, RGBAFormat, UnsignedByteType);
     texture.needsUpdate = true;
 
     return texture;
   }
 
-  fromTexture(texture: DataTexture): void {
-    if (texture.image.width !== this.width || texture.image.height !== this.height) {
-      throw new Error('Texture size does not match world size');
-    }
-    this.worldData = new Uint8Array(texture.image.data || [] as Uint8Array);
-  }
   /**
-   * Set a particle at a specific position
+   * Set a particle at a specific position directly on a texture
+   * Modifies the texture data in-place and marks it for update
    */
-  setParticle(x: number, y: number, particle: Particle): void {
-    if (x < 0 || x >= this.width || y < 0 || y >= this.height) {
+  setParticleOnTexture(texture: DataTexture, x: number, y: number, particle: Particle): void {
+    const width = texture.image.width;
+    const height = texture.image.height;
+
+    if (x < 0 || x >= width || y < 0 || y >= height) {
       return; // Out of bounds
     }
 
-    const index = (y * this.width + x) * 4;
-    this.worldData[index] = particle.type;
-    this.worldData[index + 1] = encodeVelocity(particle.velocityX);
-    this.worldData[index + 2] = encodeVelocity(particle.velocityY);
-    this.worldData[index + 3] = particle.data ?? 255;
+    const data = texture.image.data as Uint8Array;
+    const index = (y * width + x) * 4;
+
+    data[index] = particle.type;
+    data[index + 1] = encodeVelocity(particle.velocityX);
+    data[index + 2] = encodeVelocity(particle.velocityY);
+    data[index + 3] = particle.data ?? 255;
+
+    texture.needsUpdate = true;
   }
 
   /**
-   * Get a particle at a specific position
+   * Get a particle at a specific position from a texture
    */
-  getParticle(x: number, y: number): Particle | null {
-    if (x < 0 || x >= this.width || y < 0 || y >= this.height) {
+  getParticleFromTexture(texture: DataTexture, x: number, y: number): Particle | null {
+    const width = texture.image.width;
+    const height = texture.image.height;
+
+    if (x < 0 || x >= width || y < 0 || y >= height) {
       return null; // Out of bounds
     }
 
-    const index = (y * this.width + x) * 4;
-    return {
-      type: this.worldData[index] as ParticleType,
-      velocityX: this.worldData[index + 1] - 128,
-      velocityY: this.worldData[index + 2] - 128,
-      data: this.worldData[index + 3],
-    };
-  }
+    const data = texture.image.data as Uint8Array;
+    const index = (y * width + x) * 4;
 
-  /**
-   * Get the raw world data for direct manipulation
-   */
-  getWorldData(): Uint8Array {
-    return this.worldData;
+    return {
+      type: data[index] as ParticleType,
+      velocityX: data[index + 1] - 128,
+      velocityY: data[index + 2] - 128,
+      data: data[index + 3],
+    };
   }
 }

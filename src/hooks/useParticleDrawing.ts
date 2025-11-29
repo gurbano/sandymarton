@@ -1,13 +1,15 @@
 import { useEffect, useCallback, useRef } from 'react';
 import { WorldGeneration } from '../world/WorldGeneration';
 import { ParticleType } from '../world/ParticleTypes';
+import type { DataTexture } from 'three';
 
 interface UseParticleDrawingProps {
   worldGen: WorldGeneration;
   selectedParticle: ParticleType;
   pixelSize: number;
   center: { x: number; y: number };
-  onDraw: () => void;
+  onDraw: (newTexture: DataTexture) => void;
+  worldTexture: DataTexture;
 }
 
 export function useParticleDrawing({
@@ -16,6 +18,7 @@ export function useParticleDrawing({
   pixelSize,
   center,
   onDraw,
+  worldTexture,
 }: UseParticleDrawingProps) {
   const isDrawingRef = useRef(false);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -74,16 +77,16 @@ export function useParticleDrawing({
     const worldPos = screenToWorld(screenX, screenY);
     if (!worldPos) return;
 
-    // Draw the particle
-    worldGen.setParticle(worldPos.x, worldPos.y, {
+    // Draw the particle directly on the texture
+    worldGen.setParticleOnTexture(worldTexture, worldPos.x, worldPos.y, {
       type: selectedParticle,
       velocityX: 0,
       velocityY: 0,
     });
 
-    // Trigger redraw
-    onDraw();
-  }, [worldGen, selectedParticle, screenToWorld, onDraw]);
+    // Trigger redraw (texture is already updated in-place)
+    onDraw(worldTexture);
+  }, [worldTexture, worldGen, selectedParticle, screenToWorld, onDraw]);
 
   useEffect(() => {
     // Store canvas element reference
