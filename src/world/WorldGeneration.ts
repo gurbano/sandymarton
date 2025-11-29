@@ -29,7 +29,7 @@ export class WorldGeneration {
    * Generate a new world texture
    * Initializes an empty world with all particles set to EMPTY
    */
-  getWorld(options?: WorldOptions): DataTexture {
+  initNewWorld(options?: WorldOptions): DataTexture {
     const width = options?.width ?? this.width;
     const height = options?.height ?? this.height;
 
@@ -54,7 +54,7 @@ export class WorldGeneration {
       this.worldData[stride + 3] = 255; // Data (fully opaque)
     }
 
-    if (options?.grid){
+    if (options?.grid) {
       // add stone particles in a grid pattern
       for (let y = 0; y < height; y += 16) {
         for (let x = 0; x < width; x += 16) {
@@ -81,6 +81,12 @@ export class WorldGeneration {
     return texture;
   }
 
+  fromTexture(texture: DataTexture): void {
+    if (texture.image.width !== this.width || texture.image.height !== this.height) {
+      throw new Error('Texture size does not match world size');
+    }
+    this.worldData = new Uint8Array(texture.image.data || [] as Uint8Array);
+  }
   /**
    * Set a particle at a specific position
    */

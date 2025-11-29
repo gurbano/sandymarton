@@ -37,12 +37,6 @@ export function useParticleDrawing({
     const uvX = canvasX / rect.width;
     const uvY = 1.0 - (canvasY / rect.height);
 
-    console.log('==== Screen to World Debug ====');
-    console.log('Screen coords:', { x: screenX, y: screenY });
-    console.log('Canvas rect:', { left: rect.left, top: rect.top, width: rect.width, height: rect.height });
-    console.log('Canvas-relative:', { x: canvasX, y: canvasY });
-    console.log('UV coords:', { x: uvX, y: uvY });
-
     // Check bounds
     if (uvX < 0 || uvX > 1 || uvY < 0 || uvY > 1) {
       return null;
@@ -53,38 +47,25 @@ export function useParticleDrawing({
     const pixelCoordX = uvX * rect.width;
     const pixelCoordY = uvY * rect.height;
 
-    console.log('Pixel coords:', { x: pixelCoordX, y: pixelCoordY });
-
     // vec2 particleCoord = floor(pixelCoord / uPixelSize);
     const particleCoordX = Math.floor(pixelCoordX / pixelSize);
     const particleCoordY = Math.floor(pixelCoordY / pixelSize);
 
-    console.log('Particle coords:', { x: particleCoordX, y: particleCoordY });
-
     // float particlesInView = uCanvasSize.x / uPixelSize;
     const particlesInView = rect.width / pixelSize;
-
-    console.log('Particles in view:', particlesInView);
 
     // vec2 viewCenter = vec2(particlesInView) / 2.0;
     const viewCenterX = particlesInView / 2.0;
     const viewCenterY = particlesInView / 2.0;
 
-    console.log('View center:', { x: viewCenterX, y: viewCenterY });
-
     // vec2 worldParticleCoord = particleCoord - viewCenter + uCenter;
     const worldParticleX = particleCoordX - viewCenterX + center.x;
     const worldParticleY = particleCoordY - viewCenterY + center.y;
-
-    console.log('World particle coords:', { x: worldParticleX, y: worldParticleY });
 
     // vec2 texUV = (worldParticleCoord + vec2(1024.0, 1024.0)) / uTextureSize;
     // We want the inverse: texture coordinates to world coordinates
     const worldX = Math.floor(worldParticleX + 1024);
     const worldY = Math.floor(worldParticleY + 1024);
-
-    console.log('Final world coords:', { x: worldX, y: worldY });
-    console.log('================================');
 
     return { x: worldX, y: worldY };
   }, [pixelSize, center]);

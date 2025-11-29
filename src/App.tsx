@@ -9,6 +9,7 @@ import { useTextureControls } from './hooks/useTextureControls';
 import { useParticleDrawing } from './hooks/useParticleDrawing';
 import { WorldGeneration } from './world/WorldGeneration';
 import { ParticleType } from './world/ParticleTypes';
+import SimulationRenderer from './components/SimulationRenderer';
 
 function Scene({ texture, pixelSize, center }: { texture: Texture; pixelSize: number; center: { x: number; y: number } }) {
   return <TextureRenderer texture={texture} pixelSize={pixelSize} center={center} />;
@@ -26,7 +27,7 @@ function App() {
   const worldGen = useMemo(() => new WorldGeneration(2048, 2048), []);
 
   // State for the world texture
-  const [worldTexture, setWorldTexture] = useState<Texture>(() => worldGen.getWorld());
+  const [worldTexture, setWorldTexture] = useState<Texture>(() => worldGen.initNewWorld({ grid: true }));
 
   // State for selected particle type
   const [selectedParticle, setSelectedParticle] = useState<ParticleType>(ParticleType.SAND);
@@ -51,7 +52,7 @@ function App() {
 
   // Reset world handler
   const handleResetWorld = useCallback(() => {
-    const newTexture = worldGen.getWorld({ grid: true });
+    const newTexture = worldGen.initNewWorld({ grid: true });
     setWorldTexture(newTexture);
     setCenter({ x: 0, y: 0 });
   }, [worldGen]);
@@ -66,6 +67,14 @@ function App() {
         gl={{ preserveDrawingBuffer: true }}
         style={{ cursor: isDragging ? 'grabbing' : 'grab', height: '1024px', width: '1024px' }}
       >
+        {/* <SimulationRenderer
+          initialState={initialState}
+          textureSize={2048}
+          onTextureUpdate={(newTexture) => {
+            setWorldTexture(newTexture);
+          }}
+          enabled={true}
+        /> */}
         <Scene texture={worldTexture} pixelSize={pixelSize} center={center} />
       </Canvas>
 

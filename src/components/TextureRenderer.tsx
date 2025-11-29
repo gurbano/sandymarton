@@ -15,7 +15,6 @@ function TextureRenderer({ texture, pixelSize = 16, center = { x: 0, y: 0 } }: T
   const [canvasSize, setCanvasSize] = useState([size.width, size.height]);
   useEffect(() => {
     setCanvasSize([size.width, size.height]);
-    console.log('Shader canvasSize:', [size.width, size.height]);
   }, [size.width, size.height]);
 
   const shaderMaterial = useMemo(
@@ -30,9 +29,20 @@ function TextureRenderer({ texture, pixelSize = 16, center = { x: 0, y: 0 } }: T
         },
         vertexShader,
         fragmentShader,
+        transparent: true,
       }),
-    [texture, pixelSize, center, canvasSize]
+    []
   );
+
+  // Update uniforms when props change
+  useEffect(() => {
+    console.error('Updating texture renderer uniforms', texture.source.data);
+    shaderMaterial.uniforms.uTexture.value = texture;
+    shaderMaterial.uniforms.uCanvasSize.value = canvasSize;
+    shaderMaterial.uniforms.uPixelSize.value = pixelSize;
+    shaderMaterial.uniforms.uCenter.value = [center.x, center.y];
+    shaderMaterial.needsUpdate = true;
+  }, [shaderMaterial, texture, canvasSize, pixelSize, center]);
 
   return (
     <mesh ref={meshRef}>
