@@ -14,7 +14,7 @@ interface TextureControls {
 
 export function useTextureControls({
   canvasSize,
-  initialPixelSize = 16,
+  initialPixelSize = .3,
 }: UseTextureControlsProps): TextureControls {
   const [pixelSize, setPixelSize] = useState(initialPixelSize);
   const [center, setCenter] = useState({ x: 0, y: 0 });

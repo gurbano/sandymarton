@@ -27,7 +27,13 @@ function App() {
   const worldGen = useMemo(() => new WorldGeneration(2048, 2048), []);
 
   // State for the world texture
-  const [worldTexture, setWorldTexture] = useState<DataTexture>(() => worldGen.initNewWorld({ grid: true }));
+  const [worldTexture, setWorldTexture] = useState<DataTexture>(() => worldGen.initNewWorld({ grid: true, randomParticles: true }));
+
+  // Reset counter to force remount of simulation
+  const [resetCount, setResetCount] = useState(0);
+
+  // State to control simulation
+  const [simulationEnabled, setSimulationEnabled] = useState(true);
 
   // State for selected particle type
   const [selectedParticle, setSelectedParticle] = useState<ParticleType>(ParticleType.SAND);
@@ -50,12 +56,15 @@ function App() {
 
   // Reset world handler
   const handleResetWorld = useCallback(() => {
-    // Create a completely new WorldGeneration instance to ensure clean slate
-    const newWorldGen = new WorldGeneration(2048, 2048);
-    const newTexture = newWorldGen.initNewWorld({ grid: true });
+    // Pause the simulation first
+    setSimulationEnabled(false);
+    // Create new texture
+    const newTexture = worldGen.initNewWorld({ grid: true, randomParticles: true });
     setWorldTexture(newTexture);
     setCenter({ x: 0, y: 0 });
-  }, [setCenter]);
+    setResetCount(prev => prev + 1);
+    setSimulationEnabled(true);
+  }, [worldGen, setCenter]);
 
   return (
     <div className="app-container">
@@ -73,7 +82,7 @@ function App() {
           onTextureUpdate={(newTexture) => {
             setWorldTexture(newTexture);
           }}
-          enabled={true}
+          enabled={simulationEnabled}
         />
         <Scene texture={worldTexture} pixelSize={pixelSize} center={center} />
       </Canvas>

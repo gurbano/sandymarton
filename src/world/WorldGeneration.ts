@@ -5,6 +5,7 @@ export interface WorldOptions {
   width?: number;
   height?: number;
   grid?: boolean;
+  randomParticles?: boolean;
 }
 
 export interface Particle {
@@ -52,15 +53,51 @@ export class WorldGeneration {
       worldData[stride + 3] = 255; // Data (fully opaque)
     }
 
+    if (options?.randomParticles) {
+      // Add 2 million random particles
+      const particleCount = 4_000_000;
+      const availableTypes = [
+        ParticleType.SAND,
+      ];
+
+      for (let i = 0; i < particleCount; i++) {
+        const x = Math.floor(Math.random() * width);
+        const y = Math.floor(Math.random() * height);
+        const index = (y * width + x) * 4;
+
+        // Pick a random particle type
+        const randomType = availableTypes[Math.floor(Math.random() * availableTypes.length)];
+        worldData[index] = randomType;
+      }
+    }
+
     if (options?.grid) {
-      // add stone particles in a grid pattern
+      // Draw stone boundaries
+      for (let x = 0; x < width; x++) {
+        // Top boundary
+        const topIndex = (0 * width + x) * 4;
+        worldData[topIndex] = ParticleType.STONE;
+        // Bottom boundary
+        const bottomIndex = ((height - 1) * width + x) * 4;
+        worldData[bottomIndex] = ParticleType.STONE;
+      }
+      for (let y = 0; y < height; y++) {
+        // Left boundary
+        const leftIndex = (y * width + 0) * 4;
+        worldData[leftIndex] = ParticleType.STONE;
+        // Right boundary
+        const rightIndex = (y * width + (width - 1)) * 4;
+        worldData[rightIndex] = ParticleType.STONE;
+      }
+
+      // Add stone particles in a grid pattern
       for (let y = 0; y < height; y += 16) {
         for (let x = 0; x < width; x += 16) {
           const index = (y * width + x) * 4;
           worldData[index] = ParticleType.SAND;
         }
       }
-      // draw axis lines
+      // Draw axis lines
       for (let x = 0; x < width; x++) {
         const midY = Math.floor(height / 2);
         const index = (midY * width + x) * 4;

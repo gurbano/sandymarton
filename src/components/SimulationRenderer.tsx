@@ -21,6 +21,8 @@ interface SimulationRendererProps {
   textureSize: number;
   onTextureUpdate: (texture: DataTexture) => void;
   enabled?: boolean;
+
+  resetCount?: number;
 }
 
 const generateRenderTarget = (size: number) =>
@@ -65,7 +67,7 @@ const createSimulationResources = (size: number, initialTexture: Texture): Simul
  * It reads the worldTexture (which may have been modified by particle drawing),
  * runs the simulation shader, and outputs a new texture each frame
  */
-function SimulationRenderer({ worldTexture, textureSize, onTextureUpdate, enabled = false }: SimulationRendererProps) {
+function SimulationRenderer({ resetCount, worldTexture, textureSize, onTextureUpdate, enabled = false }: SimulationRendererProps) {
   const { gl } = useThree();
 
   // Single render target for output
@@ -83,7 +85,7 @@ function SimulationRenderer({ worldTexture, textureSize, onTextureUpdate, enable
       resources.geometry.dispose();
       resources.material.dispose();
     };
-  }, [textureSize, worldTexture]);
+  }, [textureSize, worldTexture, resetCount]);
 
   // Initialize render target once
   useEffect(() => {
@@ -116,7 +118,7 @@ function SimulationRenderer({ worldTexture, textureSize, onTextureUpdate, enable
     }
 
     // Run multiple iterations per frame for faster settling
-    const ITERATIONS_PER_FRAME = 4;
+    const ITERATIONS_PER_FRAME = 2;
 
     // Start with the current world texture
     simScene.material.uniforms.uCurrentState.value = worldTexture;
