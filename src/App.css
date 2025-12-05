@@ -232,6 +232,80 @@
   pointer-events: none;
 }
 
+/* Simulation Controls */
+.simulation-controls {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-left: auto;
+}
+
+.control-label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  color: #fff;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.mode-select {
+  background: rgba(68, 68, 68, 0.8);
+  color: #fff;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  padding: 0.4rem 0.6rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  pointer-events: auto;
+  margin-top: 0.25rem;
+}
+
+.mode-select:hover {
+  border-color: rgba(255, 255, 255, 0.4);
+}
+
+.probability-slider {
+  width: 150px;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+  margin-top: 0.25rem;
+  pointer-events: auto;
+}
+
+.probability-slider::-webkit-slider-thumb {
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  background: #535bf2;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.probability-slider::-webkit-slider-thumb:hover {
+  background: #6c75f5;
+  transform: scale(1.2);
+}
+
+.probability-slider::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  background: #535bf2;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.probability-slider::-moz-range-thumb:hover {
+  background: #6c75f5;
+  transform: scale(1.2);
+}
+
 /* Status bar - overlay at bottom */
 .status-bar {
   position: absolute;

@@ -6,6 +6,7 @@ export interface WorldOptions {
   height?: number;
   grid?: boolean;
   randomParticles?: boolean;
+  hourglass?: boolean;
 }
 
 export interface Particle {
@@ -71,7 +72,61 @@ export class WorldGeneration {
       }
     }
 
-    if (options?.grid) {
+    if (options?.hourglass) {
+      // Create hourglass shape
+      const centerX = Math.floor(width / 2);
+      const centerY = Math.floor(height / 2);
+      const hourglassWidth = Math.floor(width * 0.3);
+      const hourglassHeight = Math.floor(height * 0.8);
+      const halfWidth = Math.floor(hourglassWidth / 2);
+      const halfHeight = Math.floor(hourglassHeight / 2);
+      const neckWidth = Math.floor(hourglassWidth / 8);
+
+      // Draw the hourglass outline
+      for (let dy = -halfHeight; dy <= halfHeight; dy++) {
+        const y = centerY + dy;
+        if (y < 0 || y >= height) continue;
+
+        // Calculate width at this height
+        const normalizedY = Math.abs(dy) / halfHeight;
+        const currentWidth = neckWidth + (halfWidth - neckWidth) * normalizedY;
+
+        // Draw left and right walls (2 pixels thick)
+        const leftX = Math.floor(centerX - currentWidth);
+        const rightX = Math.floor(centerX + currentWidth);
+
+        for (let thickness = 0; thickness < 2; thickness++) {
+          if (leftX - thickness >= 0 && leftX - thickness < width) {
+            const index = (y * width + (leftX - thickness)) * 4;
+            worldData[index] = ParticleType.STONE;
+          }
+          if (rightX + thickness >= 0 && rightX + thickness < width) {
+            const index = (y * width + (rightX + thickness)) * 4;
+            worldData[index] = ParticleType.STONE;
+          }
+        }
+      }
+
+      // Add sand in the top chamber of the hourglass
+      const topChamberY = centerY - Math.floor(halfHeight * 0.6);
+      const topChamberHeight = Math.floor(halfHeight * 0.5);
+
+      for (let dy = 0; dy < topChamberHeight; dy++) {
+        const y = topChamberY + dy;
+        if (y < 0 || y >= height) continue;
+
+        const normalizedY = Math.abs((topChamberY + dy - centerY)) / halfHeight;
+        const currentWidth = neckWidth + (halfWidth - neckWidth) * normalizedY;
+
+        for (let dx = -Math.floor(currentWidth) + 3; dx <= Math.floor(currentWidth) - 3; dx++) {
+          const x = centerX + dx;
+          if (x >= 0 && x < width) {
+            const index = (y * width + x) * 4;
+            worldData[index] = ParticleType.SAND;
+          }
+        }
+      }
+    } else if (options?.grid) {
       // Draw stone boundaries
       for (let x = 0; x < width; x++) {
         // Top boundary

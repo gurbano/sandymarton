@@ -23,6 +23,10 @@ interface SideControlsProps {
   selectedParticle: ParticleType;
   onParticleSelect: (particle: ParticleType) => void;
   onResetWorld: () => void;
+  simulationMode?: 'gpu' | 'margolus';
+  onSimulationModeChange?: (mode: 'gpu' | 'margolus') => void;
+  toppleProbability?: number;
+  onToppleProbabilityChange?: (prob: number) => void;
 }
 
 const particleIcons: Record<string, any> = {
@@ -45,6 +49,10 @@ export function SideControls({
   selectedParticle,
   onParticleSelect,
   onResetWorld,
+  simulationMode = 'margolus',
+  onSimulationModeChange,
+  toppleProbability = 0.75,
+  onToppleProbabilityChange,
 }: SideControlsProps) {
   const [toolMode, setToolMode] = useState<ToolMode>('add');
   const [showDropdown, setShowDropdown] = useState(false);
@@ -191,6 +199,38 @@ export function SideControls({
       <div className="current-selection">
         <FontAwesomeIcon icon={particleIcons[selectedParticleName] || faCubes} />
         <span>{selectedParticleName}</span>
+      </div>
+
+      <div className="divider"></div>
+
+      {/* Simulation Mode Controls */}
+      <div className="simulation-controls">
+        <label className="control-label">
+          Mode:
+          <select
+            value={simulationMode}
+            onChange={(e) => onSimulationModeChange?.(e.target.value as 'gpu' | 'margolus')}
+            className="mode-select"
+          >
+            <option value="margolus">Margolus CA</option>
+            <option value="gpu">GPU Physics</option>
+          </select>
+        </label>
+
+        {simulationMode === 'margolus' && (
+          <label className="control-label">
+            Friction (p={toppleProbability.toFixed(2)}):
+            <input
+              type="range"
+              min="0"
+              max="1"
+              step="0.05"
+              value={toppleProbability}
+              onChange={(e) => onToppleProbabilityChange?.(parseFloat(e.target.value))}
+              className="probability-slider"
+            />
+          </label>
+        )}
       </div>
     </div>
   );

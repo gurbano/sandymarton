@@ -4,6 +4,7 @@ import { DataTexture, Texture } from 'three';
 import './App.css';
 import TextureRenderer from './components/TextureRenderer';
 import SimulationRenderer from './components/SimulationRenderer';
+import MargolusSimulation from './components/MargolusSimulation';
 import { SideControls } from './components/SideControls';
 import { StatusBar } from './components/StatusBar';
 import { useTextureControls } from './hooks/useTextureControls';
@@ -27,7 +28,7 @@ function App() {
   const worldGen = useMemo(() => new WorldGeneration(2048, 2048), []);
 
   // State for the world texture
-  const [worldTexture, setWorldTexture] = useState<DataTexture>(() => worldGen.initNewWorld({ grid: true, randomParticles: true }));
+  const [worldTexture, setWorldTexture] = useState<DataTexture>(() => worldGen.initNewWorld({ hourglass: true }));
 
   // Reset counter to force remount of simulation
   const [resetCount, setResetCount] = useState(0);
@@ -37,6 +38,12 @@ function App() {
 
   // State for selected particle type
   const [selectedParticle, setSelectedParticle] = useState<ParticleType>(ParticleType.SAND);
+
+  // Simulation mode: 'gpu' or 'margolus'
+  const [simulationMode, setSimulationMode] = useState<'gpu' | 'margolus'>('margolus');
+
+  // Topple probability for Margolus CA (friction parameter)
+  const [toppleProbability, setToppleProbability] = useState(0.75);
 
   // Handle drawing particles and updating texture
   const handleDraw = useCallback((texture: DataTexture) => {
@@ -59,7 +66,7 @@ function App() {
     // Pause the simulation first
     setSimulationEnabled(false);
     // Create new texture
-    const newTexture = worldGen.initNewWorld({ grid: true, randomParticles: true });
+    const newTexture = worldGen.initNewWorld({ hourglass: true });
     setWorldTexture(newTexture);
     setCenter({ x: 0, y: 0 });
     setResetCount(prev => prev + 1);
@@ -76,14 +83,28 @@ function App() {
         gl={{ preserveDrawingBuffer: true }}
         style={{ cursor: isDragging ? 'grabbing' : 'grab', height: '1024px', width: '1024px' }}
       >
-        <SimulationRenderer
-          worldTexture={worldTexture}
-          textureSize={2048}
-          onTextureUpdate={(newTexture) => {
-            setWorldTexture(newTexture);
-          }}
-          enabled={simulationEnabled}
-        />
+        {simulationMode === 'gpu' ? (
+          <SimulationRenderer
+            worldTexture={worldTexture}
+            textureSize={2048}
+            onTextureUpdate={(newTexture) => {
+              setWorldTexture(newTexture);
+            }}
+            enabled={simulationEnabled}
+            resetCount={resetCount}
+          />
+        ) : (
+          <MargolusSimulation
+            worldTexture={worldTexture}
+            textureSize={2048}
+            onTextureUpdate={(newTexture) => {
+              setWorldTexture(newTexture);
+            }}
+            enabled={simulationEnabled}
+            toppleProbability={toppleProbability}
+            resetCount={resetCount}
+          />
+        )}
         <Scene texture={worldTexture} pixelSize={pixelSize} center={center} />
       </Canvas>
 
@@ -93,6 +114,10 @@ function App() {
         selectedParticle={selectedParticle}
         onParticleSelect={setSelectedParticle}
         onResetWorld={handleResetWorld}
+        simulationMode={simulationMode}
+        onSimulationModeChange={setSimulationMode}
+        toppleProbability={toppleProbability}
+        onToppleProbabilityChange={setToppleProbability}
       />
 
       {/* Overlay Status Bar */}
