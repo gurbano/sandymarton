@@ -44,45 +44,6 @@ export type MaterialAttributes = {
   friction: number; // For Margolus CA topple probability (0.0 - 1.0)
 }
 
-const BaseEmptyAttributes: MaterialAttributes = {
-  density: 0,
-  viscosity: 0,
-  meltingPoint: 0,
-  boilingPoint: 0,
-  color: [0, 0, 0, 0],
-  hardness: 0,
-  friction: 0,
-};
-
-const BaseSolidAttributes: MaterialAttributes = {
-  density: 2000,
-  viscosity: 0,
-  meltingPoint: 1500,
-  boilingPoint: 3000,
-  color: [128, 128, 128, 255],
-  hardness: 8,
-  friction: 0.75, // Default friction for solids
-};
-
-const BaseLiquidAttributes: MaterialAttributes = {
-  density: 1000,
-  viscosity: 100,
-  meltingPoint: 0,
-  boilingPoint: 100,
-  color: [64, 164, 223, 180],
-  hardness: 2,
-  friction: 0.1, // Low friction for liquids
-};
-
-const BaseGasAttributes: MaterialAttributes = {
-  density: 1,
-  viscosity: 10,
-  meltingPoint: -100,
-  boilingPoint: -50,
-  color: [200, 200, 255, 100],
-  hardness: 0,
-  friction: 0.05, // Very low friction for gases
-};
 /**
  * Particle colors for rendering
  * Maps particle types to RGBA colors (Red, Green, Blue, Alpha)

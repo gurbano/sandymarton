@@ -1,37 +1,73 @@
 /**
  * Material definitions for all particle types
- * Maps each particle type to its specific attributes
+ * Uses base attributes with overrides for specific materials
  */
 
 import { ParticleType } from './ParticleTypes';
 import type { MaterialAttributes } from './ParticleTypes';
+import { ParticleTypeRanges } from './ParticleTypeConstants';
 
-export const MaterialDefinitions: Record<ParticleType, MaterialAttributes> = {
-  [ParticleType.EMPTY]: {
-    density: 0,
-    viscosity: 0,
-    meltingPoint: 0,
-    boilingPoint: 0,
-    color: [0, 0, 0, 0],
-    hardness: 0,
-    friction: 0,
-  },
+// Base material attributes for each category
+const BaseEmptyAttributes: MaterialAttributes = {
+  density: 0,
+  viscosity: 0,
+  meltingPoint: 0,
+  boilingPoint: 0,
+  color: [0, 0, 0, 0],
+  hardness: 0,
+  friction: 0,
+};
+
+const BaseStaticAttributes: MaterialAttributes = {
+  density: 2500,
+  viscosity: 0,
+  meltingPoint: 1500,
+  boilingPoint: 3000,
+  color: [128, 128, 128, 255],
+  hardness: 9,
+  friction: 1.0, // Static particles don't move
+};
+
+const BaseSolidAttributes: MaterialAttributes = {
+  density: 2000,
+  viscosity: 0,
+  meltingPoint: 1500,
+  boilingPoint: 3000,
+  color: [128, 128, 128, 255],
+  hardness: 8,
+  friction: 0.75, // Default friction for solids
+};
+
+const BaseLiquidAttributes: MaterialAttributes = {
+  density: 1000,
+  viscosity: 100,
+  meltingPoint: 0,
+  boilingPoint: 100,
+  color: [64, 164, 223, 180],
+  hardness: 2,
+  friction: 0.1, // Low friction for liquids
+};
+
+const BaseGasAttributes: MaterialAttributes = {
+  density: 1,
+  viscosity: 10,
+  meltingPoint: -273,
+  boilingPoint: -273,
+  color: [200, 200, 255, 100],
+  hardness: 0,
+  friction: 0.05, // Very low friction for gases
+};
+
+export const MaterialDefinitions: Partial<Record<ParticleType, MaterialAttributes>> = {
+  [ParticleType.EMPTY]: BaseEmptyAttributes,
 
   // Static particles
-  [ParticleType.STONE]: {
-    density: 2500,
-    viscosity: 0,
-    meltingPoint: 1500,
-    boilingPoint: 3000,
-    color: [128, 128, 128, 255],
-    hardness: 9,
-    friction: 1.0, // Static, doesn't move
-  },
+  [ParticleType.STONE]: BaseStaticAttributes,
 
   // Solid movable particles
   [ParticleType.SAND]: {
+    ...BaseSolidAttributes,
     density: 1600,
-    viscosity: 0,
     meltingPoint: 1700,
     boilingPoint: 2230,
     color: [255, 200, 100, 255],
@@ -40,8 +76,8 @@ export const MaterialDefinitions: Record<ParticleType, MaterialAttributes> = {
   },
 
   [ParticleType.DIRT]: {
+    ...BaseSolidAttributes,
     density: 1200,
-    viscosity: 0,
     meltingPoint: 800,
     boilingPoint: 1500,
     color: [139, 90, 43, 255],
@@ -50,8 +86,8 @@ export const MaterialDefinitions: Record<ParticleType, MaterialAttributes> = {
   },
 
   [ParticleType.GRAVEL]: {
+    ...BaseSolidAttributes,
     density: 1800,
-    viscosity: 0,
     meltingPoint: 1400,
     boilingPoint: 2500,
     color: [100, 100, 100, 255],
@@ -61,16 +97,15 @@ export const MaterialDefinitions: Record<ParticleType, MaterialAttributes> = {
 
   // Liquid particles
   [ParticleType.WATER]: {
-    density: 1000,
+    ...BaseLiquidAttributes,
     viscosity: 10,
-    meltingPoint: 0,
-    boilingPoint: 100,
     color: [0, 0, 223, 180],
     hardness: 1,
     friction: 0.05, // Very low friction - flows easily
   },
 
   [ParticleType.LAVA]: {
+    ...BaseLiquidAttributes,
     density: 3100,
     viscosity: 1000,
     meltingPoint: -273,
@@ -81,6 +116,7 @@ export const MaterialDefinitions: Record<ParticleType, MaterialAttributes> = {
   },
 
   [ParticleType.SLIME]: {
+    ...BaseLiquidAttributes,
     density: 1100,
     viscosity: 500,
     meltingPoint: -50,
@@ -91,6 +127,7 @@ export const MaterialDefinitions: Record<ParticleType, MaterialAttributes> = {
   },
 
   [ParticleType.ACID]: {
+    ...BaseLiquidAttributes,
     density: 1200,
     viscosity: 15,
     meltingPoint: -20,
@@ -102,39 +139,52 @@ export const MaterialDefinitions: Record<ParticleType, MaterialAttributes> = {
 
   // Gas particles
   [ParticleType.STEAM]: {
+    ...BaseGasAttributes,
     density: 0.6,
     viscosity: 1,
-    meltingPoint: -273,
-    boilingPoint: -273,
     color: [200, 200, 255, 100],
-    hardness: 0,
     friction: 0.02, // Extremely low friction
   },
 
   [ParticleType.SMOKE]: {
+    ...BaseGasAttributes,
     density: 1.2,
     viscosity: 5,
-    meltingPoint: -273,
-    boilingPoint: -273,
     color: [80, 80, 80, 150],
-    hardness: 0,
     friction: 0.05, // Very low friction
   },
 
   [ParticleType.AIR]: {
+    ...BaseGasAttributes,
     density: 1.3,
     viscosity: 2,
-    meltingPoint: -273,
-    boilingPoint: -273,
     color: [200, 220, 255, 50],
-    hardness: 0,
     friction: 0.01, // Lowest friction
   },
 };
 
 /**
+ * Get default base attributes for a particle type based on its category
+ */
+function getDefaultBaseAttributes(particleType: number): MaterialAttributes {
+  if (particleType >= ParticleTypeRanges.EMPTY_MIN && particleType <= ParticleTypeRanges.EMPTY_MAX) {
+    return BaseEmptyAttributes;
+  } else if (particleType >= ParticleTypeRanges.STATIC_MIN && particleType <= ParticleTypeRanges.STATIC_MAX) {
+    return BaseStaticAttributes;
+  } else if (particleType >= ParticleTypeRanges.SOLID_MIN && particleType <= ParticleTypeRanges.SOLID_MAX) {
+    return BaseSolidAttributes;
+  } else if (particleType >= ParticleTypeRanges.LIQUID_MIN && particleType <= ParticleTypeRanges.LIQUID_MAX) {
+    return BaseLiquidAttributes;
+  } else if (particleType >= ParticleTypeRanges.GAS_MIN && particleType <= ParticleTypeRanges.GAS_MAX) {
+    return BaseGasAttributes;
+  }
+  return BaseEmptyAttributes;
+}
+
+/**
  * Generate shader constants for material attributes
  * Creates GLSL arrays that can be indexed by particle type
+ * Falls back to base attributes if a material is not defined
  */
 export function generateMaterialShaderConstants(): string {
   // Create arrays for each attribute
@@ -144,13 +194,10 @@ export function generateMaterialShaderConstants(): string {
   // Fill arrays with material properties (indexed by particle type)
   for (let i = 0; i < 256; i++) {
     const material = MaterialDefinitions[i as ParticleType];
-    if (material) {
-      frictions[i] = material.friction;
-      densities[i] = material.density;
-    } else {
-      frictions[i] = 0.0;
-      densities[i] = 0.0;
-    }
+    const defaultMaterial = getDefaultBaseAttributes(i);
+
+    frictions[i] = material?.friction ?? defaultMaterial.friction;
+    densities[i] = material?.density ?? defaultMaterial.density;
   }
 
   return `
@@ -170,7 +217,7 @@ float getMaterialFriction(float particleType) {
   if (index >= 0 && index < 256) {
     return MATERIAL_FRICTIONS[index];
   }
-  return 0.75; // Default
+  return 0.75; // Default solid friction
 }
 
 // Helper to get material density
@@ -179,7 +226,7 @@ float getMaterialDensity(float particleType) {
   if (index >= 0 && index < 256) {
     return MATERIAL_DENSITIES[index];
   }
-  return 1000.0; // Default
+  return 1000.0; // Default density
 }
 `;
 }
