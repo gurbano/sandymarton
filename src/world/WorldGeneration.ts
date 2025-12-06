@@ -1,12 +1,20 @@
 import { DataTexture, RGBAFormat, UnsignedByteType } from 'three';
 import { ParticleType, encodeVelocity } from './ParticleTypes';
 
+export const WorldInitType = {
+  EMPTY: 'empty',
+  AXIS: 'axis',
+  HOURGLASS: 'hourglass',
+  PLATFORMS: 'platforms',
+} as const;
+
+export type WorldInitType = typeof WorldInitType[keyof typeof WorldInitType];
+
 export interface WorldOptions {
   width?: number;
   height?: number;
-  grid?: boolean;
+  initType?: WorldInitType;
   randomParticles?: boolean;
-  hourglass?: boolean;
 }
 
 export interface Particle {
@@ -54,6 +62,36 @@ export class WorldGeneration {
       worldData[stride + 3] = 255; // Data (fully opaque)
     }
 
+    // Draw 5-pixel boundaries for all init types except EMPTY
+    const initType = options?.initType ?? WorldInitType.EMPTY;
+    if (initType !== WorldInitType.EMPTY) {
+      const boundaryThickness = 5;
+
+      // Top and bottom boundaries
+      for (let thickness = 0; thickness < boundaryThickness; thickness++) {
+        for (let x = 0; x < width; x++) {
+          // Top boundary
+          const topIndex = (thickness * width + x) * 4;
+          worldData[topIndex] = ParticleType.STONE;
+          // Bottom boundary
+          const bottomIndex = ((height - 1 - thickness) * width + x) * 4;
+          worldData[bottomIndex] = ParticleType.STONE;
+        }
+      }
+
+      // Left and right boundaries
+      for (let thickness = 0; thickness < boundaryThickness; thickness++) {
+        for (let y = 0; y < height; y++) {
+          // Left boundary
+          const leftIndex = (y * width + thickness) * 4;
+          worldData[leftIndex] = ParticleType.STONE;
+          // Right boundary
+          const rightIndex = (y * width + (width - 1 - thickness)) * 4;
+          worldData[rightIndex] = ParticleType.STONE;
+        }
+      }
+    }
+
     if (options?.randomParticles) {
       // Add 2 million random particles
       const particleCount = 4_000_000;
@@ -72,7 +110,7 @@ export class WorldGeneration {
       }
     }
 
-    if (options?.hourglass) {
+    if (initType === WorldInitType.HOURGLASS) {
       // Create hourglass shape
       const centerX = Math.floor(width / 2);
       const centerY = Math.floor(height / 2);
@@ -126,42 +164,51 @@ export class WorldGeneration {
           }
         }
       }
-    } else if (options?.grid) {
-      // Draw stone boundaries
-      for (let x = 0; x < width; x++) {
-        // Top boundary
-        const topIndex = (0 * width + x) * 4;
-        worldData[topIndex] = ParticleType.STONE;
-        // Bottom boundary
-        const bottomIndex = ((height - 1) * width + x) * 4;
-        worldData[bottomIndex] = ParticleType.STONE;
-      }
-      for (let y = 0; y < height; y++) {
-        // Left boundary
-        const leftIndex = (y * width + 0) * 4;
-        worldData[leftIndex] = ParticleType.STONE;
-        // Right boundary
-        const rightIndex = (y * width + (width - 1)) * 4;
-        worldData[rightIndex] = ParticleType.STONE;
-      }
+    } else if (initType === WorldInitType.AXIS) {
+      // Draw horizontal and vertical axis lines through the center
+      const midX = Math.floor(width / 2);
+      const midY = Math.floor(height / 2);
 
-      // Add stone particles in a grid pattern
-      for (let y = 0; y < height; y += 16) {
-        for (let x = 0; x < width; x += 16) {
-          const index = (y * width + x) * 4;
-          worldData[index] = ParticleType.SAND;
-        }
-      }
-      // Draw axis lines
+      // Horizontal axis
       for (let x = 0; x < width; x++) {
-        const midY = Math.floor(height / 2);
         const index = (midY * width + x) * 4;
         worldData[index] = ParticleType.STONE;
       }
+
+      // Vertical axis
       for (let y = 0; y < height; y++) {
-        const midX = Math.floor(width / 2);
         const index = (y * width + midX) * 4;
         worldData[index] = ParticleType.STONE;
+      }
+    } else if (initType === WorldInitType.PLATFORMS) {
+      // Create random horizontal platforms
+      const platformCount = 5 + Math.floor(Math.random() * 5); // 5-10 platforms
+      const boundaryThickness = 5;
+
+      for (let i = 0; i < platformCount; i++) {
+        // Random Y position (avoiding boundaries)
+        const y = boundaryThickness + Math.floor(Math.random() * (height - 2 * boundaryThickness));
+
+        // Random X start and width
+        const minWidth = Math.floor(width * 0.1);
+        const maxWidth = Math.floor(width * 0.4);
+        const platformWidth = minWidth + Math.floor(Math.random() * (maxWidth - minWidth));
+
+        const maxStartX = width - boundaryThickness - platformWidth;
+        const startX = boundaryThickness + Math.floor(Math.random() * (maxStartX - boundaryThickness));
+
+        // Draw platform (2 pixels thick)
+        for (let thickness = 0; thickness < 2; thickness++) {
+          const platformY = y + thickness;
+          if (platformY >= height) continue;
+
+          for (let x = startX; x < startX + platformWidth; x++) {
+            if (x >= 0 && x < width) {
+              const index = (platformY * width + x) * 4;
+              worldData[index] = ParticleType.STONE;
+            }
+          }
+        }
       }
     }
     // Create DataTexture

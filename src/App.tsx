@@ -5,11 +5,13 @@ import './App.css';
 import TextureRenderer from './components/TextureRenderer';
 import SimulationRenderer from './components/SimulationRenderer';
 import MargolusSimulation from './components/MargolusSimulation';
+import MargolusGPUSimulation from './components/MargolusGPUSimulation';
+import HybridSimulation from './components/HybridSimulation';
 import { SideControls } from './components/SideControls';
 import { StatusBar } from './components/StatusBar';
 import { useTextureControls } from './hooks/useTextureControls';
 import { useParticleDrawing } from './hooks/useParticleDrawing';
-import { WorldGeneration } from './world/WorldGeneration';
+import { WorldGeneration, WorldInitType } from './world/WorldGeneration';
 import { ParticleType } from './world/ParticleTypes';
 
 function Scene({ texture, pixelSize, center }: { texture: Texture; pixelSize: number; center: { x: number; y: number } }) {
@@ -27,8 +29,11 @@ function App() {
   // World generation instance
   const worldGen = useMemo(() => new WorldGeneration(2048, 2048), []);
 
+  // World initialization type
+  const [worldInitType, setWorldInitType] = useState<WorldInitType>(WorldInitType.PLATFORMS);
+
   // State for the world texture
-  const [worldTexture, setWorldTexture] = useState<DataTexture>(() => worldGen.initNewWorld({ hourglass: true }));
+  const [worldTexture, setWorldTexture] = useState<DataTexture>(() => worldGen.initNewWorld({ initType: worldInitType }));
 
   // Reset counter to force remount of simulation
   const [resetCount, setResetCount] = useState(0);
@@ -39,8 +44,8 @@ function App() {
   // State for selected particle type
   const [selectedParticle, setSelectedParticle] = useState<ParticleType>(ParticleType.SAND);
 
-  // Simulation mode: 'gpu' or 'margolus'
-  const [simulationMode, setSimulationMode] = useState<'gpu' | 'margolus'>('margolus');
+  // Simulation mode: 'gpu', 'margolus', 'margolus-gpu', or 'hybrid'
+  const [simulationMode, setSimulationMode] = useState<'gpu' | 'margolus' | 'margolus-gpu' | 'hybrid'>('hybrid');
 
   // Topple probability for Margolus CA (friction parameter)
   const [toppleProbability, setToppleProbability] = useState(0.75);
@@ -65,13 +70,13 @@ function App() {
   const handleResetWorld = useCallback(() => {
     // Pause the simulation first
     setSimulationEnabled(false);
-    // Create new texture
-    const newTexture = worldGen.initNewWorld({ hourglass: true });
+    // Create new texture with current init type
+    const newTexture = worldGen.initNewWorld({ initType: worldInitType });
     setWorldTexture(newTexture);
     setCenter({ x: 0, y: 0 });
     setResetCount(prev => prev + 1);
     setSimulationEnabled(true);
-  }, [worldGen, setCenter]);
+  }, [worldGen, setCenter, worldInitType]);
 
   return (
     <div className="app-container">
@@ -91,6 +96,28 @@ function App() {
               setWorldTexture(newTexture);
             }}
             enabled={simulationEnabled}
+            resetCount={resetCount}
+          />
+        ) : simulationMode === 'margolus-gpu' ? (
+          <MargolusGPUSimulation
+            worldTexture={worldTexture}
+            textureSize={2048}
+            onTextureUpdate={(newTexture) => {
+              setWorldTexture(newTexture);
+            }}
+            enabled={simulationEnabled}
+            toppleProbability={toppleProbability}
+            resetCount={resetCount}
+          />
+        ) : simulationMode === 'hybrid' ? (
+          <HybridSimulation
+            worldTexture={worldTexture}
+            textureSize={2048}
+            onTextureUpdate={(newTexture) => {
+              setWorldTexture(newTexture);
+            }}
+            enabled={simulationEnabled}
+            toppleProbability={toppleProbability}
             resetCount={resetCount}
           />
         ) : (
@@ -118,6 +145,8 @@ function App() {
         onSimulationModeChange={setSimulationMode}
         toppleProbability={toppleProbability}
         onToppleProbabilityChange={setToppleProbability}
+        worldInitType={worldInitType}
+        onWorldInitTypeChange={setWorldInitType}
       />
 
       {/* Overlay Status Bar */}

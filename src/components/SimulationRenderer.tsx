@@ -110,6 +110,25 @@ function SimulationRenderer({ resetCount, worldTexture, textureSize, onTextureUp
     };
   }, [gl, pingRT, pongRT]);
 
+  // Clear render targets on reset
+  useEffect(() => {
+    // Clear the render targets by rendering the initial worldTexture to them
+    const simScene = simSceneRef.current;
+    if (!simScene) return;
+
+    simScene.material.uniforms.uCurrentState.value = worldTexture;
+    simScene.material.uniforms.uTextureSize.value.set(textureSize, textureSize);
+
+    // Render initial state to both targets
+    gl.setRenderTarget(pingRT);
+    gl.clear();
+    gl.setRenderTarget(null);
+
+    gl.setRenderTarget(pongRT);
+    gl.clear();
+    gl.setRenderTarget(null);
+  }, [resetCount, worldTexture, textureSize, gl, pingRT, pongRT]);
+
   // Run simulation each frame
   useFrame((_, delta) => {
     const simScene = simSceneRef.current;

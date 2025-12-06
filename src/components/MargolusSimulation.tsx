@@ -64,14 +64,27 @@ function MargolusSimulation({
         const particleType = data[index];
 
         // Map particle types to CA cell states
+        let cellState: CellState;
         if (particleType === ParticleType.EMPTY || particleType === ParticleType.AIR) {
-          ca.setCell(x, y, CellState.EMPTY);
+          cellState = CellState.EMPTY;
         } else if (particleType === ParticleType.STONE) {
-          ca.setCell(x, y, CellState.STATIC);
+          cellState = CellState.STATIC;
+        } else if (particleType === ParticleType.SAND) {
+          cellState = CellState.SAND;
+        } else if (particleType === ParticleType.DIRT) {
+          cellState = CellState.DIRT;
+        } else if (particleType === ParticleType.GRAVEL) {
+          cellState = CellState.GRAVEL;
+        } else if (particleType === ParticleType.WATER) {
+          cellState = CellState.WATER;
+        } else if (particleType === ParticleType.LAVA) {
+          cellState = CellState.LAVA;
         } else {
-          // Any other particle type becomes a CA particle
-          ca.setCell(x, y, CellState.PARTICLE);
+          // Default to sand for unknown types
+          cellState = CellState.SAND;
         }
+
+        ca.setCell(x, y, cellState);
       }
     }
   });
@@ -122,26 +135,37 @@ function MargolusSimulation({
         const cellState = grid[gridIndex];
 
         // Map CA cell states back to particle types
+        let particleType: ParticleType;
         switch (cellState) {
           case CellState.EMPTY:
-            data[texIndex] = ParticleType.EMPTY;
-            data[texIndex + 1] = 128; // Velocity X = 0
-            data[texIndex + 2] = 128; // Velocity Y = 0
-            data[texIndex + 3] = 255;
+            particleType = ParticleType.EMPTY;
             break;
-          case CellState.PARTICLE:
-            data[texIndex] = ParticleType.SAND;
-            data[texIndex + 1] = 128;
-            data[texIndex + 2] = 128;
-            data[texIndex + 3] = 255;
+          case CellState.SAND:
+            particleType = ParticleType.SAND;
+            break;
+          case CellState.DIRT:
+            particleType = ParticleType.DIRT;
+            break;
+          case CellState.GRAVEL:
+            particleType = ParticleType.GRAVEL;
+            break;
+          case CellState.WATER:
+            particleType = ParticleType.WATER;
+            break;
+          case CellState.LAVA:
+            particleType = ParticleType.LAVA;
             break;
           case CellState.STATIC:
-            data[texIndex] = ParticleType.STONE;
-            data[texIndex + 1] = 128;
-            data[texIndex + 2] = 128;
-            data[texIndex + 3] = 255;
+            particleType = ParticleType.STONE;
             break;
+          default:
+            particleType = ParticleType.SAND;
         }
+
+        data[texIndex] = particleType;
+        data[texIndex + 1] = 128; // Velocity X = 0
+        data[texIndex + 2] = 128; // Velocity Y = 0
+        data[texIndex + 3] = 255;
       }
     }
 

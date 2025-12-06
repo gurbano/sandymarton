@@ -79,12 +79,26 @@ export function useParticleDrawing({
     const worldPos = screenToWorld(screenX, screenY);
     if (!worldPos) return;
 
-    // Draw the particle directly on the texture
-    worldGen.setParticleOnTexture(worldTexture, worldPos.x, worldPos.y, {
-      type: selectedParticle,
-      velocityX: 0,
-      velocityY: 0,
-    });
+    // Draw particles in a small radius around the cursor
+    const brushRadius = 3; // Brush radius in pixels
+
+    for (let dy = -brushRadius; dy <= brushRadius; dy++) {
+      for (let dx = -brushRadius; dx <= brushRadius; dx++) {
+        // Use circular brush
+        const distSq = dx * dx + dy * dy;
+        if (distSq <= brushRadius * brushRadius) {
+          const drawX = worldPos.x + dx;
+          const drawY = worldPos.y + dy;
+
+          // Draw the particle directly on the texture
+          worldGen.setParticleOnTexture(worldTexture, drawX, drawY, {
+            type: selectedParticle,
+            velocityX: 0,
+            velocityY: 0,
+          });
+        }
+      }
+    }
 
     // Trigger redraw (texture is already updated in-place)
     onDraw(worldTexture);

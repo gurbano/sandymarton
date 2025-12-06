@@ -16,6 +16,7 @@ import {
   faChevronDown
 } from '@fortawesome/free-solid-svg-icons';
 import { ParticleType } from '../world/ParticleTypes';
+import { WorldInitType } from '../world/WorldGeneration';
 import { useState, useRef, useEffect } from 'react';
 
 interface SideControlsProps {
@@ -23,10 +24,12 @@ interface SideControlsProps {
   selectedParticle: ParticleType;
   onParticleSelect: (particle: ParticleType) => void;
   onResetWorld: () => void;
-  simulationMode?: 'gpu' | 'margolus';
-  onSimulationModeChange?: (mode: 'gpu' | 'margolus') => void;
+  simulationMode?: 'gpu' | 'margolus' | 'margolus-gpu' | 'hybrid';
+  onSimulationModeChange?: (mode: 'gpu' | 'margolus' | 'margolus-gpu' | 'hybrid') => void;
   toppleProbability?: number;
   onToppleProbabilityChange?: (prob: number) => void;
+  worldInitType?: WorldInitType;
+  onWorldInitTypeChange?: (initType: WorldInitType) => void;
 }
 
 const particleIcons: Record<string, any> = {
@@ -49,10 +52,12 @@ export function SideControls({
   selectedParticle,
   onParticleSelect,
   onResetWorld,
-  simulationMode = 'margolus',
+  simulationMode = 'margolus-gpu',
   onSimulationModeChange,
   toppleProbability = 0.75,
   onToppleProbabilityChange,
+  worldInitType = WorldInitType.HOURGLASS,
+  onWorldInitTypeChange,
 }: SideControlsProps) {
   const [toolMode, setToolMode] = useState<ToolMode>('add');
   const [showDropdown, setShowDropdown] = useState(false);
@@ -206,18 +211,34 @@ export function SideControls({
       {/* Simulation Mode Controls */}
       <div className="simulation-controls">
         <label className="control-label">
-          Mode:
+          World:
           <select
-            value={simulationMode}
-            onChange={(e) => onSimulationModeChange?.(e.target.value as 'gpu' | 'margolus')}
+            value={worldInitType}
+            onChange={(e) => onWorldInitTypeChange?.(e.target.value as WorldInitType)}
             className="mode-select"
           >
-            <option value="margolus">Margolus CA</option>
-            <option value="gpu">GPU Physics</option>
+            <option value={WorldInitType.HOURGLASS}>Hourglass</option>
+            <option value={WorldInitType.PLATFORMS}>Platforms</option>
+            <option value={WorldInitType.AXIS}>Axis</option>
+            <option value={WorldInitType.EMPTY}>Empty</option>
           </select>
         </label>
 
-        {simulationMode === 'margolus' && (
+        <label className="control-label">
+          Mode:
+          <select
+            value={simulationMode}
+            onChange={(e) => onSimulationModeChange?.(e.target.value as 'gpu' | 'margolus' | 'margolus-gpu' | 'hybrid')}
+            className="mode-select"
+          >
+            <option value="margolus-gpu">Margolus CA (GPU)</option>
+            <option value="margolus">Margolus CA (CPU)</option>
+            <option value="gpu">GPU Physics</option>
+            <option value="hybrid">Hybrid (GPU + Margolus)</option>
+          </select>
+        </label>
+
+        {(simulationMode === 'margolus' || simulationMode === 'margolus-gpu' || simulationMode === 'hybrid') && (
           <label className="control-label">
             Friction (p={toppleProbability.toFixed(2)}):
             <input

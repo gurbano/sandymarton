@@ -14,10 +14,28 @@ export interface MargolusConfig {
   toppleProbability: number;
 }
 
-export enum CellState {
-  EMPTY = 0,
-  PARTICLE = 1,
-  STATIC = 2, // Immovable boundary (stone/walls)
+export const CellState = {
+  EMPTY: 0,
+  SAND: 1,
+  DIRT: 2,
+  GRAVEL: 3,
+  WATER: 4,
+  LAVA: 5,
+  STATIC: 100, // Immovable boundary (stone/walls)
+} as const;
+
+export type CellState = typeof CellState[keyof typeof CellState];
+
+export function isMovable(state: CellState): boolean {
+  return state > CellState.EMPTY && state < CellState.STATIC;
+}
+
+export function isSolid(state: CellState): boolean {
+  return state === CellState.SAND || state === CellState.DIRT || state === CellState.GRAVEL;
+}
+
+export function isLiquid(state: CellState): boolean {
+  return state === CellState.WATER || state === CellState.LAVA;
 }
 
 /**
@@ -58,7 +76,7 @@ export class MargolusCA {
     if (x < 0 || x >= this.width || y < 0 || y >= this.height) {
       return CellState.STATIC; // Treat out of bounds as static
     }
-    return this.grid[y * this.width + x];
+    return this.grid[y * this.width + x] as CellState;
   }
 
   /**
@@ -129,38 +147,42 @@ export class MargolusCA {
       return;
     }
 
+    // Helper functions for readability
+    const isEmpty = (c: CellState) => c === CellState.EMPTY;
+    const isMovable = (c: CellState) => c > CellState.EMPTY && c < CellState.STATIC;
+
     // Apply transitions based on the patterns from Figure 2
     // Format: [tl, tr, br, bl] -> [tl', tr', br', bl']
 
     // Transition (a): Particle falls straight down
     // [1, 0, 0, 0] -> [0, 0, 0, 1]
-    if (tl === CellState.PARTICLE && tr === CellState.EMPTY &&
-        br === CellState.EMPTY && bl === CellState.EMPTY) {
-      this.setNextBlock(x, y, CellState.EMPTY, CellState.EMPTY, CellState.EMPTY, CellState.PARTICLE);
+    if (isMovable(tl) && isEmpty(tr) &&
+        isEmpty(br) && isEmpty(bl)) {
+      this.setNextBlock(x, y, CellState.EMPTY, CellState.EMPTY, CellState.EMPTY, tl);
       return;
     }
 
     // Transition (b): Particle falls straight down (right side)
     // [0, 1, 0, 0] -> [0, 0, 1, 0]
-    if (tl === CellState.EMPTY && tr === CellState.PARTICLE &&
-        br === CellState.EMPTY && bl === CellState.EMPTY) {
-      this.setNextBlock(x, y, CellState.EMPTY, CellState.EMPTY, CellState.PARTICLE, CellState.EMPTY);
+    if (isEmpty(tl) && isMovable(tr) &&
+        isEmpty(br) && isEmpty(bl)) {
+      this.setNextBlock(x, y, CellState.EMPTY, CellState.EMPTY, tr, CellState.EMPTY);
       return;
     }
 
     // Transition (c): Two particles fall straight down
     // [1, 1, 0, 0] -> [0, 0, 1, 1]
-    if (tl === CellState.PARTICLE && tr === CellState.PARTICLE &&
-        br === CellState.EMPTY && bl === CellState.EMPTY) {
-      this.setNextBlock(x, y, CellState.EMPTY, CellState.EMPTY, CellState.PARTICLE, CellState.PARTICLE);
+    if (isMovable(tl) && isMovable(tr) &&
+        isEmpty(br) && isEmpty(bl)) {
+      this.setNextBlock(x, y, CellState.EMPTY, CellState.EMPTY, tr, tl);
       return;
     }
 
     // Transition (d): Horizontal pair rotates down
     // [1, 1, 1, 0] -> [0, 1, 1, 1]
-    if (tl === CellState.PARTICLE && tr === CellState.PARTICLE &&
-        br === CellState.PARTICLE && bl === CellState.EMPTY) {
-      this.setNextBlock(x, y, CellState.EMPTY, CellState.PARTICLE, CellState.PARTICLE, CellState.PARTICLE);
+    if (isMovable(tl) && isMovable(tr) &&
+        isMovable(br) && isEmpty(bl)) {
+      this.setNextBlock(x, y, CellState.EMPTY, tr, br, tl);
       return;
     }
 
@@ -170,25 +192,25 @@ export class MargolusCA {
 
     // Transition (f): Particle topples right
     // [0, 1, 1, 0] -> [0, 0, 1, 1]
-    if (tl === CellState.EMPTY && tr === CellState.PARTICLE &&
-        br === CellState.PARTICLE && bl === CellState.EMPTY) {
-      this.setNextBlock(x, y, CellState.EMPTY, CellState.EMPTY, CellState.PARTICLE, CellState.PARTICLE);
+    if (isEmpty(tl) && isMovable(tr) &&
+        isMovable(br) && isEmpty(bl)) {
+      this.setNextBlock(x, y, CellState.EMPTY, CellState.EMPTY, br, tr);
       return;
     }
 
     // Transition (g): Particle topples left
     // [1, 0, 0, 1] -> [1, 1, 0, 0]
-    if (tl === CellState.PARTICLE && tr === CellState.EMPTY &&
-        br === CellState.EMPTY && bl === CellState.PARTICLE) {
-      this.setNextBlock(x, y, CellState.PARTICLE, CellState.PARTICLE, CellState.EMPTY, CellState.EMPTY);
+    if (isMovable(tl) && isEmpty(tr) &&
+        isEmpty(br) && isMovable(bl)) {
+      this.setNextBlock(x, y, tl, bl, CellState.EMPTY, CellState.EMPTY);
       return;
     }
 
     // Transition (h): Three-quarter stack topples
     // [1, 1, 0, 1] -> [1, 1, 1, 0]
-    if (tl === CellState.PARTICLE && tr === CellState.PARTICLE &&
-        br === CellState.EMPTY && bl === CellState.PARTICLE) {
-      this.setNextBlock(x, y, CellState.PARTICLE, CellState.PARTICLE, CellState.PARTICLE, CellState.EMPTY);
+    if (isMovable(tl) && isMovable(tr) &&
+        isEmpty(br) && isMovable(bl)) {
+      this.setNextBlock(x, y, tl, tr, bl, CellState.EMPTY);
       return;
     }
 
@@ -197,21 +219,41 @@ export class MargolusCA {
 
     // Transition (i): Vertical stack topples right (PROBABILISTIC)
     // [0, 1, 0, 1] -> [0, 0, 1, 1] with probability p
-    if (tl === CellState.EMPTY && tr === CellState.PARTICLE &&
-        br === CellState.EMPTY && bl === CellState.PARTICLE) {
+    if (isEmpty(tl) && isMovable(tr) &&
+        isEmpty(br) && isMovable(bl)) {
       if (Math.random() < this.toppleProbability) {
-        this.setNextBlock(x, y, CellState.EMPTY, CellState.EMPTY, CellState.PARTICLE, CellState.PARTICLE);
+        this.setNextBlock(x, y, CellState.EMPTY, CellState.EMPTY, bl, tr);
       }
       return;
     }
 
     // Transition (j): Vertical stack topples left (PROBABILISTIC)
     // [1, 0, 1, 0] -> [1, 1, 0, 0] with probability p
-    if (tl === CellState.PARTICLE && tr === CellState.EMPTY &&
-        br === CellState.PARTICLE && bl === CellState.EMPTY) {
+    if (isMovable(tl) && isEmpty(tr) &&
+        isMovable(br) && isEmpty(bl)) {
       if (Math.random() < this.toppleProbability) {
-        this.setNextBlock(x, y, CellState.PARTICLE, CellState.PARTICLE, CellState.EMPTY, CellState.EMPTY);
+        this.setNextBlock(x, y, tl, br, CellState.EMPTY, CellState.EMPTY);
       }
+      return;
+    }
+
+    // LIQUID-SPECIFIC TRANSITIONS
+    // Liquids spread horizontally ONLY when resting on solid ground
+    // These have lower priority than all vertical/diagonal movements
+
+    // Liquid horizontal spread right when both liquids are resting
+    // [0, L, S, S] -> [L, 0, S, S] (liquid spreads left on platform)
+    if (isEmpty(tl) && isLiquid(tr) &&
+        !isEmpty(br) && !isEmpty(bl)) {
+      this.setNextBlock(x, y, tr, CellState.EMPTY, br, bl);
+      return;
+    }
+
+    // Liquid horizontal spread left when both liquids are resting
+    // [L, 0, S, S] -> [0, L, S, S] (liquid spreads right on platform)
+    if (isLiquid(tl) && isEmpty(tr) &&
+        !isEmpty(br) && !isEmpty(bl)) {
+      this.setNextBlock(x, y, CellState.EMPTY, tl, br, bl);
       return;
     }
 
@@ -293,14 +335,14 @@ export class MargolusCA {
   /**
    * Add sand particles in a region (for the hourglass source)
    */
-  addSandSource(x: number, y: number, width: number, height: number, density: number = 1.0): void {
+  addSandSource(x: number, y: number, width: number, height: number, density: number = 1.0, particleType: CellState = CellState.SAND): void {
     for (let dy = 0; dy < height; dy++) {
       for (let dx = 0; dx < width; dx++) {
         const px = x + dx;
         const py = y + dy;
         if (px >= 0 && px < this.width && py >= 0 && py < this.height) {
           if (Math.random() < density && this.getCell(px, py) === CellState.EMPTY) {
-            this.setCell(px, py, CellState.PARTICLE);
+            this.setCell(px, py, particleType);
           }
         }
       }
