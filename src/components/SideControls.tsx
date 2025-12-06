@@ -16,6 +16,7 @@ import {
   faChevronDown
 } from '@fortawesome/free-solid-svg-icons';
 import { ParticleType } from '../world/ParticleTypes';
+import { ParticleTypeRanges } from '../world/ParticleTypeConstants';
 import { WorldInitType } from '../world/WorldGeneration';
 import { useState, useRef, useEffect } from 'react';
 
@@ -93,6 +94,32 @@ export function SideControls({
 
   const selectedParticleName = particleTypes.find(p => p.value === selectedParticle)?.name || 'SAND';
 
+  // Categorize particles by type
+  const categorizeParticles = () => {
+    const categories = {
+      static: [] as typeof particleTypes,
+      solid: [] as typeof particleTypes,
+      liquid: [] as typeof particleTypes,
+      gas: [] as typeof particleTypes,
+    };
+
+    particleTypes.forEach(particle => {
+      if (particle.value >= ParticleTypeRanges.STATIC_MIN && particle.value <= ParticleTypeRanges.STATIC_MAX) {
+        categories.static.push(particle);
+      } else if (particle.value >= ParticleTypeRanges.SOLID_MIN && particle.value <= ParticleTypeRanges.SOLID_MAX) {
+        categories.solid.push(particle);
+      } else if (particle.value >= ParticleTypeRanges.LIQUID_MIN && particle.value <= ParticleTypeRanges.LIQUID_MAX) {
+        categories.liquid.push(particle);
+      } else if (particle.value >= ParticleTypeRanges.GAS_MIN && particle.value <= ParticleTypeRanges.GAS_MAX) {
+        categories.gas.push(particle);
+      }
+    });
+
+    return categories;
+  };
+
+  const particleCategories = categorizeParticles();
+
   return (
     <div className="top-bar">
       <button onClick={onResetWorld} className="icon-button" title="Reset World">
@@ -118,21 +145,94 @@ export function SideControls({
               <div className="dropdown-title">{getToolLabel()}</div>
 
               {toolMode === 'add' && (
-                <div className="particle-grid">
-                  {particleTypes.map(({ name, value }) => (
-                    <button
-                      key={value}
-                      className={`particle-button ${selectedParticle === value ? 'selected' : ''}`}
-                      onClick={() => {
-                        onParticleSelect(value);
-                        setShowDropdown(false);
-                      }}
-                      title={name}
-                    >
-                      <FontAwesomeIcon icon={particleIcons[name] || faCubes} />
-                      <span className="particle-name">{name}</span>
-                    </button>
-                  ))}
+                <div className="particle-categories">
+                  {particleCategories.static.length > 0 && (
+                    <div className="particle-category">
+                      <div className="category-label">Static</div>
+                      <div className="particle-grid">
+                        {particleCategories.static.map(({ name, value }) => (
+                          <button
+                            key={value}
+                            className={`particle-button ${selectedParticle === value ? 'selected' : ''}`}
+                            onClick={() => {
+                              onParticleSelect(value);
+                              setShowDropdown(false);
+                            }}
+                            title={name}
+                          >
+                            <FontAwesomeIcon icon={particleIcons[name] || faCubes} />
+                            <span className="particle-name">{name}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {particleCategories.solid.length > 0 && (
+                    <div className="particle-category">
+                      <div className="category-label">Solids</div>
+                      <div className="particle-grid">
+                        {particleCategories.solid.map(({ name, value }) => (
+                          <button
+                            key={value}
+                            className={`particle-button ${selectedParticle === value ? 'selected' : ''}`}
+                            onClick={() => {
+                              onParticleSelect(value);
+                              setShowDropdown(false);
+                            }}
+                            title={name}
+                          >
+                            <FontAwesomeIcon icon={particleIcons[name] || faCubes} />
+                            <span className="particle-name">{name}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {particleCategories.liquid.length > 0 && (
+                    <div className="particle-category">
+                      <div className="category-label">Liquids</div>
+                      <div className="particle-grid">
+                        {particleCategories.liquid.map(({ name, value }) => (
+                          <button
+                            key={value}
+                            className={`particle-button ${selectedParticle === value ? 'selected' : ''}`}
+                            onClick={() => {
+                              onParticleSelect(value);
+                              setShowDropdown(false);
+                            }}
+                            title={name}
+                          >
+                            <FontAwesomeIcon icon={particleIcons[name] || faCubes} />
+                            <span className="particle-name">{name}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {particleCategories.gas.length > 0 && (
+                    <div className="particle-category">
+                      <div className="category-label">Gases</div>
+                      <div className="particle-grid">
+                        {particleCategories.gas.map(({ name, value }) => (
+                          <button
+                            key={value}
+                            className={`particle-button ${selectedParticle === value ? 'selected' : ''}`}
+                            onClick={() => {
+                              onParticleSelect(value);
+                              setShowDropdown(false);
+                            }}
+                            title={name}
+                          >
+                            <FontAwesomeIcon icon={particleIcons[name] || faCubes} />
+                            <span className="particle-name">{name}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
