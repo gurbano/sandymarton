@@ -46,6 +46,8 @@ export const margolusFragmentShader = `
       return INTERNAL_SOLID;
     } else if (particleType >= LIQUID_MIN && particleType <= LIQUID_MAX) {
       return INTERNAL_LIQUID;
+    } else if (particleType >= GAS_MIN && particleType <= GAS_MAX) {
+      return INTERNAL_GAS;
     } else {
       return INTERNAL_EMPTY;
     }
@@ -63,6 +65,8 @@ export const margolusFragmentShader = `
       particleType = (originalType >= SOLID_MIN && originalType <= SOLID_MAX) ? originalType : SAND_TYPE;
     } else if (cellState == INTERNAL_LIQUID) {
       particleType = (originalType >= LIQUID_MIN && originalType <= LIQUID_MAX) ? originalType : WATER_TYPE;
+    } else if (cellState == INTERNAL_GAS) {
+      particleType = (originalType >= GAS_MIN && originalType <= GAS_MAX) ? originalType : STEAM_TYPE;
     } else {
       particleType = EMPTY_TYPE;
     }

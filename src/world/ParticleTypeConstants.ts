@@ -82,6 +82,7 @@ const float AIR_TYPE = ${ParticleTypeConstants.AIR}.0;
 const float INTERNAL_EMPTY = 0.0;
 const float INTERNAL_SOLID = 1.0;
 const float INTERNAL_LIQUID = 2.0;
+const float INTERNAL_GAS = 3.0;
 const float INTERNAL_STATIC = 100.0;
 `;
 }

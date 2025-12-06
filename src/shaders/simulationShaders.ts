@@ -3,6 +3,8 @@
  * These shaders run the particle simulation on the GPU
  */
 
+import { generateShaderConstants } from '../world/ParticleTypeConstants';
+
 export const simulationVertexShader = `
   varying vec2 vUv;
 
@@ -20,16 +22,7 @@ export const simulationFragmentShader = `
   uniform float uDeltaTime;
   varying vec2 vUv;
 
-  // Particle type ranges
-  const float EMPTY_MAX = 16.0;
-  const float STATIC_MIN = 16.0;
-  const float STATIC_MAX = 32.0;
-  const float SOLID_MIN = 33.0;
-  const float SOLID_MAX = 63.0;
-  const float LIQUID_MIN = 64.0;
-  const float LIQUID_MAX = 111.0;
-  const float GAS_MIN = 112.0;
-  const float GAS_MAX = 159.0;
+  ${generateShaderConstants()}
 
   // Gravity constant
   const float GRAVITY = 58.0;
