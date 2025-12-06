@@ -76,5 +76,12 @@ const float ACID_TYPE = ${ParticleTypeConstants.ACID}.0;
 const float STEAM_TYPE = ${ParticleTypeConstants.STEAM}.0;
 const float SMOKE_TYPE = ${ParticleTypeConstants.SMOKE}.0;
 const float AIR_TYPE = ${ParticleTypeConstants.AIR}.0;
+
+// Internal behavior states for Margolus CA
+// These represent how particles behave, not what they are
+const float INTERNAL_EMPTY = 0.0;
+const float INTERNAL_SOLID = 1.0;
+const float INTERNAL_LIQUID = 2.0;
+const float INTERNAL_STATIC = 100.0;
 `;
 }

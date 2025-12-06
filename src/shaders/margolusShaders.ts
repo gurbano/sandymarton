@@ -25,15 +25,6 @@ export const margolusFragmentShader = `
 
   ${generateShaderConstants()}
 
-  // Cell states (internal representation for Margolus algorithm)
-  const float EMPTY = 0.0;
-  const float SAND = 1.0;
-  const float DIRT = 2.0;
-  const float GRAVEL = 3.0;
-  const float WATER = 4.0;
-  const float LAVA = 5.0;
-  const float STATIC = 100.0;
-
   vec4 getPixel(vec2 offset) {
     vec2 pixelSize = 1.0 / uTextureSize;
     vec2 sampleUV = vUv + offset * pixelSize;
@@ -46,29 +37,17 @@ export const margolusFragmentShader = `
   }
 
   float getCellState(float particleType) {
-    // Check category ranges
+    // Map particle types to internal behavior states
     if (particleType >= EMPTY_MIN && particleType <= EMPTY_MAX) {
-      return EMPTY;
+      return INTERNAL_EMPTY;
     } else if (particleType >= STATIC_MIN && particleType <= STATIC_MAX) {
-      return STATIC;
-    } else if (particleType == SAND_TYPE) {
-      return SAND;
-    } else if (particleType == DIRT_TYPE) {
-      return DIRT;
-    } else if (particleType == GRAVEL_TYPE) {
-      return GRAVEL;
-    } else if (particleType == WATER_TYPE) {
-      return WATER;
-    } else if (particleType == LAVA_TYPE) {
-      return LAVA;
+      return INTERNAL_STATIC;
     } else if (particleType >= SOLID_MIN && particleType <= SOLID_MAX) {
-      // Default to sand for unknown solid types
-      return SAND;
+      return INTERNAL_SOLID;
     } else if (particleType >= LIQUID_MIN && particleType <= LIQUID_MAX) {
-      // Default to water for unknown liquid types
-      return WATER;
+      return INTERNAL_LIQUID;
     } else {
-      return EMPTY;
+      return INTERNAL_EMPTY;
     }
   }
 
@@ -76,13 +55,13 @@ export const margolusFragmentShader = `
     // Preserve original type if it matches the behavior category, otherwise use default
     float particleType;
 
-    if (cellState == EMPTY) {
+    if (cellState == INTERNAL_EMPTY) {
       particleType = EMPTY_TYPE;
-    } else if (cellState == STATIC) {
+    } else if (cellState == INTERNAL_STATIC) {
       particleType = (originalType >= STATIC_MIN && originalType <= STATIC_MAX) ? originalType : STONE_TYPE;
-    } else if (isSolid(cellState)) {
+    } else if (cellState == INTERNAL_SOLID) {
       particleType = (originalType >= SOLID_MIN && originalType <= SOLID_MAX) ? originalType : SAND_TYPE;
-    } else if (isLiquid(cellState)) {
+    } else if (cellState == INTERNAL_LIQUID) {
       particleType = (originalType >= LIQUID_MIN && originalType <= LIQUID_MAX) ? originalType : WATER_TYPE;
     } else {
       particleType = EMPTY_TYPE;
@@ -92,15 +71,15 @@ export const margolusFragmentShader = `
   }
 
   bool isMovable(float state) {
-    return state > EMPTY && state < STATIC;
+    return state > INTERNAL_EMPTY && state < INTERNAL_STATIC;
   }
 
   bool isSolid(float state) {
-    return state == SAND || state == DIRT || state == GRAVEL;
+    return state == INTERNAL_SOLID;
   }
 
   bool isLiquid(float state) {
-    return state == WATER || state == LAVA;
+    return state == INTERNAL_LIQUID;
   }
 
   // Pseudo-random number generator
@@ -158,7 +137,7 @@ export const margolusFragmentShader = `
     float br = getCellState(br_orig);
 
     // Don't modify blocks containing static cells
-    if (tl == STATIC || tr == STATIC || bl == STATIC || br == STATIC) {
+    if (tl == INTERNAL_STATIC || tr == INTERNAL_STATIC || bl == INTERNAL_STATIC || br == INTERNAL_STATIC) {
       gl_FragColor = texture2D(uCurrentState, vUv);
       return;
     }
@@ -178,50 +157,50 @@ export const margolusFragmentShader = `
     bool transitionApplied = false;
 
     // Transition (a): [1,0,0,0] -> [0,0,0,1]
-    if (!transitionApplied && isMovable(tl) && tr == EMPTY && bl == EMPTY && br == EMPTY) {
-      tl_new = EMPTY; tr_new = EMPTY; bl_new = EMPTY; br_new = tl;
+    if (!transitionApplied && isMovable(tl) && tr == INTERNAL_EMPTY && bl == INTERNAL_EMPTY && br == INTERNAL_EMPTY) {
+      tl_new = INTERNAL_EMPTY; tr_new = INTERNAL_EMPTY; bl_new = INTERNAL_EMPTY; br_new = tl;
       tl_new_orig = EMPTY_TYPE; tr_new_orig = EMPTY_TYPE; bl_new_orig = EMPTY_TYPE; br_new_orig = tl_orig;
       transitionApplied = true;
     }
 
     // Transition (b): [0,1,0,0] -> [0,0,1,0]
-    if (!transitionApplied && tl == EMPTY && isMovable(tr) && bl == EMPTY && br == EMPTY) {
-      tl_new = EMPTY; tr_new = EMPTY; bl_new = EMPTY; br_new = tr;
+    if (!transitionApplied && tl == INTERNAL_EMPTY && isMovable(tr) && bl == INTERNAL_EMPTY && br == INTERNAL_EMPTY) {
+      tl_new = INTERNAL_EMPTY; tr_new = INTERNAL_EMPTY; bl_new = INTERNAL_EMPTY; br_new = tr;
       tl_new_orig = EMPTY_TYPE; tr_new_orig = EMPTY_TYPE; bl_new_orig = EMPTY_TYPE; br_new_orig = tr_orig;
       transitionApplied = true;
     }
 
     // Transition (c): [1,1,0,0] -> [0,0,1,1]
-    if (!transitionApplied && isMovable(tl) && isMovable(tr) && bl == EMPTY && br == EMPTY) {
-      tl_new = EMPTY; tr_new = EMPTY; bl_new = tr; br_new = tl;
+    if (!transitionApplied && isMovable(tl) && isMovable(tr) && bl == INTERNAL_EMPTY && br == INTERNAL_EMPTY) {
+      tl_new = INTERNAL_EMPTY; tr_new = INTERNAL_EMPTY; bl_new = tr; br_new = tl;
       tl_new_orig = EMPTY_TYPE; tr_new_orig = EMPTY_TYPE; bl_new_orig = tr_orig; br_new_orig = tl_orig;
       transitionApplied = true;
     }
 
     // Transition (d): [1,1,1,0] -> [0,1,1,1]
-    if (!transitionApplied && isMovable(tl) && isMovable(tr) && isMovable(bl) && br == EMPTY) {
-      tl_new = EMPTY; tr_new = tr; bl_new = bl; br_new = tl;
+    if (!transitionApplied && isMovable(tl) && isMovable(tr) && isMovable(bl) && br == INTERNAL_EMPTY) {
+      tl_new = INTERNAL_EMPTY; tr_new = tr; bl_new = bl; br_new = tl;
       tl_new_orig = EMPTY_TYPE; tr_new_orig = tr_orig; bl_new_orig = bl_orig; br_new_orig = tl_orig;
       transitionApplied = true;
     }
 
     // Transition (f): [0,1,1,0] -> [0,0,1,1]
-    if (!transitionApplied && tl == EMPTY && isMovable(tr) && isMovable(bl) && br == EMPTY) {
-      tl_new = EMPTY; tr_new = EMPTY; bl_new = bl; br_new = tr;
+    if (!transitionApplied && tl == INTERNAL_EMPTY && isMovable(tr) && isMovable(bl) && br == INTERNAL_EMPTY) {
+      tl_new = INTERNAL_EMPTY; tr_new = INTERNAL_EMPTY; bl_new = bl; br_new = tr;
       tl_new_orig = EMPTY_TYPE; tr_new_orig = EMPTY_TYPE; bl_new_orig = bl_orig; br_new_orig = tr_orig;
       transitionApplied = true;
     }
 
     // Transition (g): [1,0,0,1] -> [1,1,0,0]
-    if (!transitionApplied && isMovable(tl) && tr == EMPTY && bl == EMPTY && isMovable(br)) {
-      tl_new = tl; tr_new = br; bl_new = EMPTY; br_new = EMPTY;
+    if (!transitionApplied && isMovable(tl) && tr == INTERNAL_EMPTY && bl == INTERNAL_EMPTY && isMovable(br)) {
+      tl_new = tl; tr_new = br; bl_new = INTERNAL_EMPTY; br_new = INTERNAL_EMPTY;
       tl_new_orig = tl_orig; tr_new_orig = br_orig; bl_new_orig = EMPTY_TYPE; br_new_orig = EMPTY_TYPE;
       transitionApplied = true;
     }
 
     // Transition (h): [1,1,0,1] -> [1,1,1,0]
-    if (!transitionApplied && isMovable(tl) && isMovable(tr) && bl == EMPTY && isMovable(br)) {
-      tl_new = tl; tr_new = tr; bl_new = br; br_new = EMPTY;
+    if (!transitionApplied && isMovable(tl) && isMovable(tr) && bl == INTERNAL_EMPTY && isMovable(br)) {
+      tl_new = tl; tr_new = tr; bl_new = br; br_new = INTERNAL_EMPTY;
       tl_new_orig = tl_orig; tr_new_orig = tr_orig; bl_new_orig = br_orig; br_new_orig = EMPTY_TYPE;
       transitionApplied = true;
     }
@@ -229,20 +208,20 @@ export const margolusFragmentShader = `
     // PROBABILISTIC TRANSITIONS
 
     // Transition (i): [0,1,0,1] -> [0,0,1,1] with probability p
-    if (!transitionApplied && tl == EMPTY && isMovable(tr) && bl == EMPTY && isMovable(br)) {
+    if (!transitionApplied && tl == INTERNAL_EMPTY && isMovable(tr) && bl == INTERNAL_EMPTY && isMovable(br)) {
       float rand = random(blockStart, uRandomSeed);
       if (rand < uToppleProbability) {
-        tl_new = EMPTY; tr_new = EMPTY; bl_new = br; br_new = tr;
+        tl_new = INTERNAL_EMPTY; tr_new = INTERNAL_EMPTY; bl_new = br; br_new = tr;
         tl_new_orig = EMPTY_TYPE; tr_new_orig = EMPTY_TYPE; bl_new_orig = br_orig; br_new_orig = tr_orig;
         transitionApplied = true;
       }
     }
 
     // Transition (j): [1,0,1,0] -> [1,1,0,0] with probability p
-    if (!transitionApplied && isMovable(tl) && tr == EMPTY && isMovable(bl) && br == EMPTY) {
+    if (!transitionApplied && isMovable(tl) && tr == INTERNAL_EMPTY && isMovable(bl) && br == INTERNAL_EMPTY) {
       float rand = random(blockStart, uRandomSeed + 1.0);
       if (rand < uToppleProbability) {
-        tl_new = tl; tr_new = bl; bl_new = EMPTY; br_new = EMPTY;
+        tl_new = tl; tr_new = bl; bl_new = INTERNAL_EMPTY; br_new = INTERNAL_EMPTY;
         tl_new_orig = tl_orig; tr_new_orig = bl_orig; bl_new_orig = EMPTY_TYPE; br_new_orig = EMPTY_TYPE;
         transitionApplied = true;
       }
@@ -254,16 +233,16 @@ export const margolusFragmentShader = `
 
     // Liquid horizontal spread right when both cells are resting
     // [0,L,S,S] -> [L,0,S,S]
-    if (!transitionApplied && tl == EMPTY && isLiquid(tr) && br != EMPTY && bl != EMPTY) {
-      tl_new = tr; tr_new = EMPTY; bl_new = bl; br_new = br;
+    if (!transitionApplied && tl == INTERNAL_EMPTY && isLiquid(tr) && br != INTERNAL_EMPTY && bl != INTERNAL_EMPTY) {
+      tl_new = tr; tr_new = INTERNAL_EMPTY; bl_new = bl; br_new = br;
       tl_new_orig = tr_orig; tr_new_orig = EMPTY_TYPE; bl_new_orig = bl_orig; br_new_orig = br_orig;
       transitionApplied = true;
     }
 
     // Liquid horizontal spread left when both cells are resting
     // [L,0,S,S] -> [0,L,S,S]
-    if (!transitionApplied && isLiquid(tl) && tr == EMPTY && br != EMPTY && bl != EMPTY) {
-      tl_new = EMPTY; tr_new = tl; bl_new = bl; br_new = br;
+    if (!transitionApplied && isLiquid(tl) && tr == INTERNAL_EMPTY && br != INTERNAL_EMPTY && bl != INTERNAL_EMPTY) {
+      tl_new = INTERNAL_EMPTY; tr_new = tl; bl_new = bl; br_new = br;
       tl_new_orig = EMPTY_TYPE; tr_new_orig = tl_orig; bl_new_orig = bl_orig; br_new_orig = br_orig;
       transitionApplied = true;
     }
