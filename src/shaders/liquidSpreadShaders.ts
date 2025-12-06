@@ -70,7 +70,7 @@ export const liquidSpreadFragmentShader = `
     vec2 pixelCoord = vUv * uTextureSize;
 
     // Horizontal liquid spreading based on surface height differences
-    // Uses Margolus-style pairwise swaps to prevent duplication
+    // Uses deterministic direction and probabilistic spreading based on friction
 
     // Only process liquid that is resting on something
     if (isLiquid(currentType)) {
@@ -78,9 +78,9 @@ export const liquidSpreadFragmentShader = `
       float belowType = belowPixel.r * 255.0;
 
       if (!isEmpty(belowType)) {
-        // Choose one direction to check (alternates based on position and frame)
-        float rand = random(pixelCoord, uRandomSeed);
-        int dir = rand < 0.5 ? -1 : 1;
+        // Deterministic direction based on pixel X coordinate (alternates left/right)
+        // This ensures neighboring pixels coordinate properly
+        int dir = mod(pixelCoord.x, 2.0) < 1.0 ? 1 : -1;
 
         // Only check immediate neighbor (1 pixel at a time for safety)
         vec4 neighborPixel = getPixel(vec2(float(dir), 0.0));
@@ -94,22 +94,25 @@ export const liquidSpreadFragmentShader = `
           int myHeight = getLiquidHeight(vec2(0.0, 0.0));
           int neighborHeight = 0; // Empty
 
-          // Calculate minimum height difference based on friction
-          // Higher friction = needs more height difference to spread
-          float friction = getMaterialFriction(currentType);
-          float minHeightDiff = 1.0 + friction * 10.0;
+          // Only spread if there's a height difference
+          if (myHeight >= 2) {
+            // Use friction to determine probability of spreading
+            // Lower friction = higher probability
+            float friction = getMaterialFriction(currentType);
+            float spreadProbability = 1.0 - friction; // 0.98 for water, 0.6 for slime
 
-          // Spread if height difference is significant
-          if (float(myHeight - neighborHeight) >= minHeightDiff) {
-            // Use pixel X coordinate to determine which pixel in the pair acts
-            // This ensures only one of the two pixels moves
-            float myX = pixelCoord.x;
-            float neighborX = pixelCoord.x + float(dir);
+            float rand = random(pixelCoord, uRandomSeed);
+            if (rand < spreadProbability) {
+              // Use pixel X coordinate to determine which pixel in the pair acts
+              // This ensures only one of the two pixels moves
+              float myX = pixelCoord.x;
+              float neighborX = pixelCoord.x + float(dir);
 
-            // Only the pixel with lower X coordinate makes the decision
-            if ((dir > 0 && myX < neighborX) || (dir < 0 && myX > neighborX)) {
-              gl_FragColor = vec4(0.0, 0.5, 0.5, 1.0); // Move to neighbor
-              return;
+              // Only the pixel with lower X coordinate makes the decision
+              if ((dir > 0 && myX < neighborX) || (dir < 0 && myX > neighborX)) {
+                gl_FragColor = vec4(0.0, 0.5, 0.5, 1.0); // Move to neighbor
+                return;
+              }
             }
           }
         }
@@ -122,8 +125,8 @@ export const liquidSpreadFragmentShader = `
       float belowType = belowPixel.r * 255.0;
 
       if (!isEmpty(belowType)) {
-        float rand = random(pixelCoord, uRandomSeed);
-        int dir = rand < 0.5 ? -1 : 1;
+        // Use same deterministic direction as liquid spreading
+        int dir = mod(pixelCoord.x, 2.0) < 1.0 ? -1 : 1; // Opposite direction to match liquid
 
         vec4 neighborPixel = getPixel(vec2(float(dir), 0.0));
         vec4 neighborBelow = getPixel(vec2(float(dir), -1.0));
@@ -134,18 +137,20 @@ export const liquidSpreadFragmentShader = `
           int myHeight = 0;
           int neighborHeight = getLiquidHeight(vec2(float(dir), 0.0));
 
-          // Calculate minimum height difference based on neighbor's friction
-          float friction = getMaterialFriction(neighborType);
-          float minHeightDiff = 1.0 + friction * 10.0;
+          if (neighborHeight >= 2) {
+            float friction = getMaterialFriction(neighborType);
+            float spreadProbability = 1.0 - friction;
 
-          if (float(neighborHeight - myHeight) >= minHeightDiff) {
-            float myX = pixelCoord.x;
-            float neighborX = pixelCoord.x + float(dir);
+            float rand = random(pixelCoord, uRandomSeed);
+            if (rand < spreadProbability) {
+              float myX = pixelCoord.x;
+              float neighborX = pixelCoord.x + float(dir);
 
-            // Only the pixel with higher X coordinate accepts
-            if ((dir > 0 && myX > neighborX) || (dir < 0 && myX < neighborX)) {
-              gl_FragColor = neighborPixel; // Accept from neighbor
-              return;
+              // Only the pixel with higher X coordinate accepts
+              if ((dir > 0 && myX > neighborX) || (dir < 0 && myX < neighborX)) {
+                gl_FragColor = neighborPixel; // Accept from neighbor
+                return;
+              }
             }
           }
         }

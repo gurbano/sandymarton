@@ -65,102 +65,104 @@ export const MaterialDefinitions: Partial<Record<ParticleType, MaterialAttribute
   [ParticleType.STONE]: BaseStaticAttributes,
 
   // Solid movable particles
-  [ParticleType.SAND]: {
-    ...BaseSolidAttributes,
-    density: 1600,
-    meltingPoint: 1700,
-    boilingPoint: 2230,
-    color: [255, 200, 100, 255],
-    hardness: 4,
-    friction: 0.8, // High friction - piles well
-  },
+  // Solid particles
+[ParticleType.SAND]: {
+  ...BaseSolidAttributes,
+  density: 1600,             // OK
+  meltingPoint: 1700,        // Silica sand melts ~1700°C
+  boilingPoint: 2230,
+  color: [255, 200, 100, 255],
+  hardness: 4,
+  friction: 0.6,             // Medium friction - flows but piles
+},
 
-  [ParticleType.DIRT]: {
-    ...BaseSolidAttributes,
-    density: 1200,
-    meltingPoint: 800,
-    boilingPoint: 1500,
-    color: [139, 90, 43, 255],
-    hardness: 3,
-    friction: 0.85, // Very high friction - clumpy
-  },
+[ParticleType.DIRT]: {
+  ...BaseSolidAttributes,
+  density: 1300,             // Slightly denser than dry dirt
+  meltingPoint: 800,
+  boilingPoint: 1500,
+  color: [139, 90, 43, 255],
+  hardness: 2,
+  friction: 0.9,             // Very high friction - clumpy
+},
 
-  [ParticleType.GRAVEL]: {
-    ...BaseSolidAttributes,
-    density: 1800,
-    meltingPoint: 1400,
-    boilingPoint: 2500,
-    color: [100, 100, 100, 255],
-    hardness: 6,
-    friction: 0.6, // Lower friction - flows more easily
-  },
+[ParticleType.GRAVEL]: {
+  ...BaseSolidAttributes,
+  density: 1800,             // OK
+  meltingPoint: 1400,
+  boilingPoint: 2500,
+  color: [100, 100, 100, 255],
+  hardness: 6,
+  friction: 0.85,            // Higher friction than sand (rocks interlock)
+},
 
-  // Liquid particles
-  [ParticleType.WATER]: {
-    ...BaseLiquidAttributes,
-    viscosity: 10,
-    color: [0, 0, 223, 180],
-    hardness: 1,
-    friction: 0.05, // Very low friction - flows easily
-  },
+// Liquid particles
+[ParticleType.WATER]: {
+  ...BaseLiquidAttributes,
+  viscosity: 5,              // Lower to match real free flow
+  color: [0, 0, 223, 180],
+  hardness: 1,
+  friction: 0.02,            // Very low friction
+},
 
-  [ParticleType.LAVA]: {
-    ...BaseLiquidAttributes,
-    density: 3100,
-    viscosity: 1000,
-    meltingPoint: -273,
-    boilingPoint: 2000,
-    color: [255, 0, 0, 255],
-    hardness: 1,
-    friction: 0.3, // Medium friction - viscous flow
-  },
+[ParticleType.LAVA]: {
+  ...BaseLiquidAttributes,
+  density: 3100,             // Basaltic lava ~3000 kg/m3
+  viscosity: 2000,           // Lava is extremely viscous
+  meltingPoint: -273,
+  boilingPoint: 2000,
+  color: [255, 0, 0, 255],
+  hardness: 1,
+  friction: 0.2,             // Slow flowing but still liquid
+},
 
-  [ParticleType.SLIME]: {
-    ...BaseLiquidAttributes,
-    density: 1100,
-    viscosity: 500,
-    meltingPoint: -50,
-    boilingPoint: 150,
-    color: [100, 255, 100, 200],
-    hardness: 1,
-    friction: 0.4, // Medium-high friction - gooey
-  },
+[ParticleType.SLIME]: {
+  ...BaseLiquidAttributes,
+  density: 1100,
+  viscosity: 800,            // Extra oozy
+  meltingPoint: -50,
+  boilingPoint: 150,
+  color: [100, 255, 100, 200],
+  hardness: 1,
+  friction: 0.4,             // OK
+},
 
-  [ParticleType.ACID]: {
-    ...BaseLiquidAttributes,
-    density: 1200,
-    viscosity: 15,
-    meltingPoint: -20,
-    boilingPoint: 110,
-    color: [150, 255, 50, 220],
-    hardness: 1,
-    friction: 0.08, // Very low friction - corrosive liquid
-  },
+[ParticleType.ACID]: {
+  ...BaseLiquidAttributes,
+  density: 1200,
+  viscosity: 10,             // Close to water
+  meltingPoint: -20,
+  boilingPoint: 110,
+  color: [150, 255, 50, 220],
+  hardness: 1,
+  friction: 0.03,            // Low friction
+},
 
-  // Gas particles
-  [ParticleType.STEAM]: {
-    ...BaseGasAttributes,
-    density: 0.6,
-    viscosity: 1,
-    color: [200, 200, 255, 100],
-    friction: 0.02, // Extremely low friction
-  },
+// Gas particles
+[ParticleType.STEAM]: {
+  ...BaseGasAttributes,
+  density: 0.6,              // Lighter than air
+  viscosity: 1,
+  color: [200, 200, 255, 100],
+  friction: 0.01,
+},
 
-  [ParticleType.SMOKE]: {
-    ...BaseGasAttributes,
-    density: 1.2,
-    viscosity: 5,
-    color: [80, 80, 80, 150],
-    friction: 0.05, // Very low friction
-  },
+[ParticleType.SMOKE]: {
+  ...BaseGasAttributes,
+  density: 0.9,              // Slightly lighter than air
+  viscosity: 5,
+  color: [80, 80, 80, 150],
+  friction: 0.02,
+},
 
-  [ParticleType.AIR]: {
-    ...BaseGasAttributes,
-    density: 1.3,
-    viscosity: 2,
-    color: [200, 220, 255, 50],
-    friction: 0.01, // Lowest friction
-  },
+[ParticleType.AIR]: {
+  ...BaseGasAttributes,
+  density: 1.0,              // Air baseline
+  viscosity: 2,
+  color: [200, 220, 255, 50],
+  friction: 0.01,
+},
+
 };
 
 /**
