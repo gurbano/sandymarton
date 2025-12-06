@@ -101,7 +101,11 @@ export const liquidSpreadFragmentShader = `
             float friction = getMaterialFriction(currentType);
             float spreadProbability = 1.0 - friction; // 0.98 for water, 0.6 for slime
 
-            float rand = random(pixelCoord, uRandomSeed);
+            // Use the left-most pixel position for random seed to ensure both pixels agree
+            vec2 neighborPos = pixelCoord + vec2(float(dir), 0.0);
+            vec2 leftPixelPos = vec2(min(pixelCoord.x, neighborPos.x), pixelCoord.y);
+            float rand = random(leftPixelPos, uRandomSeed);
+
             if (rand < spreadProbability) {
               // Use pixel X coordinate to determine which pixel in the pair acts
               // This ensures only one of the two pixels moves
@@ -141,13 +145,19 @@ export const liquidSpreadFragmentShader = `
             float friction = getMaterialFriction(neighborType);
             float spreadProbability = 1.0 - friction;
 
-            float rand = random(pixelCoord, uRandomSeed);
+            // Use the left-most pixel position for random seed to ensure both pixels agree
+            vec2 neighborPos = pixelCoord + vec2(float(dir), 0.0);
+            vec2 leftPixelPos = vec2(min(pixelCoord.x, neighborPos.x), pixelCoord.y);
+            float rand = random(leftPixelPos, uRandomSeed);
+
             if (rand < spreadProbability) {
               float myX = pixelCoord.x;
               float neighborX = pixelCoord.x + float(dir);
 
-              // Only the pixel with higher X coordinate accepts
-              if ((dir > 0 && myX > neighborX) || (dir < 0 && myX < neighborX)) {
+              // Accept if we're on the receiving side of the pair
+              // dir=-1 means we're checking left neighbor, accept if we're to the right (myX > neighborX)
+              // dir=+1 means we're checking right neighbor, accept if we're to the left (myX < neighborX)
+              if ((dir < 0 && myX > neighborX) || (dir > 0 && myX < neighborX)) {
                 gl_FragColor = neighborPixel; // Accept from neighbor
                 return;
               }
