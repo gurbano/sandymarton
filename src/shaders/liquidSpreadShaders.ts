@@ -1,9 +1,11 @@
 /**
  * Fast liquid spreading shader
  * Checks up to 5 pixels on each side and moves liquid as far as possible
+ * Uses material-specific friction to control spread rate
  */
 
 import { generateShaderConstants } from '../world/ParticleTypeConstants';
+import { generateMaterialShaderConstants } from '../world/MaterialDefinitions';
 
 export const liquidSpreadVertexShader = `
   varying vec2 vUv;
@@ -22,6 +24,7 @@ export const liquidSpreadFragmentShader = `
   varying vec2 vUv;
 
   ${generateShaderConstants()}
+  ${generateMaterialShaderConstants()}
 
   vec4 getPixel(vec2 offset) {
     vec2 pixelSize = 1.0 / uTextureSize;
@@ -91,8 +94,13 @@ export const liquidSpreadFragmentShader = `
           int myHeight = getLiquidHeight(vec2(0.0, 0.0));
           int neighborHeight = 0; // Empty
 
+          // Calculate minimum height difference based on friction
+          // Higher friction = needs more height difference to spread
+          float friction = getMaterialFriction(currentType);
+          float minHeightDiff = 1.0 + friction * 10.0;
+
           // Spread if height difference is significant
-          if (myHeight - neighborHeight >= 2) {
+          if (float(myHeight - neighborHeight) >= minHeightDiff) {
             // Use pixel X coordinate to determine which pixel in the pair acts
             // This ensures only one of the two pixels moves
             float myX = pixelCoord.x;
@@ -126,7 +134,11 @@ export const liquidSpreadFragmentShader = `
           int myHeight = 0;
           int neighborHeight = getLiquidHeight(vec2(float(dir), 0.0));
 
-          if (neighborHeight - myHeight >= 2) {
+          // Calculate minimum height difference based on neighbor's friction
+          float friction = getMaterialFriction(neighborType);
+          float minHeightDiff = 1.0 + friction * 10.0;
+
+          if (float(neighborHeight - myHeight) >= minHeightDiff) {
             float myX = pixelCoord.x;
             float neighborX = pixelCoord.x + float(dir);
 
