@@ -73,40 +73,21 @@ export const margolusFragmentShader = `
   }
 
   vec4 createPixel(float cellState, float originalType) {
-    // If the cell state matches the behavior category, preserve the original type
+    // Preserve original type if it matches the behavior category, otherwise use default
     float particleType;
+
     if (cellState == EMPTY) {
       particleType = EMPTY_TYPE;
     } else if (cellState == STATIC) {
-      // Preserve original static type (could be different stone variants)
-      if (originalType >= STATIC_MIN && originalType <= STATIC_MAX) {
-        particleType = originalType;
-      } else {
-        particleType = STONE_TYPE;
-      }
-    } else if (cellState == SAND || cellState == DIRT || cellState == GRAVEL) {
-      // Preserve original solid type
-      if (originalType >= SOLID_MIN && originalType <= SOLID_MAX) {
-        particleType = originalType;
-      } else if (cellState == SAND) {
-        particleType = SAND_TYPE;
-      } else if (cellState == DIRT) {
-        particleType = DIRT_TYPE;
-      } else {
-        particleType = GRAVEL_TYPE;
-      }
-    } else if (cellState == WATER || cellState == LAVA) {
-      // Preserve original liquid type (WATER, LAVA, SLIME, ACID, etc.)
-      if (originalType >= LIQUID_MIN && originalType <= LIQUID_MAX) {
-        particleType = originalType;
-      } else if (cellState == WATER) {
-        particleType = WATER_TYPE;
-      } else {
-        particleType = LAVA_TYPE;
-      }
+      particleType = (originalType >= STATIC_MIN && originalType <= STATIC_MAX) ? originalType : STONE_TYPE;
+    } else if (isSolid(cellState)) {
+      particleType = (originalType >= SOLID_MIN && originalType <= SOLID_MAX) ? originalType : SAND_TYPE;
+    } else if (isLiquid(cellState)) {
+      particleType = (originalType >= LIQUID_MIN && originalType <= LIQUID_MAX) ? originalType : WATER_TYPE;
     } else {
-      particleType = SAND_TYPE;
+      particleType = EMPTY_TYPE;
     }
+
     return vec4(particleType / 255.0, 0.5, 0.5, 1.0);
   }
 
