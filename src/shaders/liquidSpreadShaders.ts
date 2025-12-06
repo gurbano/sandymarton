@@ -3,6 +3,8 @@
  * Checks up to 5 pixels on each side and moves liquid as far as possible
  */
 
+import { generateShaderConstants } from '../world/ParticleTypeConstants';
+
 export const liquidSpreadVertexShader = `
   varying vec2 vUv;
 
@@ -19,10 +21,7 @@ export const liquidSpreadFragmentShader = `
 
   varying vec2 vUv;
 
-  // Particle type constants
-  const float EMPTY_TYPE = 0.0;
-  const float WATER_TYPE = 65.0;
-  const float LAVA_TYPE = 80.0;
+  ${generateShaderConstants()}
 
   vec4 getPixel(vec2 offset) {
     vec2 pixelSize = 1.0 / uTextureSize;
@@ -36,11 +35,11 @@ export const liquidSpreadFragmentShader = `
   }
 
   bool isEmpty(float particleType) {
-    return particleType < 16.0;
+    return particleType >= EMPTY_MIN && particleType <= EMPTY_MAX;
   }
 
   bool isLiquid(float particleType) {
-    return particleType == WATER_TYPE || particleType == LAVA_TYPE;
+    return particleType >= LIQUID_MIN && particleType <= LIQUID_MAX;
   }
 
   // Pseudo-random number generator

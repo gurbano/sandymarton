@@ -3,6 +3,8 @@
  * Each type occupies a range of 16 values to allow for variants
  */
 
+import { ParticleTypeRanges } from './ParticleTypeConstants';
+
 export enum ParticleType {
   // Empty types (0-15)
   EMPTY = 0,
@@ -113,26 +115,33 @@ export function decodeVelocity(encoded: number): number {
  * Helper to check if a particle type is empty
  */
 export function isEmpty(particleType: number): boolean {
-  return particleType < 16;
+  return particleType >= ParticleTypeRanges.EMPTY_MIN && particleType <= ParticleTypeRanges.EMPTY_MAX;
 }
 
 /**
- * Helper to check if a particle type is solid
+ * Helper to check if a particle type is static (immovable solid)
+ */
+export function isStatic(particleType: number): boolean {
+  return particleType >= ParticleTypeRanges.STATIC_MIN && particleType <= ParticleTypeRanges.STATIC_MAX;
+}
+
+/**
+ * Helper to check if a particle type is solid (movable)
  */
 export function isSolid(particleType: number): boolean {
-  return particleType >= 16 && particleType < 64;
+  return particleType >= ParticleTypeRanges.SOLID_MIN && particleType <= ParticleTypeRanges.SOLID_MAX;
 }
 
 /**
  * Helper to check if a particle type is liquid
  */
 export function isLiquid(particleType: number): boolean {
-  return particleType >= 64 && particleType < 112;
+  return particleType >= ParticleTypeRanges.LIQUID_MIN && particleType <= ParticleTypeRanges.LIQUID_MAX;
 }
 
 /**
  * Helper to check if a particle type is gas
  */
 export function isGas(particleType: number): boolean {
-  return particleType >= 112 && particleType < 160;
+  return particleType >= ParticleTypeRanges.GAS_MIN && particleType <= ParticleTypeRanges.GAS_MAX;
 }

@@ -3,6 +3,8 @@
  * Implements the algorithm from "Probabilistic Cellular Automata for Granular Media in Video Games"
  */
 
+import { generateShaderConstants } from '../world/ParticleTypeConstants';
+
 export const margolusVertexShader = `
   varying vec2 vUv;
 
@@ -21,7 +23,9 @@ export const margolusFragmentShader = `
 
   varying vec2 vUv;
 
-  // Cell states
+  ${generateShaderConstants()}
+
+  // Cell states (internal representation for Margolus algorithm)
   const float EMPTY = 0.0;
   const float SAND = 1.0;
   const float DIRT = 2.0;
@@ -29,15 +33,6 @@ export const margolusFragmentShader = `
   const float WATER = 4.0;
   const float LAVA = 5.0;
   const float STATIC = 100.0;
-
-  // Particle type constants (matching ParticleTypes.ts)
-  const float EMPTY_TYPE = 0.0;
-  const float STONE_TYPE = 17.0;
-  const float SAND_TYPE = 35.0;
-  const float DIRT_TYPE = 37.0;
-  const float GRAVEL_TYPE = 39.0;
-  const float WATER_TYPE = 65.0;
-  const float LAVA_TYPE = 80.0;
 
   vec4 getPixel(vec2 offset) {
     vec2 pixelSize = 1.0 / uTextureSize;
@@ -53,9 +48,10 @@ export const margolusFragmentShader = `
   float getCellState(vec4 pixel) {
     float particleType = pixel.r * 255.0;
 
-    if (particleType < 16.0) {
+    // Check category ranges
+    if (particleType >= EMPTY_MIN && particleType <= EMPTY_MAX) {
       return EMPTY;
-    } else if (particleType >= 16.0 && particleType < 33.0) {
+    } else if (particleType >= STATIC_MIN && particleType <= STATIC_MAX) {
       return STATIC;
     } else if (particleType == SAND_TYPE) {
       return SAND;
@@ -67,9 +63,14 @@ export const margolusFragmentShader = `
       return WATER;
     } else if (particleType == LAVA_TYPE) {
       return LAVA;
-    } else {
+    } else if (particleType >= SOLID_MIN && particleType <= SOLID_MAX) {
       // Default to sand for unknown solid types
       return SAND;
+    } else if (particleType >= LIQUID_MIN && particleType <= LIQUID_MAX) {
+      // Default to water for unknown liquid types
+      return WATER;
+    } else {
+      return EMPTY;
     }
   }
 
