@@ -4,6 +4,7 @@
  */
 
 import { generateShaderConstants } from '../world/ParticleTypeConstants';
+import { generateMaterialShaderConstants } from '../world/MaterialDefinitions';
 
 export const margolusVertexShader = `
   varying vec2 vUv;
@@ -18,12 +19,13 @@ export const margolusFragmentShader = `
   uniform sampler2D uCurrentState;
   uniform vec2 uTextureSize;
   uniform float uIteration; // 0, 1, 2, or 3 for the 4-iteration cycle
-  uniform float uToppleProbability;
   uniform float uRandomSeed; // For pseudo-random number generation
 
   varying vec2 vUv;
 
   ${generateShaderConstants()}
+
+  ${generateMaterialShaderConstants()}
 
   vec4 getPixel(vec2 offset) {
     vec2 pixelSize = 1.0 / uTextureSize;
@@ -210,11 +212,14 @@ export const margolusFragmentShader = `
     }
 
     // PROBABILISTIC TRANSITIONS
+    // Use material-specific friction for topple probability
 
     // Transition (i): [0,1,0,1] -> [0,0,1,1] with probability p
     if (!transitionApplied && tl == INTERNAL_EMPTY && isMovable(tr) && bl == INTERNAL_EMPTY && isMovable(br)) {
+      // Use average friction of the two particles involved
+      float toppleProbability = (getMaterialFriction(tr_orig) + getMaterialFriction(br_orig)) * 0.5;
       float rand = random(blockStart, uRandomSeed);
-      if (rand < uToppleProbability) {
+      if (rand < toppleProbability) {
         tl_new = INTERNAL_EMPTY; tr_new = INTERNAL_EMPTY; bl_new = br; br_new = tr;
         tl_new_orig = EMPTY_TYPE; tr_new_orig = EMPTY_TYPE; bl_new_orig = br_orig; br_new_orig = tr_orig;
         transitionApplied = true;
@@ -223,8 +228,10 @@ export const margolusFragmentShader = `
 
     // Transition (j): [1,0,1,0] -> [1,1,0,0] with probability p
     if (!transitionApplied && isMovable(tl) && tr == INTERNAL_EMPTY && isMovable(bl) && br == INTERNAL_EMPTY) {
+      // Use average friction of the two particles involved
+      float toppleProbability = (getMaterialFriction(tl_orig) + getMaterialFriction(bl_orig)) * 0.5;
       float rand = random(blockStart, uRandomSeed + 1.0);
-      if (rand < uToppleProbability) {
+      if (rand < toppleProbability) {
         tl_new = tl; tr_new = bl; bl_new = INTERNAL_EMPTY; br_new = INTERNAL_EMPTY;
         tl_new_orig = tl_orig; tr_new_orig = bl_orig; bl_new_orig = EMPTY_TYPE; br_new_orig = EMPTY_TYPE;
         transitionApplied = true;

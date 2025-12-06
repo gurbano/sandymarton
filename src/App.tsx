@@ -3,16 +3,15 @@ import { useState, useMemo, useCallback } from 'react';
 import { DataTexture, Texture } from 'three';
 import './App.css';
 import TextureRenderer from './components/TextureRenderer';
-import SimulationRenderer from './components/SimulationRenderer';
-import MargolusSimulation from './components/MargolusSimulation';
-import MargolusGPUSimulation from './components/MargolusGPUSimulation';
-import HybridSimulation from './components/HybridSimulation';
+import MainSimulation from './components/MainSimulation';
 import { SideControls } from './components/SideControls';
 import { StatusBar } from './components/StatusBar';
 import { useTextureControls } from './hooks/useTextureControls';
 import { useParticleDrawing } from './hooks/useParticleDrawing';
 import { WorldGeneration, WorldInitType } from './world/WorldGeneration';
 import { ParticleType } from './world/ParticleTypes';
+import { DEFAULT_SIMULATION_CONFIG } from './types/SimulationConfig';
+import type { SimulationConfig } from './types/SimulationConfig';
 
 function Scene({ texture, pixelSize, center }: { texture: Texture; pixelSize: number; center: { x: number; y: number } }) {
   return <TextureRenderer texture={texture} pixelSize={pixelSize} center={center} />;
@@ -44,11 +43,8 @@ function App() {
   // State for selected particle type
   const [selectedParticle, setSelectedParticle] = useState<ParticleType>(ParticleType.SAND);
 
-  // Simulation mode: 'gpu', 'margolus', 'margolus-gpu', or 'hybrid'
-  const [simulationMode, setSimulationMode] = useState<'gpu' | 'margolus' | 'margolus-gpu' | 'hybrid'>('hybrid');
-
-  // Topple probability for Margolus CA (friction parameter)
-  const [toppleProbability, setToppleProbability] = useState(0.75);
+  // Simulation configuration
+  const [simulationConfig, setSimulationConfig] = useState<SimulationConfig>(DEFAULT_SIMULATION_CONFIG);
 
   // Handle drawing particles and updating texture
   const handleDraw = useCallback((texture: DataTexture) => {
@@ -88,50 +84,16 @@ function App() {
         gl={{ preserveDrawingBuffer: true }}
         style={{ cursor: isDragging ? 'grabbing' : 'grab', height: '1024px', width: '1024px' }}
       >
-        {simulationMode === 'gpu' ? (
-          <SimulationRenderer
-            worldTexture={worldTexture}
-            textureSize={2048}
-            onTextureUpdate={(newTexture) => {
-              setWorldTexture(newTexture);
-            }}
-            enabled={simulationEnabled}
-            resetCount={resetCount}
-          />
-        ) : simulationMode === 'margolus-gpu' ? (
-          <MargolusGPUSimulation
-            worldTexture={worldTexture}
-            textureSize={2048}
-            onTextureUpdate={(newTexture) => {
-              setWorldTexture(newTexture);
-            }}
-            enabled={simulationEnabled}
-            toppleProbability={toppleProbability}
-            resetCount={resetCount}
-          />
-        ) : simulationMode === 'hybrid' ? (
-          <HybridSimulation
-            worldTexture={worldTexture}
-            textureSize={2048}
-            onTextureUpdate={(newTexture) => {
-              setWorldTexture(newTexture);
-            }}
-            enabled={simulationEnabled}
-            toppleProbability={toppleProbability}
-            resetCount={resetCount}
-          />
-        ) : (
-          <MargolusSimulation
-            worldTexture={worldTexture}
-            textureSize={2048}
-            onTextureUpdate={(newTexture) => {
-              setWorldTexture(newTexture);
-            }}
-            enabled={simulationEnabled}
-            toppleProbability={toppleProbability}
-            resetCount={resetCount}
-          />
-        )}
+        <MainSimulation
+          worldTexture={worldTexture}
+          textureSize={2048}
+          onTextureUpdate={(newTexture) => {
+            setWorldTexture(newTexture);
+          }}
+          enabled={simulationEnabled}
+          config={simulationConfig}
+          resetCount={resetCount}
+        />
         <Scene texture={worldTexture} pixelSize={pixelSize} center={center} />
       </Canvas>
 
@@ -141,10 +103,8 @@ function App() {
         selectedParticle={selectedParticle}
         onParticleSelect={setSelectedParticle}
         onResetWorld={handleResetWorld}
-        simulationMode={simulationMode}
-        onSimulationModeChange={setSimulationMode}
-        toppleProbability={toppleProbability}
-        onToppleProbabilityChange={setToppleProbability}
+        simulationConfig={simulationConfig}
+        onSimulationConfigChange={setSimulationConfig}
         worldInitType={worldInitType}
         onWorldInitTypeChange={setWorldInitType}
       />

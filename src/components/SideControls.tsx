@@ -19,16 +19,16 @@ import { ParticleType } from '../world/ParticleTypes';
 import { ParticleTypeRanges } from '../world/ParticleTypeConstants';
 import { WorldInitType } from '../world/WorldGeneration';
 import { useState, useRef, useEffect } from 'react';
+import { SimulationControls } from './SimulationControls';
+import type { SimulationConfig } from '../types/SimulationConfig';
 
 interface SideControlsProps {
   particleTypes: { name: string; value: number }[];
   selectedParticle: ParticleType;
   onParticleSelect: (particle: ParticleType) => void;
   onResetWorld: () => void;
-  simulationMode?: 'gpu' | 'margolus' | 'margolus-gpu' | 'hybrid';
-  onSimulationModeChange?: (mode: 'gpu' | 'margolus' | 'margolus-gpu' | 'hybrid') => void;
-  toppleProbability?: number;
-  onToppleProbabilityChange?: (prob: number) => void;
+  simulationConfig: SimulationConfig;
+  onSimulationConfigChange: (config: SimulationConfig) => void;
   worldInitType?: WorldInitType;
   onWorldInitTypeChange?: (initType: WorldInitType) => void;
 }
@@ -53,10 +53,8 @@ export function SideControls({
   selectedParticle,
   onParticleSelect,
   onResetWorld,
-  simulationMode = 'margolus-gpu',
-  onSimulationModeChange,
-  toppleProbability = 0.75,
-  onToppleProbabilityChange,
+  simulationConfig,
+  onSimulationConfigChange,
   worldInitType = WorldInitType.HOURGLASS,
   onWorldInitTypeChange,
 }: SideControlsProps) {
@@ -308,7 +306,15 @@ export function SideControls({
 
       <div className="divider"></div>
 
-      {/* Simulation Mode Controls */}
+      {/* Simulation Pipeline Controls */}
+      <SimulationControls
+        config={simulationConfig}
+        onConfigChange={onSimulationConfigChange}
+      />
+
+      <div className="divider"></div>
+
+      {/* World Init Controls */}
       <div className="simulation-controls">
         <label className="control-label">
           World:
@@ -323,35 +329,6 @@ export function SideControls({
             <option value={WorldInitType.EMPTY}>Empty</option>
           </select>
         </label>
-
-        <label className="control-label">
-          Mode:
-          <select
-            value={simulationMode}
-            onChange={(e) => onSimulationModeChange?.(e.target.value as 'gpu' | 'margolus' | 'margolus-gpu' | 'hybrid')}
-            className="mode-select"
-          >
-            <option value="margolus-gpu">Margolus CA (GPU)</option>
-            <option value="margolus">Margolus CA (CPU)</option>
-            <option value="gpu">GPU Physics</option>
-            <option value="hybrid">Hybrid (GPU + Margolus)</option>
-          </select>
-        </label>
-
-        {(simulationMode === 'margolus' || simulationMode === 'margolus-gpu' || simulationMode === 'hybrid') && (
-          <label className="control-label">
-            Friction (p={toppleProbability.toFixed(2)}):
-            <input
-              type="range"
-              min="0"
-              max="1"
-              step="0.05"
-              value={toppleProbability}
-              onChange={(e) => onToppleProbabilityChange?.(parseFloat(e.target.value))}
-              className="probability-slider"
-            />
-          </label>
-        )}
       </div>
     </div>
   );

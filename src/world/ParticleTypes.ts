@@ -41,6 +41,7 @@ export type MaterialAttributes = {
   boilingPoint: number;
   color: [number, number, number, number]; // RGBA
   hardness: number;
+  friction: number; // For Margolus CA topple probability (0.0 - 1.0)
 }
 
 const BaseEmptyAttributes: MaterialAttributes = {
@@ -50,6 +51,7 @@ const BaseEmptyAttributes: MaterialAttributes = {
   boilingPoint: 0,
   color: [0, 0, 0, 0],
   hardness: 0,
+  friction: 0,
 };
 
 const BaseSolidAttributes: MaterialAttributes = {
@@ -59,6 +61,7 @@ const BaseSolidAttributes: MaterialAttributes = {
   boilingPoint: 3000,
   color: [128, 128, 128, 255],
   hardness: 8,
+  friction: 0.75, // Default friction for solids
 };
 
 const BaseLiquidAttributes: MaterialAttributes = {
@@ -68,6 +71,7 @@ const BaseLiquidAttributes: MaterialAttributes = {
   boilingPoint: 100,
   color: [64, 164, 223, 180],
   hardness: 2,
+  friction: 0.1, // Low friction for liquids
 };
 
 const BaseGasAttributes: MaterialAttributes = {
@@ -77,6 +81,7 @@ const BaseGasAttributes: MaterialAttributes = {
   boilingPoint: -50,
   color: [200, 200, 255, 100],
   hardness: 0,
+  friction: 0.05, // Very low friction for gases
 };
 /**
  * Particle colors for rendering

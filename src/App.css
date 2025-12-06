@@ -328,6 +328,101 @@
   transform: scale(1.2);
 }
 
+/* Pipeline Badge */
+.pipeline-badge {
+  background: rgba(83, 91, 242, 0.7);
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 0.15rem 0.4rem;
+  border-radius: 10px;
+  margin-left: 0.25rem;
+}
+
+/* Pipeline Step Controls */
+.pipeline-step {
+  margin-bottom: 0.75rem;
+}
+
+.step-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  color: #fff;
+  font-weight: 600;
+}
+
+.step-header input[type="checkbox"] {
+  cursor: pointer;
+  width: 16px;
+  height: 16px;
+}
+
+.step-name {
+  flex: 1;
+}
+
+.step-controls {
+  margin-left: 1.5rem;
+  margin-top: 0.5rem;
+}
+
+.passes-control {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  color: #ccc;
+  font-size: 0.85rem;
+}
+
+.passes-slider {
+  width: 100%;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.2);
+  outline: none;
+  border-radius: 2px;
+  cursor: pointer;
+}
+
+.passes-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  background: #535bf2;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.passes-slider::-webkit-slider-thumb:hover {
+  background: #6c75f5;
+  transform: scale(1.2);
+}
+
+.passes-slider::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  background: #535bf2;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.passes-slider::-moz-range-thumb:hover {
+  background: #6c75f5;
+  transform: scale(1.2);
+}
+
+.divider-small {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.1);
+  margin: 0.5rem 0;
+}
+
 /* Status bar - overlay at bottom */
 .status-bar {
   position: absolute;
