@@ -7,6 +7,7 @@ export enum SimulationStepType {
   GPU_PHYSICS = 'gpu-physics',
   MARGOLUS_CA = 'margolus-ca',
   LIQUID_SPREAD = 'liquid-spread',
+  ARCHIMEDES = 'archimedes',
 }
 
 export interface SimulationStep {
@@ -28,7 +29,7 @@ export const DEFAULT_SIMULATION_CONFIG: SimulationConfig = {
     {
       type: SimulationStepType.GPU_PHYSICS,
       enabled: true,
-      passes: 2,
+      passes: 1,
       name: 'GPU Physics',
       description: 'Velocity-based particle physics with gravity',
     },
@@ -45,6 +46,13 @@ export const DEFAULT_SIMULATION_CONFIG: SimulationConfig = {
       passes: 4,
       name: 'Liquid Spread',
       description: 'Fast liquid leveling and spreading',
+    },
+    {
+      type: SimulationStepType.ARCHIMEDES,
+      enabled: true,
+      passes: 4,
+      name: 'Archimedes',
+      description: 'Buoyancy and fluid displacement',
     },
   ],
 };

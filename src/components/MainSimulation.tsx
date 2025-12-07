@@ -16,6 +16,7 @@ import {
 import { simulationFragmentShader, simulationVertexShader } from '../shaders/simulationShaders';
 import { margolusFragmentShader, margolusVertexShader } from '../shaders/margolusShaders';
 import { liquidSpreadFragmentShader, liquidSpreadVertexShader } from '../shaders/liquidSpreadShaders';
+import { archimedesFragmentShader, archimedesVertexShader } from '../shaders/archimedesShaders';
 import { useFrame, useThree } from '@react-three/fiber';
 import type { SimulationConfig } from '../types/SimulationConfig';
 import { SimulationStepType } from '../types/SimulationConfig';
@@ -108,6 +109,26 @@ const createLiquidSpreadResources = (size: number, initialTexture: Texture): Sim
   return { scene, camera, material, geometry, mesh };
 };
 
+const createArchimedesResources = (size: number, initialTexture: Texture): SimulationResources => {
+  const scene = new Scene();
+  const camera = new OrthographicCamera(-1, 1, 1, -1, 0, 1);
+  const geometry = new PlaneGeometry(2, 2);
+  const material = new ShaderMaterial({
+    uniforms: {
+      uTextureSize: { value: new Vector2(size, size) },
+      uCurrentState: { value: initialTexture },
+      uIteration: { value: 0 },
+      uRandomSeed: { value: Math.random() * 1000 },
+      uFrictionAmplifier: { value: 1.0 },
+    },
+    vertexShader: archimedesVertexShader,
+    fragmentShader: archimedesFragmentShader,
+  });
+  const mesh = new Mesh(geometry, material);
+  scene.add(mesh);
+  return { scene, camera, material, geometry, mesh };
+};
+
 /**
  * Main configurable simulation with modular pipeline
  * Steps can be enabled/disabled and configured independently
@@ -136,8 +157,10 @@ function MainSimulation({
   const gpuSceneRef = useRef<SimulationResources | null>(null);
   const margolusSceneRef = useRef<SimulationResources | null>(null);
   const liquidSpreadSceneRef = useRef<SimulationResources | null>(null);
+  const archimedesSceneRef = useRef<SimulationResources | null>(null);
   const margolusIterationRef = useRef(0);
   const liquidSpreadIterationRef = useRef(0);
+  const archimedesIterationRef = useRef(0);
   const initializedRef = useRef(false);
 
   // FPS tracking
@@ -149,10 +172,12 @@ function MainSimulation({
     const gpuResources = createGPUResources(textureSize, worldTexture);
     const margolusResources = createMargolusResources(textureSize, worldTexture);
     const liquidSpreadResources = createLiquidSpreadResources(textureSize, worldTexture);
+    const archimedesResources = createArchimedesResources(textureSize, worldTexture);
 
     gpuSceneRef.current = gpuResources;
     margolusSceneRef.current = margolusResources;
     liquidSpreadSceneRef.current = liquidSpreadResources;
+    archimedesSceneRef.current = archimedesResources;
 
     // Initialize render targets
     renderTargets.forEach((rt) => {
@@ -164,10 +189,11 @@ function MainSimulation({
 
     margolusIterationRef.current = 0;
     liquidSpreadIterationRef.current = 0;
+    archimedesIterationRef.current = 0;
     initializedRef.current = true;
 
     return () => {
-      [gpuResources, margolusResources, liquidSpreadResources].forEach((resources) => {
+      [gpuResources, margolusResources, liquidSpreadResources, archimedesResources].forEach((resources) => {
         resources.scene.remove(resources.mesh);
         resources.geometry.dispose();
         resources.material.dispose();
@@ -222,6 +248,9 @@ function MainSimulation({
         case SimulationStepType.LIQUID_SPREAD:
           resources = liquidSpreadSceneRef.current;
           break;
+        case SimulationStepType.ARCHIMEDES:
+          resources = archimedesSceneRef.current;
+          break;
       }
 
       if (!resources) continue;
@@ -248,6 +277,11 @@ function MainSimulation({
           // Use iteration as deterministic seed (same iteration + position = same random value)
           resources.material.uniforms.uRandomSeed.value = liquidSpreadIterationRef.current;
           liquidSpreadIterationRef.current++;
+        } else if (step.type === SimulationStepType.ARCHIMEDES) {
+          resources.material.uniforms.uIteration.value = archimedesIterationRef.current % 4;
+          // Use iteration as deterministic seed (same iteration + position = same random value)
+          resources.material.uniforms.uRandomSeed.value = archimedesIterationRef.current;
+          archimedesIterationRef.current++;
         }
 
         // Render to target
