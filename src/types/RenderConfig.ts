@@ -4,6 +4,7 @@
  */
 
 export enum RenderEffectType {
+  EDGE_BLENDING = 'edge-blending',
   MATERIAL_VARIATION = 'material-variation',
   // Future effects:
   // BLOOM = 'bloom',
@@ -18,6 +19,10 @@ export interface RenderEffect {
   description: string;
 }
 
+export interface EdgeBlendingSettings {
+  blendStrength: number; // How much to blend empty pixels with neighbors (0-1, default: 0.5)
+}
+
 export interface MaterialVariationSettings {
   noiseScale: number; // Scale of noise pattern (default: 4.0)
   noiseStrength: number; // Strength of variation (0-1, default: 0.15)
@@ -25,11 +30,18 @@ export interface MaterialVariationSettings {
 
 export interface RenderConfig {
   effects: RenderEffect[];
+  edgeBlending: EdgeBlendingSettings;
   materialVariation: MaterialVariationSettings;
 }
 
 export const DEFAULT_RENDER_CONFIG: RenderConfig = {
   effects: [
+    {
+      type: RenderEffectType.EDGE_BLENDING,
+      enabled: true,
+      name: 'Edge Blending',
+      description: 'Smooths alternating material/empty patterns by blending empty pixels with neighbors',
+    },
     {
       type: RenderEffectType.MATERIAL_VARIATION,
       enabled: true,
@@ -37,6 +49,9 @@ export const DEFAULT_RENDER_CONFIG: RenderConfig = {
       description: 'Adds natural texture variation to materials using noise',
     },
   ],
+  edgeBlending: {
+    blendStrength: 0.5,
+  },
   materialVariation: {
     noiseScale: 4.0,
     noiseStrength: 0.15,

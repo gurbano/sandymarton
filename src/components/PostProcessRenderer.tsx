@@ -17,6 +17,7 @@ import type { RenderConfig } from '../types/RenderConfig';
 import { RenderEffectType } from '../types/RenderConfig';
 import {
   postProcessVertexShader,
+  edgeBlendingFragmentShader,
   materialVariationFragmentShader,
 } from '../shaders/postProcessShaders';
 
@@ -44,6 +45,29 @@ type EffectResources = {
   material: ShaderMaterial;
   geometry: PlaneGeometry;
   mesh: Mesh;
+};
+
+const createEdgeBlendingResources = (
+  size: number,
+  colorTexture: Texture,
+  stateTexture: Texture
+): EffectResources => {
+  const scene = new Scene();
+  const camera = new OrthographicCamera(-1, 1, 1, -1, 0, 1);
+  const geometry = new PlaneGeometry(2, 2);
+  const material = new ShaderMaterial({
+    uniforms: {
+      uColorTexture: { value: colorTexture },
+      uStateTexture: { value: stateTexture },
+      uTextureSize: { value: new Vector2(size, size) },
+      uBlendStrength: { value: 0.5 },
+    },
+    vertexShader: postProcessVertexShader,
+    fragmentShader: edgeBlendingFragmentShader,
+  });
+  const mesh = new Mesh(geometry, material);
+  scene.add(mesh);
+  return { scene, camera, material, geometry, mesh };
 };
 
 const createMaterialVariationResources = (
@@ -88,17 +112,20 @@ function PostProcessRenderer({
     return [generateRenderTarget(textureSize), generateRenderTarget(textureSize)];
   }, [textureSize]);
 
+  const edgeBlendingRef = useRef<EffectResources | null>(null);
   const materialVariationRef = useRef<EffectResources | null>(null);
   const initializedRef = useRef(false);
 
   // Create effect resources
   useEffect(() => {
+    const edgeBlending = createEdgeBlendingResources(textureSize, colorTexture, stateTexture);
     const materialVariation = createMaterialVariationResources(
       textureSize,
       colorTexture,
       stateTexture
     );
 
+    edgeBlendingRef.current = edgeBlending;
     materialVariationRef.current = materialVariation;
 
     // Initialize render targets
@@ -112,7 +139,7 @@ function PostProcessRenderer({
     initializedRef.current = true;
 
     return () => {
-      [materialVariation].forEach((resources) => {
+      [edgeBlending, materialVariation].forEach((resources) => {
         resources.scene.remove(resources.mesh);
         resources.geometry.dispose();
         resources.material.dispose();
@@ -137,6 +164,13 @@ function PostProcessRenderer({
       let resources: EffectResources | null = null;
 
       switch (effect.type) {
+        case RenderEffectType.EDGE_BLENDING:
+          resources = edgeBlendingRef.current;
+          if (resources) {
+            // Update config-specific uniforms
+            resources.material.uniforms.uBlendStrength.value = config.edgeBlending.blendStrength;
+          }
+          break;
         case RenderEffectType.MATERIAL_VARIATION:
           resources = materialVariationRef.current;
           if (resources) {

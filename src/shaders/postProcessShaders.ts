@@ -73,6 +73,75 @@ export const materialVariationFragmentShader = `
 `;
 
 /**
+ * Edge Blending Effect
+ * Smooths alternating material/empty patterns by blending empty pixels with their material neighbors
+ * This reduces the checkerboard artifacts common in cellular automata
+ */
+export const edgeBlendingFragmentShader = `
+  uniform sampler2D uColorTexture;  // Color texture from previous pass
+  uniform sampler2D uStateTexture;  // Particle state texture
+  uniform vec2 uTextureSize;
+  uniform float uBlendStrength;     // Blend strength (0-1)
+
+  varying vec2 vUv;
+
+  ${generateShaderConstants()}
+
+  void main() {
+    // Read current pixel
+    vec4 currentColor = texture2D(uColorTexture, vUv);
+    vec4 statePixel = texture2D(uStateTexture, vUv);
+    float particleType = statePixel.r * 255.0;
+
+    // If not empty, pass through unchanged
+    if (particleType >= EMPTY_MAX) {
+      gl_FragColor = currentColor;
+      return;
+    }
+
+    // Sample 4 cardinal neighbors
+    vec2 texelSize = 1.0 / uTextureSize;
+    vec2 offsets[4];
+    offsets[0] = vec2(0.0, texelSize.y);   // up
+    offsets[1] = vec2(0.0, -texelSize.y);  // down
+    offsets[2] = vec2(-texelSize.x, 0.0);  // left
+    offsets[3] = vec2(texelSize.x, 0.0);   // right
+
+    // Accumulate neighbor colors
+    vec3 neighborColorSum = vec3(0.0);
+    float neighborCount = 0.0;
+
+    for (int i = 0; i < 4; i++) {
+      vec2 neighborUv = vUv + offsets[i];
+
+      // Skip if out of bounds
+      if (neighborUv.x < 0.0 || neighborUv.x > 1.0 || neighborUv.y < 0.0 || neighborUv.y > 1.0) {
+        continue;
+      }
+
+      vec4 neighborState = texture2D(uStateTexture, neighborUv);
+      float neighborType = neighborState.r * 255.0;
+
+      // Only blend with non-empty neighbors
+      if (neighborType >= EMPTY_MAX) {
+        vec4 neighborColor = texture2D(uColorTexture, neighborUv);
+        neighborColorSum += neighborColor.rgb;
+        neighborCount += 1.0;
+      }
+    }
+
+    // If we have material neighbors, blend with them
+    if (neighborCount > 0.0) {
+      vec3 avgNeighborColor = neighborColorSum / neighborCount;
+      vec3 blendedColor = mix(currentColor.rgb, avgNeighborColor, uBlendStrength);
+      gl_FragColor = vec4(blendedColor, currentColor.a);
+    } else {
+      gl_FragColor = currentColor;
+    }
+  }
+`;
+
+/**
  * Pass-through shader (for effects that are disabled)
  */
 export const passThroughFragmentShader = `
