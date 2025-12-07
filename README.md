@@ -72,14 +72,20 @@ export default defineConfig([
 ]);
 ```
 
-todo:
+done
+
+- XXX - floating and layering
+- liquid density swap
+- solid/liquid materials interaction (float)
+
+to improve:
 
 - different materials friction/behaviour
-- density swap
-- floating
 - ui fps/particle count
+
+todo:
+
 - gas behaviour
-- materials interaction (float)
 - materials interaction (mix)
 - dynamic particles
 - temperature, force, etc overlays

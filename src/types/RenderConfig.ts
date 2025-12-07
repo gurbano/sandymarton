@@ -20,7 +20,7 @@ export interface RenderEffect {
 }
 
 export interface EdgeBlendingSettings {
-  blendStrength: number; // Opacity of gap-filling pixels (0-1, default: 1.0 = fully opaque)
+  blendStrength: number; // Strength of edge blending (0-1, default: 0.5)
 }
 
 export interface MaterialVariationSettings {
@@ -40,7 +40,7 @@ export const DEFAULT_RENDER_CONFIG: RenderConfig = {
       type: RenderEffectType.EDGE_BLENDING,
       enabled: true,
       name: 'Edge Blending',
-      description: 'Smooths alternating material/empty patterns by blending empty pixels with neighbors',
+      description: 'Smooths material boundaries by blending pixels at edges',
     },
     {
       type: RenderEffectType.MATERIAL_VARIATION,
@@ -50,7 +50,7 @@ export const DEFAULT_RENDER_CONFIG: RenderConfig = {
     },
   ],
   edgeBlending: {
-    blendStrength: 0.3,
+    blendStrength: 0.5,
   },
   materialVariation: {
     noiseScale: 4.0,

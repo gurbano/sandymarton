@@ -74,9 +74,8 @@ export const materialVariationFragmentShader = `
 
 /**
  * Edge Blending Effect
- * Fills gaps between materials with semi-transparent pixels of the same color
- * Empty pixels sandwiched between material pixels become semi-transparent versions
- * of the averaged neighbor color, controlled by blend strength (opacity)
+ * Blends pixels at material boundaries for smooth anti-aliased edges
+ * If any neighbor has a different material type, blend the 3x3 neighborhood together
  */
 export const edgeBlendingFragmentShader = `
   uniform sampler2D uColorTexture;  // Color texture from previous pass
@@ -94,62 +93,61 @@ export const edgeBlendingFragmentShader = `
     vec4 statePixel = texture2D(uStateTexture, vUv);
     float particleType = statePixel.r * 255.0;
 
-    // If not empty, pass through unchanged
-    if (particleType >= EMPTY_MAX) {
+    vec2 texelSize = 1.0 / uTextureSize;
+
+    // Sample all 8 neighbors
+    vec2 offsets[8];
+    offsets[0] = vec2(-1.0, -1.0); // Bottom-left
+    offsets[1] = vec2( 0.0, -1.0); // Bottom
+    offsets[2] = vec2( 1.0, -1.0); // Bottom-right
+    offsets[3] = vec2(-1.0,  0.0); // Left
+    offsets[4] = vec2( 1.0,  0.0); // Right
+    offsets[5] = vec2(-1.0,  1.0); // Top-left
+    offsets[6] = vec2( 0.0,  1.0); // Top
+    offsets[7] = vec2( 1.0,  1.0); // Top-right
+
+    // Check if any neighbor has a different material type
+    bool hasDifferentNeighbor = false;
+    for (int i = 0; i < 8; i++) {
+      vec2 neighborUV = vUv + offsets[i] * texelSize;
+      vec4 neighborState = texture2D(uStateTexture, neighborUV);
+      float neighborType = neighborState.r * 255.0;
+
+      if (neighborType != particleType) {
+        hasDifferentNeighbor = true;
+        break;
+      }
+    }
+
+    // If no different neighbors, pass through unchanged
+    if (!hasDifferentNeighbor) {
       gl_FragColor = currentColor;
       return;
     }
 
-    // Check if this empty pixel is sandwiched between material pixels
-    vec2 texelSize = 1.0 / uTextureSize;
+    // Blend the 3x3 neighborhood
+    vec3 blendedColor = vec3(0.0);
+    float totalWeight = 0.0;
 
-    // Sample neighbors
-    vec4 upState = texture2D(uStateTexture, vUv + vec2(0.0, texelSize.y));
-    vec4 downState = texture2D(uStateTexture, vUv + vec2(0.0, -texelSize.y));
-    vec4 leftState = texture2D(uStateTexture, vUv + vec2(-texelSize.x, 0.0));
-    vec4 rightState = texture2D(uStateTexture, vUv + vec2(texelSize.x, 0.0));
+    // Center pixel
+    blendedColor += currentColor.rgb;
+    totalWeight += 1.0;
 
-    float upType = upState.r * 255.0;
-    float downType = downState.r * 255.0;
-    float leftType = leftState.r * 255.0;
-    float rightType = rightState.r * 255.0;
-
-    bool upIsMaterial = upType >= EMPTY_MAX;
-    bool downIsMaterial = downType >= EMPTY_MAX;
-    bool leftIsMaterial = leftType >= EMPTY_MAX;
-    bool rightIsMaterial = rightType >= EMPTY_MAX;
-
-    // Check if sandwiched vertically or horizontally
-    bool verticalGap = upIsMaterial && downIsMaterial;
-    bool horizontalGap = leftIsMaterial && rightIsMaterial;
-
-    if (verticalGap || horizontalGap) {
-      // Fill in this gap with averaged color from both sides
-      vec3 fillColor = vec3(0.0);
-      float count = 0.0;
-
-      if (verticalGap) {
-        vec4 upColor = texture2D(uColorTexture, vUv + vec2(0.0, texelSize.y));
-        vec4 downColor = texture2D(uColorTexture, vUv + vec2(0.0, -texelSize.y));
-        fillColor += upColor.rgb + downColor.rgb;
-        count += 2.0;
-      }
-
-      if (horizontalGap) {
-        vec4 leftColor = texture2D(uColorTexture, vUv + vec2(-texelSize.x, 0.0));
-        vec4 rightColor = texture2D(uColorTexture, vUv + vec2(texelSize.x, 0.0));
-        fillColor += leftColor.rgb + rightColor.rgb;
-        count += 2.0;
-      }
-
-      fillColor /= count;
-
-      // Use the averaged color but make it semi-transparent based on blend strength
-      gl_FragColor = vec4(fillColor, uBlendStrength);
-    } else {
-      // Not a gap, keep original (fully transparent empty space)
-      gl_FragColor = vec4(currentColor.rgb, 0.0);
+    // Add all 8 neighbors
+    for (int i = 0; i < 8; i++) {
+      vec2 neighborUV = vUv + offsets[i] * texelSize;
+      vec4 neighborColor = texture2D(uColorTexture, neighborUV);
+      blendedColor += neighborColor.rgb;
+      totalWeight += 1.0;
     }
+
+    // Average the colors
+    blendedColor /= totalWeight;
+
+    // Mix between original and blended based on blend strength
+    vec3 finalColor = mix(currentColor.rgb, blendedColor, uBlendStrength);
+
+    gl_FragColor = vec4(finalColor, currentColor.a);
   }
 `;
 
