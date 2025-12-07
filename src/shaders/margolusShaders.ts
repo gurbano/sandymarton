@@ -88,17 +88,35 @@ const margolusTransitions = `
       transitionApplied = true;
     }
 
-    // Transition (g): [1,0,0,1] -> [1,1,0,0]
+    // Transition (g): [1,0,0,1] -> [1,1,0,0] or [0,1,1,0] (randomize left vs right)
+    // Add randomness to eliminate left-right bias
     if (!transitionApplied && isMovable(tl) && tr == INTERNAL_EMPTY && bl == INTERNAL_EMPTY && isMovable(br)) {
-      tl_new = tl; tr_new = br; bl_new = INTERNAL_EMPTY; br_new = INTERNAL_EMPTY;
-      tl_new_orig = tl_orig; tr_new_orig = br_orig; bl_new_orig = EMPTY_TYPE; br_new_orig = EMPTY_TYPE;
+      float randSide = random(blockStart, uRandomSeed + 5.0);
+      if (randSide < 0.5) {
+        // Original: particles stay on their sides (tl->tl, br->tr)
+        tl_new = tl; tr_new = br; bl_new = INTERNAL_EMPTY; br_new = INTERNAL_EMPTY;
+        tl_new_orig = tl_orig; tr_new_orig = br_orig; bl_new_orig = EMPTY_TYPE; br_new_orig = EMPTY_TYPE;
+      } else {
+        // Mirrored: particles swap sides (tl->tr, br->bl)
+        tl_new = INTERNAL_EMPTY; tr_new = tl; bl_new = br; br_new = INTERNAL_EMPTY;
+        tl_new_orig = EMPTY_TYPE; tr_new_orig = tl_orig; bl_new_orig = br_orig; br_new_orig = EMPTY_TYPE;
+      }
       transitionApplied = true;
     }
 
     // Transition (h): [1,1,0,1] -> [1,1,1,0]
+    // Add randomness to which particle moves down
     if (!transitionApplied && isMovable(tl) && isMovable(tr) && bl == INTERNAL_EMPTY && isMovable(br)) {
-      tl_new = tl; tr_new = tr; bl_new = br; br_new = INTERNAL_EMPTY;
-      tl_new_orig = tl_orig; tr_new_orig = tr_orig; bl_new_orig = br_orig; br_new_orig = EMPTY_TYPE;
+      float randChoice = random(blockStart, uRandomSeed + 6.0);
+      if (randChoice < 0.5) {
+        // Original: br moves to bl
+        tl_new = tl; tr_new = tr; bl_new = br; br_new = INTERNAL_EMPTY;
+        tl_new_orig = tl_orig; tr_new_orig = tr_orig; bl_new_orig = br_orig; br_new_orig = EMPTY_TYPE;
+      } else {
+        // Alternative: tl moves to bl
+        tl_new = INTERNAL_EMPTY; tr_new = tr; bl_new = tl; br_new = br;
+        tl_new_orig = EMPTY_TYPE; tr_new_orig = tr_orig; bl_new_orig = tl_orig; br_new_orig = br_orig;
+      }
       transitionApplied = true;
     }
 
