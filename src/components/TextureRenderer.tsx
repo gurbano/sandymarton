@@ -10,7 +10,6 @@ import {
   Scene,
   OrthographicCamera,
   PlaneGeometry,
-  Vector2,
 } from 'three';
 import { vertexShader, fragmentShader } from '../shaders/rendererShader';
 import { baseColorVertexShader, baseColorFragmentShader } from '../shaders/baseColorShader';

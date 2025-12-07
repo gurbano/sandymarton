@@ -19,6 +19,8 @@ export function ParticleCounter({ worldTexture }: ParticleCounterProps) {
     // Count particles periodically (not every frame for performance)
     const interval = setInterval(() => {
       const data = worldTexture.image.data;
+      if (!data) return; // Skip if data is not available
+
       const particleCounts: ParticleCounts = {};
       let total = 0;
 
