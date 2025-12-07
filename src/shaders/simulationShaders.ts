@@ -28,14 +28,16 @@ export const simulationFragmentShader = `
   // Gravity constant
   const float GRAVITY = 58.0;
 
-  vec4 getPixel(vec2 offset) {
+  vec4 getPixel(vec2 offset, out bool outOfBounds) {
     vec2 pixelSize = 1.0 / uTextureSize;
     vec2 sampleUV = vUv + offset * pixelSize;
 
     if (sampleUV.x < 0.0 || sampleUV.x > 1.0 || sampleUV.y < 0.0 || sampleUV.y > 1.0) {
-      return vec4(0.0, 0.0, 0.0, 0.0);
+      outOfBounds = true;
+      return vec4(STONE_TYPE / 255.0, 0.5, 0.5, 1.0); // Treat as solid wall
     }
 
+    outOfBounds = false;
     return texture2D(uCurrentState, sampleUV);
   }
 
@@ -78,10 +80,11 @@ export const simulationFragmentShader = `
 
     if (isEmpty(currentType)) {
       // Check pixel directly above
-      vec4 abovePixel = getPixel(vec2(0.0, 1.0));
+      bool aboveOOB;
+      vec4 abovePixel = getPixel(vec2(0.0, 1.0), aboveOOB);
       float aboveType = abovePixel.r * 255.0;
 
-      if (!isEmpty(aboveType) && !isStatic(aboveType) && (isSolid(aboveType) || isLiquid(aboveType))) {
+      if (!aboveOOB && !isEmpty(aboveType) && !isStatic(aboveType) && (isSolid(aboveType) || isLiquid(aboveType))) {
         // Apply gravity to particle above
         float aboveVelY = decodeVelocity(abovePixel.b);
         aboveVelY -= GRAVITY * uDeltaTime;
@@ -104,19 +107,22 @@ export const simulationFragmentShader = `
 
         bool foundDiagonal = false;
         for (int i = 0; i < 2 && !foundDiagonal; i++) {
-          vec4 diagPixel = getPixel(diagonals[i]);
+          bool diagOOB;
+          vec4 diagPixel = getPixel(diagonals[i], diagOOB);
           float diagType = diagPixel.r * 255.0;
 
-          if (!isEmpty(diagType) && !isStatic(diagType) && (isSolid(diagType) || isLiquid(diagType))) {
+          if (!diagOOB && !isEmpty(diagType) && !isStatic(diagType) && (isSolid(diagType) || isLiquid(diagType))) {
             float diagVelY = decodeVelocity(diagPixel.b);
             diagVelY -= GRAVITY * uDeltaTime;
             diagVelY = clamp(diagVelY, -10.0, 10.0);
 
             if (diagVelY < -0.5) {
               // Check if particle above diagonal is blocked below
-              vec4 belowDiag = getPixel(diagonals[i] + vec2(0.0, -1.0));
-              if (!isEmpty(belowDiag.r * 255.0)) {
-                // Blocked, so it moves diagonally here
+              // Position below the diagonal particle
+              bool belowDiagOOB;
+              vec4 belowDiag = getPixel(diagonals[i] + vec2(0.0, -1.0), belowDiagOOB);
+              // Accept only if blocked straight down OR out of bounds below (treat OOB as blocked)
+              if (belowDiagOOB || !isEmpty(belowDiag.r * 255.0)) {
                 nextState = diagPixel;
                 nextState.b = encodeVelocity(diagVelY * 0.8); // Slow down a bit
                 nextState.a = 0.0; // Reset transition flag
@@ -147,17 +153,19 @@ export const simulationFragmentShader = `
       // Check if moving
       if ((isSolid(currentType) || isLiquid(currentType)) && currentVelY < -0.5) {
         // Check below
-        vec4 belowPixel = getPixel(vec2(0.0, -1.0));
+        bool belowOOB;
+        vec4 belowPixel = getPixel(vec2(0.0, -1.0), belowOOB);
 
-        if (isEmpty(belowPixel.r * 255.0)) {
+        if (!belowOOB && isEmpty(belowPixel.r * 255.0)) {
           // Moving down - clear this pixel
           nextState = vec4(0.0, 0.5, 0.5, 0.0);
         } else {
           // Blocked straight down - try diagonals
-          vec4 downLeft = getPixel(vec2(-1.0, -1.0));
-          vec4 downRight = getPixel(vec2(1.0, -1.0));
+          bool downLeftOOB, downRightOOB;
+          vec4 downLeft = getPixel(vec2(-1.0, -1.0), downLeftOOB);
+          vec4 downRight = getPixel(vec2(1.0, -1.0), downRightOOB);
 
-          if (isEmpty(downLeft.r * 255.0) || isEmpty(downRight.r * 255.0)) {
+          if ((!downLeftOOB && isEmpty(downLeft.r * 255.0)) || (!downRightOOB && isEmpty(downRight.r * 255.0))) {
             // Can move diagonally - clear
             nextState = vec4(0.0, 0.5, 0.5, 0.0);
           } else {

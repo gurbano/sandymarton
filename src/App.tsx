@@ -6,6 +6,7 @@ import TextureRenderer from './components/TextureRenderer';
 import MainSimulation from './components/MainSimulation';
 import { SideControls } from './components/SideControls';
 import { StatusBar } from './components/StatusBar';
+import { ParticleCounter } from './components/ParticleCounter';
 import { useTextureControls } from './hooks/useTextureControls';
 import { useParticleDrawing } from './hooks/useParticleDrawing';
 import { WorldGeneration, WorldInitType } from './world/WorldGeneration';
@@ -131,6 +132,9 @@ function App() {
 
       {/* Overlay Status Bar */}
       <StatusBar pixelSize={pixelSize} center={center} selectedParticle={selectedParticle} fps={fps} />
+
+      {/* Particle Counter */}
+      <ParticleCounter worldTexture={worldTexture} />
     </div>
   );
 }

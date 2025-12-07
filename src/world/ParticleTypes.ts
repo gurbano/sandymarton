@@ -55,7 +55,7 @@ export const ParticleColors: Record<number, [number, number, number, number]> = 
   [ParticleType.SAND]: [255, 200, 100, 255],    // Opaque yellow-orange
   [ParticleType.DIRT]: [139, 90, 43, 255],      // Opaque brown
   [ParticleType.GRAVEL]: [100, 100, 100, 255],  // Opaque dark gray
-  [ParticleType.WATER]: [0, 0, 223, 180],    // Semi-transparent blue
+  [ParticleType.WATER]: [50, 150, 255, 220],    // Bright cyan-blue, less transparent
   [ParticleType.LAVA]: [255, 0, 0, 255],      // Opaque orange-red
   [ParticleType.SLIME]: [100, 255, 100, 200],   // Semi-transparent green
   [ParticleType.ACID]: [150, 255, 50, 220],     // Semi-transparent lime green

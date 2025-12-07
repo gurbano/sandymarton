@@ -96,8 +96,8 @@ const margolusTransitions = `
       float toppleProbability = clamp(baseFriction * uFrictionAmplifier, 0.0, 1.0);
       float rand = random(blockStart, uRandomSeed);
       if (rand < toppleProbability) {
-        tl_new = tl; tr_new = tl; bl_new = br; br_new = tr;
-        tl_new_orig = tl_orig; tr_new_orig = tl_orig; bl_new_orig = br_orig; br_new_orig = tr_orig;
+        tl_new = tl; tr_new = bl; bl_new = br; br_new = tr;
+        tl_new_orig = tl_orig; tr_new_orig = bl_orig; bl_new_orig = br_orig; br_new_orig = tr_orig;
         transitionApplied = true;
       }
     }
@@ -110,8 +110,8 @@ const margolusTransitions = `
       float toppleProbability = clamp(baseFriction * uFrictionAmplifier, 0.0, 1.0);
       float rand = random(blockStart, uRandomSeed + 1.0);
       if (rand < toppleProbability) {
-        tl_new = tl; tr_new = tr; bl_new = tr; br_new = bl;
-        tl_new_orig = tl_orig; tr_new_orig = tr_orig; bl_new_orig = tr_orig; br_new_orig = bl_orig;
+        tl_new = tl; tr_new = bl; bl_new = tr; br_new = br;
+        tl_new_orig = tl_orig; tr_new_orig = bl_orig; bl_new_orig = tr_orig; br_new_orig = br_orig;
         transitionApplied = true;
       }
     }
