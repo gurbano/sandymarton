@@ -94,6 +94,46 @@ const archimedesTransitions = `
         transitionApplied = true;
       }
     }
+
+    // Liquid horizontal leveling: [E/L, L1, ?, L2] -> [L1, E/L, ?, L2]
+    // L1 can move left only if: tl is empty OR tl is liquid with density <= L1's density
+    if (!transitionApplied && isLiquid(tr) && isLiquid(br)) {
+      bool canMoveLeft = false;
+      if (tl == INTERNAL_EMPTY) {
+        canMoveLeft = true;
+      } else if (isLiquid(tl)) {
+        float movingDensity = getMaterialDensity(tr_orig);
+        float destDensity = getMaterialDensity(tl_orig);
+        if (movingDensity >= destDensity) {
+          canMoveLeft = true;
+        }
+      }
+      if (canMoveLeft) {
+        tl_new = tr; tr_new = tl; bl_new = bl; br_new = br;
+        tl_new_orig = tr_orig; tr_new_orig = tl_orig; bl_new_orig = bl_orig; br_new_orig = br_orig;
+        transitionApplied = true;
+      }
+    }
+
+    // Liquid horizontal leveling: [L1, E/L, L2, ?] -> [E/L, L1, L2, ?]
+    // L1 can move right only if: tr is empty OR tr is liquid with density <= L1's density
+    if (!transitionApplied && isLiquid(tl) && isLiquid(bl)) {
+      bool canMoveRight = false;
+      if (tr == INTERNAL_EMPTY) {
+        canMoveRight = true;
+      } else if (isLiquid(tr)) {
+        float movingDensity = getMaterialDensity(tl_orig);
+        float destDensity = getMaterialDensity(tr_orig);
+        if (movingDensity >= destDensity) {
+          canMoveRight = true;
+        }
+      }
+      if (canMoveRight) {
+        tl_new = tr; tr_new = tl; bl_new = bl; br_new = br;
+        tl_new_orig = tr_orig; tr_new_orig = tl_orig; bl_new_orig = bl_orig; br_new_orig = br_orig;
+        transitionApplied = true;
+      }
+    }
 `;
 
 export const archimedesFragmentShader = createMargolusFragmentShader(archimedesTransitions);

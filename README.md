@@ -75,6 +75,15 @@ export default defineConfig([
 todo:
 
 - different materials friction/behaviour
-- materials interaction
+- density swap
+- floating
+- ui fps/particle count
+- gas behaviour
+- materials interaction (float)
+- materials interaction (mix)
 - dynamic particles
 - temperature, force, etc overlays
+- new renderer
+  - bloom
+  - texture
+  - background
