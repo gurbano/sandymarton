@@ -1,95 +1,165 @@
-# React + TypeScript + Vite
+# Sandy2 - GPU-Accelerated Particle Simulation
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A real-time particle simulation using Margolus cellular automata running entirely on the GPU via WebGL shaders. Built with React, Three.js, and TypeScript.
 
-Currently, two official plugins are available:
+## Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- **GPU-Accelerated Physics**: All simulation runs on GPU using GLSL fragment shaders
+- **Margolus Cellular Automata**: Realistic granular behavior with material-specific friction
+- **Multiple Materials**: Sand, water, stone, oil, lava, steam with unique physical properties
+- **Liquid Spread System**: Specialized shader for realistic liquid flow dynamics
+- **Archimedes Buoyancy**: Floating and layering based on material density
+- **Advanced Rendering Pipeline**:
+  - Edge blending for smooth material boundaries
+  - Material variation using FBM noise for natural texture
+  - Modular post-processing effects
+- **Interactive Drawing**: Paint particles directly onto the simulation canvas
+- **Optimized Performance**: Resolved state tracking to skip settled particles
 
-## React Compiler
+## Technical Architecture
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+### Simulation Pipeline
 
-## Expanding the ESLint configuration
+The simulation runs in multiple passes each frame:
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+1. **Margolus CA** (4 iterations): Core physics for granular materials
+   - 2x2 block-based cellular automata
+   - Friction-based toppling with randomized transitions
+   - Material-specific friction coefficients
+   - Resolved state optimization for settled particles
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+2. **Liquid Spread**: Horizontal liquid flow
+   - Probabilistic spreading based on material friction
+   - Deterministic direction selection with variance
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+3. **Archimedes**: Buoyancy and density layering
+   - Material-specific density values
+   - Swap mechanics for floating/sinking
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-]);
+### Rendering Pipeline
+
+Post-processing effects applied in sequence:
+- **Edge Blending**: 3x3 neighborhood averaging at material boundaries
+- **Material Variation**: FBM noise-based texture variation
+
+## Getting Started
+
+### Prerequisites
+
+- Node.js (v18+)
+- npm or pnpm
+
+### Installation
+
+```bash
+# Install dependencies
+npm install
+
+# Start development server
+npm run dev
+
+# Build for production
+npm run build
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+### Development
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x';
-import reactDom from 'eslint-plugin-react-dom';
+```bash
+# Run linter
+npm run lint
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-]);
+# Auto-fix linting issues
+npm run lint:fix
+
+# Format code with Prettier
+npm run format
+
+# Check formatting
+npm run format:check
 ```
 
-done
+## Controls
 
-- XXX - floating and layering
-- liquid density swap
-- solid/liquid materials interaction (float)
+- **Left Click + Drag**: Draw particles
+- **Material Selector**: Choose particle type (Sand, Water, Stone, Oil, Lava, Steam, Empty)
+- **Friction Amplifier**: Global friction multiplier (0-10, default: 1.0)
+- **Zoom**: Adjust pixel size for zoom effect
+- **Clear World**: Reset simulation
+- **Toggle Effects**: Enable/disable edge blending and material variation
+- **Adjust Effect Settings**: Fine-tune blending strength and noise parameters
 
-to improve:
+## Project Structure
 
-- different materials friction/behaviour
-- ui fps/particle count
+```
+src/
+├── components/          # React components
+│   ├── MainSimulation.tsx       # Main simulation orchestrator
+│   ├── PostProcessRenderer.tsx  # Post-processing pipeline
+│   └── Controls.tsx             # UI controls
+├── shaders/            # GLSL shaders
+│   ├── margolusShaders.ts       # Margolus CA transitions
+│   ├── liquidSpreadShaders.ts   # Liquid flow mechanics
+│   ├── archimedesShaders.ts     # Buoyancy system
+│   ├── postProcessShaders.ts    # Visual effects
+│   └── margolusShaderUtils.ts   # Shared utilities
+├── world/              # World generation and materials
+│   ├── WorldGeneration.ts       # Texture initialization
+│   ├── ParticleTypes.ts         # Particle type definitions
+│   └── MaterialDefinitions.ts   # Material properties
+├── types/              # TypeScript type definitions
+└── hooks/              # React hooks
+```
 
-todo:
+## Key Algorithms
 
-- gas behaviour
-- materials interaction (mix)
-- dynamic particles
-- temperature, force, etc overlays
-- new renderer
-  - bloom
-  - texture
-  - background
+### Margolus Cellular Automata
+
+Uses a 2x2 block-based approach with 4-iteration cycle to avoid grid artifacts. Each block processes local transitions based on particle states and material properties.
+
+### Friction-Based Toppling
+
+Particles resist toppling based on material-specific friction:
+```glsl
+toppleProbability = 1.0 - clamp(baseFriction * uFrictionAmplifier, 0.0, 1.0)
+```
+
+### Resolved State Optimization
+
+Uses alpha channel to track settled particles:
+- 1.0 = resolved (all empty or static)
+- 0.0 = unresolved (contains movable particles)
+
+Blocks with all resolved particles skip transition checks for better performance.
+
+## Tech Stack
+
+- **React 19** - UI framework
+- **TypeScript** - Type safety
+- **Three.js** - WebGL rendering
+- **React Three Fiber** - React bindings for Three.js
+- **Vite** - Build tool and dev server
+- **GLSL** - GPU shader programming
+
+## Known Issues
+
+- Click-through UI (planned fix)
+- Materials might benefit from exponential rather than linear friction curves
+
+## Roadmap
+
+- [ ] Gas behavior improvements
+- [ ] Materials interaction (mixing)
+- [ ] Dynamic particles (spawners, etc.)
+- [ ] Temperature, force, and pressure overlays
+- [ ] Additional rendering effects:
+  - [ ] Bloom
+  - [ ] Custom background
+  - [ ] Particle overlay effects
+
+## License
+
+MIT
+
+## Credits
+
+Built with inspiration from GPU-based cellular automata and falling sand simulations.
