@@ -2,4 +2,4 @@
  * Global world configuration constants
  */
 
-export const WORLD_SIZE = 2048;
+export const WORLD_SIZE = 1024;

@@ -2,6 +2,7 @@ import { useEffect, useCallback, useRef } from 'react';
 import { WorldGeneration } from '../world/WorldGeneration';
 import { ParticleType } from '../world/ParticleTypes';
 import type { DataTexture } from 'three';
+import { WORLD_SIZE } from '../constants/worldConstants';
 
 interface UseParticleDrawingProps {
   worldGen: WorldGeneration;
@@ -69,8 +70,8 @@ export function useParticleDrawing({
 
     // vec2 texUV = (worldParticleCoord + vec2(1024.0, 1024.0)) / uTextureSize;
     // We want the inverse: texture coordinates to world coordinates
-    const worldX = Math.floor(worldParticleX + 1024);
-    const worldY = Math.floor(worldParticleY + 1024);
+    const worldX = Math.floor(worldParticleX + WORLD_SIZE / 2);
+    const worldY = Math.floor(worldParticleY + WORLD_SIZE / 2);
 
     return { x: worldX, y: worldY };
   }, [pixelSize, center]);
