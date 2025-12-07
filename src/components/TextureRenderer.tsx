@@ -104,6 +104,7 @@ function TextureRenderer({
           uCanvasSize: { value: canvasSize },
           uPixelSize: { value: pixelSize },
           uCenter: { value: [center.x, center.y] },
+          uIsColorTexture: { value: false },
         },
         vertexShader,
         fragmentShader,
@@ -116,7 +117,10 @@ function TextureRenderer({
   useEffect(() => {
     // Use post-processed texture if available, otherwise use the raw state texture
     const displayTexture = postProcessedTexture || texture;
+    const isColorTexture = postProcessedTexture !== null;
+
     shaderMaterial.uniforms.uTexture.value = displayTexture;
+    shaderMaterial.uniforms.uIsColorTexture.value = isColorTexture;
     shaderMaterial.uniforms.uCanvasSize.value = canvasSize;
     shaderMaterial.uniforms.uPixelSize.value = pixelSize;
     shaderMaterial.uniforms.uCenter.value = [center.x, center.y];

@@ -59,6 +59,7 @@ export const fragmentShader = `
   uniform vec2 uCanvasSize;   // Size of the canvas in pixels
   uniform float uPixelSize;   // Zoom level (1 = 1:1, 2 = each particle is 2x2 pixels)
   uniform vec2 uCenter;       // World coordinates to center the view on
+  uniform bool uIsColorTexture; // true if texture already contains colors, false if it contains state data
   varying vec2 vUv;
 
   // Get color based on particle type
@@ -97,16 +98,18 @@ ${generateParticleColorCode()}
       return;
     }
 
-    // Sample the particle data
-    vec4 particleData = texture2D(uTexture, texUV);
+    // Sample the texture
+    vec4 texelData = texture2D(uTexture, texUV);
 
-    // Extract particle type from red channel (0-255 -> 0.0-1.0)
-    float particleType = particleData.r * 255.0;
+    // If texture already contains colors (post-processed), use them directly
+    if (uIsColorTexture) {
+      gl_FragColor = texelData;
+      return;
+    }
 
-    // Get the color for this particle type (includes alpha)
+    // Otherwise, extract particle type from red channel and convert to color
+    float particleType = texelData.r * 255.0;
     vec4 color = getParticleColor(particleType);
-
-    // Output the final color with alpha blending support
     gl_FragColor = color;
   }
 `;
