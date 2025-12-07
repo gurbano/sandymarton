@@ -27,16 +27,16 @@ const liquidSpreadTransitions = `
       transitionApplied = true;
     }
 
-    // Priority 2: Horizontal spread when both cells have support (original behavior)
-    // Liquid horizontal spread left: [0,L,S,S] -> [L,0,S,S]
-    if (!transitionApplied && tl == INTERNAL_EMPTY && isLiquid(tr) && br != INTERNAL_EMPTY && bl != INTERNAL_EMPTY) {
+    // Priority 2: Horizontal spread when resting on any support (solid or liquid)
+    // Liquid horizontal spread left: [0,L,?,?] -> [L,0,?,?] if tr has support below
+    if (!transitionApplied && tl == INTERNAL_EMPTY && isLiquid(tr) && br != INTERNAL_EMPTY) {
       tl_new = tr; tr_new = INTERNAL_EMPTY; bl_new = bl; br_new = br;
       tl_new_orig = tr_orig; tr_new_orig = EMPTY_TYPE; bl_new_orig = bl_orig; br_new_orig = br_orig;
       transitionApplied = true;
     }
 
-    // Liquid horizontal spread right: [L,0,S,S] -> [0,L,S,S]
-    if (!transitionApplied && isLiquid(tl) && tr == INTERNAL_EMPTY && br != INTERNAL_EMPTY && bl != INTERNAL_EMPTY) {
+    // Liquid horizontal spread right: [L,0,?,?] -> [0,L,?,?] if tl has support below
+    if (!transitionApplied && isLiquid(tl) && tr == INTERNAL_EMPTY && bl != INTERNAL_EMPTY) {
       tl_new = INTERNAL_EMPTY; tr_new = tl; bl_new = bl; br_new = br;
       tl_new_orig = EMPTY_TYPE; tr_new_orig = tl_orig; bl_new_orig = bl_orig; br_new_orig = br_orig;
       transitionApplied = true;
