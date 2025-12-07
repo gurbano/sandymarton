@@ -203,6 +203,7 @@ export function createMargolusFragmentShader(transitionLogic: string): string {
   uniform vec2 uTextureSize;
   uniform float uIteration; // 0, 1, 2, or 3 for the 4-iteration cycle
   uniform float uRandomSeed; // For pseudo-random number generation
+  uniform float uFrictionAmplifier; // Global friction multiplier (0-10, default 1)
 
   varying vec2 vUv;
 

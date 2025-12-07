@@ -36,6 +36,10 @@ export function SimulationControls({ config, onConfigChange }: SimulationControl
     onConfigChange({ ...config, steps: newSteps });
   };
 
+  const handleFrictionAmplifierChange = (value: number) => {
+    onConfigChange({ ...config, frictionAmplifier: value });
+  };
+
   // Get enabled steps count for display
   const enabledStepsCount = config.steps.filter(s => s.enabled).length;
 
@@ -53,6 +57,28 @@ export function SimulationControls({ config, onConfigChange }: SimulationControl
 
       {showDropdown && (
         <div className="dropdown-menu">
+          <div className="dropdown-section">
+            <div className="dropdown-title">Global Parameters</div>
+
+            <div className="global-parameter">
+              <label className="parameter-control">
+                Friction Amplifier: {config.frictionAmplifier.toFixed(1)}x
+                <input
+                  type="range"
+                  min="0"
+                  max="10"
+                  step="0.1"
+                  value={config.frictionAmplifier}
+                  onChange={(e) => handleFrictionAmplifierChange(parseFloat(e.target.value))}
+                  className="passes-slider"
+                />
+              </label>
+              <div className="parameter-description">
+                Controls friction strength for solids and liquids
+              </div>
+            </div>
+          </div>
+
           <div className="dropdown-section">
             <div className="dropdown-title">Simulation Pipeline</div>
 

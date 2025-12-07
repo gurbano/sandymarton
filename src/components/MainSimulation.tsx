@@ -57,6 +57,7 @@ const createGPUResources = (size: number, initialTexture: Texture): SimulationRe
       uDeltaTime: { value: 0 },
       uCurrentState: { value: initialTexture },
       uGravity: { value: -0.98 },
+      uFrictionAmplifier: { value: 1.0 },
     },
     vertexShader: simulationVertexShader,
     fragmentShader: simulationFragmentShader,
@@ -76,6 +77,7 @@ const createMargolusResources = (size: number, initialTexture: Texture): Simulat
       uCurrentState: { value: initialTexture },
       uIteration: { value: 0 },
       uRandomSeed: { value: Math.random() * 1000 },
+      uFrictionAmplifier: { value: 1.0 },
     },
     vertexShader: margolusVertexShader,
     fragmentShader: margolusFragmentShader,
@@ -95,6 +97,7 @@ const createLiquidSpreadResources = (size: number, initialTexture: Texture): Sim
       uCurrentState: { value: initialTexture },
       uIteration: { value: 0 },
       uRandomSeed: { value: Math.random() * 1000 },
+      uFrictionAmplifier: { value: 1.0 },
     },
     vertexShader: liquidSpreadVertexShader,
     fragmentShader: liquidSpreadFragmentShader,
@@ -207,6 +210,7 @@ function MainSimulation({
         // Update uniforms
         resources.material.uniforms.uCurrentState.value = currentSource;
         resources.material.uniforms.uTextureSize.value.set(textureSize, textureSize);
+        resources.material.uniforms.uFrictionAmplifier.value = config.frictionAmplifier;
         resources.camera.position.z = 1;
         resources.camera.updateProjectionMatrix();
 

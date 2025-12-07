@@ -20,6 +20,7 @@ export const simulationFragmentShader = `
   uniform sampler2D uCurrentState;
   uniform vec2 uTextureSize;
   uniform float uDeltaTime;
+  uniform float uFrictionAmplifier; // Global friction multiplier (unused in this shader)
   varying vec2 vUv;
 
   ${generateShaderConstants()}

@@ -19,9 +19,11 @@ export interface SimulationStep {
 
 export interface SimulationConfig {
   steps: SimulationStep[];
+  frictionAmplifier: number; // Global multiplier for friction effect (0-10, default 1)
 }
 
 export const DEFAULT_SIMULATION_CONFIG: SimulationConfig = {
+  frictionAmplifier: 1.0,
   steps: [
     {
       type: SimulationStepType.GPU_PHYSICS,

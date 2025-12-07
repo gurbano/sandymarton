@@ -62,8 +62,9 @@ const margolusTransitions = `
 
     // Transition (i): [0,1,0,1] -> [0,0,1,1] with probability p
     if (!transitionApplied && tl == INTERNAL_EMPTY && isMovable(tr) && bl == INTERNAL_EMPTY && isMovable(br)) {
-      // Use average friction of the two particles involved
-      float toppleProbability = (getMaterialFriction(tr_orig) + getMaterialFriction(br_orig)) * 0.5;
+      // Use average friction of the two particles involved, amplified by global parameter
+      float baseFriction = (getMaterialFriction(tr_orig) + getMaterialFriction(br_orig)) * 0.5;
+      float toppleProbability = clamp(baseFriction * uFrictionAmplifier, 0.0, 1.0);
       float rand = random(blockStart, uRandomSeed);
       if (rand < toppleProbability) {
         tl_new = INTERNAL_EMPTY; tr_new = INTERNAL_EMPTY; bl_new = br; br_new = tr;
@@ -74,8 +75,9 @@ const margolusTransitions = `
 
     // Transition (j): [1,0,1,0] -> [1,1,0,0] with probability p
     if (!transitionApplied && isMovable(tl) && tr == INTERNAL_EMPTY && isMovable(bl) && br == INTERNAL_EMPTY) {
-      // Use average friction of the two particles involved
-      float toppleProbability = (getMaterialFriction(tl_orig) + getMaterialFriction(bl_orig)) * 0.5;
+      // Use average friction of the two particles involved, amplified by global parameter
+      float baseFriction = (getMaterialFriction(tl_orig) + getMaterialFriction(bl_orig)) * 0.5;
+      float toppleProbability = clamp(baseFriction * uFrictionAmplifier, 0.0, 1.0);
       float rand = random(blockStart, uRandomSeed + 1.0);
       if (rand < toppleProbability) {
         tl_new = tl; tr_new = bl; bl_new = INTERNAL_EMPTY; br_new = INTERNAL_EMPTY;
