@@ -86,29 +86,32 @@ const margolusTransitions = `
 
     // PROBABILISTIC TRANSITIONS
     // Use material-specific friction for topple probability
+    // Solids can topple into empty OR liquid spaces (handled by Archimedes for swapping)
 
-    // Transition (i): [0,1,0,1] -> [0,0,1,1] with probability p
-    if (!transitionApplied && tl == INTERNAL_EMPTY && isMovable(tr) && bl == INTERNAL_EMPTY && isMovable(br)) {
+    // Transition (i): [E/L,S,E/L,S] -> [E/L,E/L,S,S] with probability p
+    // Solid topples right when resting on another particle
+    if (!transitionApplied && !isSolid(tl) && isSolid(tr) && !isSolid(bl) && isSolid(br)) {
       // Use average friction of the two particles involved, amplified by global parameter
       float baseFriction = (getMaterialFriction(tr_orig) + getMaterialFriction(br_orig)) * 0.5;
       float toppleProbability = clamp(baseFriction * uFrictionAmplifier, 0.0, 1.0);
       float rand = random(blockStart, uRandomSeed);
       if (rand < toppleProbability) {
-        tl_new = INTERNAL_EMPTY; tr_new = INTERNAL_EMPTY; bl_new = br; br_new = tr;
-        tl_new_orig = EMPTY_TYPE; tr_new_orig = EMPTY_TYPE; bl_new_orig = br_orig; br_new_orig = tr_orig;
+        tl_new = tl; tr_new = tl; bl_new = br; br_new = tr;
+        tl_new_orig = tl_orig; tr_new_orig = tl_orig; bl_new_orig = br_orig; br_new_orig = tr_orig;
         transitionApplied = true;
       }
     }
 
-    // Transition (j): [1,0,1,0] -> [1,1,0,0] with probability p
-    if (!transitionApplied && isMovable(tl) && tr == INTERNAL_EMPTY && isMovable(bl) && br == INTERNAL_EMPTY) {
+    // Transition (j): [S,E/L,S,E/L] -> [S,S,E/L,E/L] with probability p
+    // Solid topples left when resting on another particle
+    if (!transitionApplied && isSolid(tl) && !isSolid(tr) && isSolid(bl) && !isSolid(br)) {
       // Use average friction of the two particles involved, amplified by global parameter
       float baseFriction = (getMaterialFriction(tl_orig) + getMaterialFriction(bl_orig)) * 0.5;
       float toppleProbability = clamp(baseFriction * uFrictionAmplifier, 0.0, 1.0);
       float rand = random(blockStart, uRandomSeed + 1.0);
       if (rand < toppleProbability) {
-        tl_new = tl; tr_new = bl; bl_new = INTERNAL_EMPTY; br_new = INTERNAL_EMPTY;
-        tl_new_orig = tl_orig; tr_new_orig = bl_orig; bl_new_orig = EMPTY_TYPE; br_new_orig = EMPTY_TYPE;
+        tl_new = tl; tr_new = tr; bl_new = tr; br_new = bl;
+        tl_new_orig = tl_orig; tr_new_orig = tr_orig; bl_new_orig = tr_orig; br_new_orig = bl_orig;
         transitionApplied = true;
       }
     }
