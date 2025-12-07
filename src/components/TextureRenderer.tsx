@@ -17,6 +17,7 @@ import { baseColorVertexShader, baseColorFragmentShader } from '../shaders/baseC
 import { useThree, useFrame } from '@react-three/fiber';
 import PostProcessRenderer from './PostProcessRenderer';
 import type { RenderConfig } from '../types/RenderConfig';
+import { WORLD_SIZE } from '../constants/worldConstants';
 
 interface TextureRendererProps {
   texture: Texture;
@@ -44,7 +45,7 @@ function TextureRenderer({
   const baseColorResources = useMemo(() => {
     if (!renderConfig) return null;
 
-    const textureSize = 2048; // Assuming 2048x2048 world
+    const textureSize = WORLD_SIZE;
     const renderTarget = new WebGLRenderTarget(textureSize, textureSize, {
       type: UnsignedByteType,
       format: RGBAFormat,
@@ -100,7 +101,7 @@ function TextureRenderer({
       new ShaderMaterial({
         uniforms: {
           uTexture: { value: texture },
-          uTextureSize: { value: [2048, 2048] },
+          uTextureSize: { value: [WORLD_SIZE, WORLD_SIZE] },
           uCanvasSize: { value: canvasSize },
           uPixelSize: { value: pixelSize },
           uCenter: { value: [center.x, center.y] },
@@ -137,7 +138,7 @@ function TextureRenderer({
         <PostProcessRenderer
           colorTexture={baseColorResources.renderTarget.texture}
           stateTexture={texture}
-          textureSize={2048}
+          textureSize={WORLD_SIZE}
           config={renderConfig}
           onRenderComplete={handlePostProcessComplete}
         />

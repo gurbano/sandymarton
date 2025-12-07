@@ -1,4 +1,5 @@
 import { ParticleColors } from '../world/ParticleTypes';
+import { WORLD_SIZE } from '../constants/worldConstants';
 
 /**
  * Generate GLSL code for particle color mapping
@@ -55,7 +56,7 @@ export const vertexShader = `
 
 export const fragmentShader = `
   uniform sampler2D uTexture;
-  uniform vec2 uTextureSize;  // Size of the world texture (e.g., 2048x2048)
+  uniform vec2 uTextureSize;  // Size of the world texture
   uniform vec2 uCanvasSize;   // Size of the canvas in pixels
   uniform float uPixelSize;   // Zoom level (1 = 1:1, 2 = each particle is 2x2 pixels)
   uniform vec2 uCenter;       // World coordinates to center the view on
@@ -86,7 +87,7 @@ ${generateParticleColorCode()}
     vec2 worldParticleCoord = particleCoord - viewCenter + uCenter;
 
     // Convert to texture UV coordinates [0, 1]
-    vec2 texUV = (worldParticleCoord + vec2(1024.0, 1024.0)) / uTextureSize;
+    vec2 texUV = (worldParticleCoord + vec2(${WORLD_SIZE / 2}.0, ${WORLD_SIZE / 2}.0)) / uTextureSize;
 
     // Check if we're outside the texture bounds
     if (texUV.x < 0.0 || texUV.x > 1.0 || texUV.y < 0.0 || texUV.y > 1.0) {

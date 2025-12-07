@@ -14,6 +14,7 @@ import { DEFAULT_SIMULATION_CONFIG } from './types/SimulationConfig';
 import type { SimulationConfig } from './types/SimulationConfig';
 import { DEFAULT_RENDER_CONFIG } from './types/RenderConfig';
 import type { RenderConfig } from './types/RenderConfig';
+import { WORLD_SIZE } from './constants/worldConstants';
 
 function Scene({
   texture,
@@ -38,7 +39,7 @@ function App() {
   const { pixelSize, center, isDragging, setCenter } = useTextureControls({ canvasSize: 640 });
 
   // World generation instance
-  const worldGen = useMemo(() => new WorldGeneration(2048, 2048), []);
+  const worldGen = useMemo(() => new WorldGeneration(WORLD_SIZE, WORLD_SIZE), []);
 
   // World initialization type
   const [worldInitType, setWorldInitType] = useState<WorldInitType>(WorldInitType.PLATFORMS);
@@ -104,7 +105,7 @@ function App() {
       >
         <MainSimulation
           worldTexture={worldTexture}
-          textureSize={2048}
+          textureSize={WORLD_SIZE}
           onTextureUpdate={(newTexture) => {
             setWorldTexture(newTexture);
           }}
