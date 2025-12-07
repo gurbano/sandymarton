@@ -199,9 +199,13 @@ export const margolusOutputSelection = `
     outputOriginal = tr_new_orig;
   }
 
-  // If transition applied, mark as unresolved (needs checking next frame)
-  // If no transition, mark as resolved (settled)
-  float resolvedState = transitionApplied ? 0.0 : 1.0;
+  // Mark as resolved only if this block contains NO movable particles
+  // (i.e., all empty or all static - truly settled state)
+  bool hasMovableParticles = (
+    isMovable(tl_new) || isMovable(tr_new) ||
+    isMovable(bl_new) || isMovable(br_new)
+  );
+  float resolvedState = hasMovableParticles ? 0.0 : 1.0;
   gl_FragColor = createPixel(outputState, outputOriginal, resolvedState);
 `;
 
