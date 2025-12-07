@@ -4,7 +4,6 @@
  */
 
 export enum SimulationStepType {
-  GPU_PHYSICS = 'gpu-physics',
   MARGOLUS_CA = 'margolus-ca',
   LIQUID_SPREAD = 'liquid-spread',
   ARCHIMEDES = 'archimedes',
@@ -24,15 +23,8 @@ export interface SimulationConfig {
 }
 
 export const DEFAULT_SIMULATION_CONFIG: SimulationConfig = {
-  frictionAmplifier: 1.0,
+  frictionAmplifier: 2.5, // Increased to reduce pattern effects in Margolus CA
   steps: [
-    {
-      type: SimulationStepType.GPU_PHYSICS,
-      enabled: true,
-      passes: 1,
-      name: 'GPU Physics',
-      description: 'Velocity-based particle physics with gravity',
-    },
     {
       type: SimulationStepType.MARGOLUS_CA,
       enabled: true,

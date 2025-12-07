@@ -13,7 +13,6 @@ import {
   Vector2,
   WebGLRenderTarget,
 } from 'three';
-import { simulationFragmentShader, simulationVertexShader } from '../shaders/simulationShaders';
 import { margolusFragmentShader, margolusVertexShader } from '../shaders/margolusShaders';
 import { liquidSpreadFragmentShader, liquidSpreadVertexShader } from '../shaders/liquidSpreadShaders';
 import { archimedesFragmentShader, archimedesVertexShader } from '../shaders/archimedesShaders';
@@ -47,26 +46,6 @@ type SimulationResources = {
   material: ShaderMaterial;
   geometry: PlaneGeometry;
   mesh: Mesh;
-};
-
-const createGPUResources = (size: number, initialTexture: Texture): SimulationResources => {
-  const scene = new Scene();
-  const camera = new OrthographicCamera(-1, 1, 1, -1, 0, 1);
-  const geometry = new PlaneGeometry(2, 2);
-  const material = new ShaderMaterial({
-    uniforms: {
-      uTextureSize: { value: new Vector2(size, size) },
-      uDeltaTime: { value: 0 },
-      uCurrentState: { value: initialTexture },
-      uGravity: { value: -0.98 },
-      uFrictionAmplifier: { value: 1.0 },
-    },
-    vertexShader: simulationVertexShader,
-    fragmentShader: simulationFragmentShader,
-  });
-  const mesh = new Mesh(geometry, material);
-  scene.add(mesh);
-  return { scene, camera, material, geometry, mesh };
 };
 
 const createMargolusResources = (size: number, initialTexture: Texture): SimulationResources => {
@@ -154,7 +133,6 @@ function MainSimulation({
     ];
   }, [textureSize]);
 
-  const gpuSceneRef = useRef<SimulationResources | null>(null);
   const margolusSceneRef = useRef<SimulationResources | null>(null);
   const liquidSpreadSceneRef = useRef<SimulationResources | null>(null);
   const archimedesSceneRef = useRef<SimulationResources | null>(null);
@@ -169,12 +147,10 @@ function MainSimulation({
 
   // Create simulation resources
   useEffect(() => {
-    const gpuResources = createGPUResources(textureSize, worldTexture);
     const margolusResources = createMargolusResources(textureSize, worldTexture);
     const liquidSpreadResources = createLiquidSpreadResources(textureSize, worldTexture);
     const archimedesResources = createArchimedesResources(textureSize, worldTexture);
 
-    gpuSceneRef.current = gpuResources;
     margolusSceneRef.current = margolusResources;
     liquidSpreadSceneRef.current = liquidSpreadResources;
     archimedesSceneRef.current = archimedesResources;
@@ -193,7 +169,7 @@ function MainSimulation({
     initializedRef.current = true;
 
     return () => {
-      [gpuResources, margolusResources, liquidSpreadResources, archimedesResources].forEach((resources) => {
+      [margolusResources, liquidSpreadResources, archimedesResources].forEach((resources) => {
         resources.scene.remove(resources.mesh);
         resources.geometry.dispose();
         resources.material.dispose();
@@ -235,13 +211,6 @@ function MainSimulation({
       let resources: SimulationResources | null = null;
 
       switch (step.type) {
-        case SimulationStepType.GPU_PHYSICS:
-          resources = gpuSceneRef.current;
-          if (resources) {
-            const iterationDelta = delta / step.passes;
-            resources.material.uniforms.uDeltaTime.value = iterationDelta;
-          }
-          break;
         case SimulationStepType.MARGOLUS_CA:
           resources = margolusSceneRef.current;
           break;

@@ -8,18 +8,36 @@ import { margolusVertexShader, createMargolusFragmentShader } from './margolusSh
 export { margolusVertexShader };
 
 const margolusTransitions = `
-    // Transition (a): [1,0,0,0] -> [0,0,0,1]
-    if (!transitionApplied && isMovable(tl) && tr == INTERNAL_EMPTY && bl == INTERNAL_EMPTY && br == INTERNAL_EMPTY) {
-      tl_new = INTERNAL_EMPTY; tr_new = INTERNAL_EMPTY; bl_new = INTERNAL_EMPTY; br_new = tl;
-      tl_new_orig = EMPTY_TYPE; tr_new_orig = EMPTY_TYPE; bl_new_orig = EMPTY_TYPE; br_new_orig = tl_orig;
-      transitionApplied = true;
-    }
+    // Randomize transition (a) vs (b) priority to eliminate directional bias
+    float abPriority = random(blockStart, uRandomSeed + 10.0);
 
+    // Transition (a): [1,0,0,0] -> [0,0,0,1]
     // Transition (b): [0,1,0,0] -> [0,0,1,0]
-    if (!transitionApplied && tl == INTERNAL_EMPTY && isMovable(tr) && bl == INTERNAL_EMPTY && br == INTERNAL_EMPTY) {
-      tl_new = INTERNAL_EMPTY; tr_new = INTERNAL_EMPTY; bl_new = INTERNAL_EMPTY; br_new = tr;
-      tl_new_orig = EMPTY_TYPE; tr_new_orig = EMPTY_TYPE; bl_new_orig = EMPTY_TYPE; br_new_orig = tr_orig;
-      transitionApplied = true;
+    // Check in random order based on block position
+    if (abPriority < 0.5) {
+      // Check (a) first, then (b)
+      if (!transitionApplied && isMovable(tl) && tr == INTERNAL_EMPTY && bl == INTERNAL_EMPTY && br == INTERNAL_EMPTY) {
+        tl_new = INTERNAL_EMPTY; tr_new = INTERNAL_EMPTY; bl_new = INTERNAL_EMPTY; br_new = tl;
+        tl_new_orig = EMPTY_TYPE; tr_new_orig = EMPTY_TYPE; bl_new_orig = EMPTY_TYPE; br_new_orig = tl_orig;
+        transitionApplied = true;
+      }
+      if (!transitionApplied && tl == INTERNAL_EMPTY && isMovable(tr) && bl == INTERNAL_EMPTY && br == INTERNAL_EMPTY) {
+        tl_new = INTERNAL_EMPTY; tr_new = INTERNAL_EMPTY; bl_new = INTERNAL_EMPTY; br_new = tr;
+        tl_new_orig = EMPTY_TYPE; tr_new_orig = EMPTY_TYPE; bl_new_orig = EMPTY_TYPE; br_new_orig = tr_orig;
+        transitionApplied = true;
+      }
+    } else {
+      // Check (b) first, then (a)
+      if (!transitionApplied && tl == INTERNAL_EMPTY && isMovable(tr) && bl == INTERNAL_EMPTY && br == INTERNAL_EMPTY) {
+        tl_new = INTERNAL_EMPTY; tr_new = INTERNAL_EMPTY; bl_new = INTERNAL_EMPTY; br_new = tr;
+        tl_new_orig = EMPTY_TYPE; tr_new_orig = EMPTY_TYPE; bl_new_orig = EMPTY_TYPE; br_new_orig = tr_orig;
+        transitionApplied = true;
+      }
+      if (!transitionApplied && isMovable(tl) && tr == INTERNAL_EMPTY && bl == INTERNAL_EMPTY && br == INTERNAL_EMPTY) {
+        tl_new = INTERNAL_EMPTY; tr_new = INTERNAL_EMPTY; bl_new = INTERNAL_EMPTY; br_new = tl;
+        tl_new_orig = EMPTY_TYPE; tr_new_orig = EMPTY_TYPE; bl_new_orig = EMPTY_TYPE; br_new_orig = tl_orig;
+        transitionApplied = true;
+      }
     }
 
     // Transition (c): [1,1,0,0] -> [0,0,1,1]
@@ -88,31 +106,55 @@ const margolusTransitions = `
     // Use material-specific friction for topple probability
     // Solids can topple into empty OR liquid spaces (handled by Archimedes for swapping)
 
-    // Transition (i): [E/L,S,E/L,S] -> [E/L,E/L,S,S] with probability p
-    // Solid topples right when resting on another particle
-    if (!transitionApplied && !isSolid(tl) && isSolid(tr) && !isSolid(bl) && isSolid(br)) {
-      // Use average friction of the two particles involved, amplified by global parameter
-      float baseFriction = (getMaterialFriction(tr_orig) + getMaterialFriction(br_orig)) * 0.5;
-      float toppleProbability = clamp(baseFriction * uFrictionAmplifier, 0.0, 1.0);
-      float rand = random(blockStart, uRandomSeed);
-      if (rand < toppleProbability) {
-        tl_new = tl; tr_new = bl; bl_new = br; br_new = tr;
-        tl_new_orig = tl_orig; tr_new_orig = bl_orig; bl_new_orig = br_orig; br_new_orig = tr_orig;
-        transitionApplied = true;
-      }
-    }
+    // Randomize transition (i) vs (j) priority to eliminate directional bias
+    float ijPriority = random(blockStart, uRandomSeed + 11.0);
 
+    // Transition (i): [E/L,S,E/L,S] -> [E/L,E/L,S,S] with probability p
     // Transition (j): [S,E/L,S,E/L] -> [S,S,E/L,E/L] with probability p
-    // Solid topples left when resting on another particle
-    if (!transitionApplied && isSolid(tl) && !isSolid(tr) && isSolid(bl) && !isSolid(br)) {
-      // Use average friction of the two particles involved, amplified by global parameter
-      float baseFriction = (getMaterialFriction(tl_orig) + getMaterialFriction(bl_orig)) * 0.5;
-      float toppleProbability = clamp(baseFriction * uFrictionAmplifier, 0.0, 1.0);
-      float rand = random(blockStart, uRandomSeed + 1.0);
-      if (rand < toppleProbability) {
-        tl_new = tl; tr_new = bl; bl_new = tr; br_new = br;
-        tl_new_orig = tl_orig; tr_new_orig = bl_orig; bl_new_orig = tr_orig; br_new_orig = br_orig;
-        transitionApplied = true;
+    // Check in random order based on block position
+    if (ijPriority < 0.5) {
+      // Check (i) first, then (j)
+      if (!transitionApplied && !isSolid(tl) && isSolid(tr) && !isSolid(bl) && isSolid(br)) {
+        float baseFriction = (getMaterialFriction(tr_orig) + getMaterialFriction(br_orig)) * 0.5;
+        float toppleProbability = clamp(baseFriction * uFrictionAmplifier, 0.0, 1.0);
+        float rand = random(blockStart, uRandomSeed);
+        if (rand < toppleProbability) {
+          tl_new = tl; tr_new = bl; bl_new = br; br_new = tr;
+          tl_new_orig = tl_orig; tr_new_orig = bl_orig; bl_new_orig = br_orig; br_new_orig = tr_orig;
+          transitionApplied = true;
+        }
+      }
+      if (!transitionApplied && isSolid(tl) && !isSolid(tr) && isSolid(bl) && !isSolid(br)) {
+        float baseFriction = (getMaterialFriction(tl_orig) + getMaterialFriction(bl_orig)) * 0.5;
+        float toppleProbability = clamp(baseFriction * uFrictionAmplifier, 0.0, 1.0);
+        float rand = random(blockStart, uRandomSeed + 1.0);
+        if (rand < toppleProbability) {
+          tl_new = tl; tr_new = bl; bl_new = tr; br_new = br;
+          tl_new_orig = tl_orig; tr_new_orig = bl_orig; bl_new_orig = tr_orig; br_new_orig = br_orig;
+          transitionApplied = true;
+        }
+      }
+    } else {
+      // Check (j) first, then (i)
+      if (!transitionApplied && isSolid(tl) && !isSolid(tr) && isSolid(bl) && !isSolid(br)) {
+        float baseFriction = (getMaterialFriction(tl_orig) + getMaterialFriction(bl_orig)) * 0.5;
+        float toppleProbability = clamp(baseFriction * uFrictionAmplifier, 0.0, 1.0);
+        float rand = random(blockStart, uRandomSeed + 1.0);
+        if (rand < toppleProbability) {
+          tl_new = tl; tr_new = bl; bl_new = tr; br_new = br;
+          tl_new_orig = tl_orig; tr_new_orig = bl_orig; bl_new_orig = tr_orig; br_new_orig = br_orig;
+          transitionApplied = true;
+        }
+      }
+      if (!transitionApplied && !isSolid(tl) && isSolid(tr) && !isSolid(bl) && isSolid(br)) {
+        float baseFriction = (getMaterialFriction(tr_orig) + getMaterialFriction(br_orig)) * 0.5;
+        float toppleProbability = clamp(baseFriction * uFrictionAmplifier, 0.0, 1.0);
+        float rand = random(blockStart, uRandomSeed);
+        if (rand < toppleProbability) {
+          tl_new = tl; tr_new = bl; bl_new = br; br_new = tr;
+          tl_new_orig = tl_orig; tr_new_orig = bl_orig; bl_new_orig = br_orig; br_new_orig = tr_orig;
+          transitionApplied = true;
+        }
       }
     }
 `;
