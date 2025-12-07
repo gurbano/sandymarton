@@ -217,11 +217,13 @@ function MainSimulation({
         // Update step-specific uniforms
         if (step.type === SimulationStepType.MARGOLUS_CA) {
           resources.material.uniforms.uIteration.value = margolusIterationRef.current % 4;
-          resources.material.uniforms.uRandomSeed.value = Math.random() * 1000;
+          // Use iteration as deterministic seed (same iteration + position = same random value)
+          resources.material.uniforms.uRandomSeed.value = margolusIterationRef.current;
           margolusIterationRef.current++;
         } else if (step.type === SimulationStepType.LIQUID_SPREAD) {
           resources.material.uniforms.uIteration.value = liquidSpreadIterationRef.current % 2;
-          resources.material.uniforms.uRandomSeed.value = Math.random() * 1000;
+          // Use iteration as deterministic seed (same iteration + position = same random value)
+          resources.material.uniforms.uRandomSeed.value = liquidSpreadIterationRef.current;
           liquidSpreadIterationRef.current++;
         }
 
