@@ -20,7 +20,7 @@ export interface RenderEffect {
 }
 
 export interface EdgeBlendingSettings {
-  blendStrength: number; // How much to blend empty pixels with neighbors (0-1, default: 0.5)
+  blendStrength: number; // Opacity of gap-filling pixels (0-1, default: 1.0 = fully opaque)
 }
 
 export interface MaterialVariationSettings {

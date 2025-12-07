@@ -74,8 +74,9 @@ export const materialVariationFragmentShader = `
 
 /**
  * Edge Blending Effect
- * Fills in empty pixels that are sandwiched between material pixels (alternating patterns)
- * This reduces the checkerboard artifacts common in cellular automata
+ * Fills gaps between materials with semi-transparent pixels of the same color
+ * Empty pixels sandwiched between material pixels become semi-transparent versions
+ * of the averaged neighbor color, controlled by blend strength (opacity)
  */
 export const edgeBlendingFragmentShader = `
   uniform sampler2D uColorTexture;  // Color texture from previous pass
@@ -123,7 +124,7 @@ export const edgeBlendingFragmentShader = `
     bool horizontalGap = leftIsMaterial && rightIsMaterial;
 
     if (verticalGap || horizontalGap) {
-      // Fill in this gap by averaging the material colors on both sides
+      // Fill in this gap with averaged color from both sides
       vec3 fillColor = vec3(0.0);
       float count = 0.0;
 
@@ -143,12 +144,11 @@ export const edgeBlendingFragmentShader = `
 
       fillColor /= count;
 
-      // Blend between current (empty) color and fill color based on strength
-      vec3 blendedColor = mix(currentColor.rgb, fillColor, uBlendStrength);
-      gl_FragColor = vec4(blendedColor, 1.0);
+      // Use the averaged color but make it semi-transparent based on blend strength
+      gl_FragColor = vec4(fillColor, uBlendStrength);
     } else {
-      // Not a gap, keep original
-      gl_FragColor = currentColor;
+      // Not a gap, keep original (fully transparent empty space)
+      gl_FragColor = vec4(currentColor.rgb, 0.0);
     }
   }
 `;
