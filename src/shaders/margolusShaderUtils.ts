@@ -54,7 +54,7 @@ export const margolusHelperFunctions = `
     }
   }
 
-  vec4 createPixel(float cellState, float originalType, float resolved) {
+  vec4 createPixel(float cellState, float originalType, float unused) {
     // Preserve original type if it matches the behavior category, otherwise use default
     float particleType;
 
@@ -72,8 +72,7 @@ export const margolusHelperFunctions = `
       particleType = EMPTY_TYPE;
     }
 
-    // Use alpha channel to track resolved state (1.0 = settled/resolved, 0.0 = needs checking)
-    return vec4(particleType / 255.0, 0.5, 0.5, resolved);
+    return vec4(particleType / 255.0, 0.5, 0.5, 1.0);
   }
 
   bool isMovable(float state) {
@@ -152,16 +151,6 @@ export const margolusBlockSetup = `
     return;
   }
 
-  // Check if all particles in this block are resolved (settled)
-  // Alpha channel: 1.0 = resolved, 0.0 = unresolved
-  bool allResolved = (tl_px.a > 0.99 && tr_px.a > 0.99 && bl_px.a > 0.99 && br_px.a > 0.99);
-
-  // If all particles are resolved, skip transition checks (optimization)
-  if (allResolved) {
-    gl_FragColor = texture2D(uCurrentState, vUv);
-    return;
-  }
-
   // Apply Margolus transitions
   // Track both state and original particle type
   float tl_new = tl;
@@ -199,14 +188,7 @@ export const margolusOutputSelection = `
     outputOriginal = tr_new_orig;
   }
 
-  // Mark as resolved only if this block contains NO movable particles
-  // (i.e., all empty or all static - truly settled state)
-  bool hasMovableParticles = (
-    isMovable(tl_new) || isMovable(tr_new) ||
-    isMovable(bl_new) || isMovable(br_new)
-  );
-  float resolvedState = hasMovableParticles ? 0.0 : 1.0;
-  gl_FragColor = createPixel(outputState, outputOriginal, resolvedState);
+  gl_FragColor = createPixel(outputState, outputOriginal, 0.5);
 `;
 
 /**

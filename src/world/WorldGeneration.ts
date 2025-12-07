@@ -53,13 +53,13 @@ export class WorldGeneration {
     // R = Particle Type
     // G = Velocity X (encoded -128 to +127 as 0-255)
     // B = Velocity Y (encoded -128 to +127 as 0-255)
-    // A = Resolved state (0 = unresolved/needs checking, 255 = resolved/settled)
+    // A = Unused (set to 255)
     for (let i = 0; i < width * height; i++) {
       const stride = i * 4;
       worldData[stride] = ParticleType.EMPTY;  // Type
       worldData[stride + 1] = encodeVelocity(0); // Velocity X
       worldData[stride + 2] = encodeVelocity(0); // Velocity Y
-      worldData[stride + 3] = 0; // Unresolved initially (needs checking)
+      worldData[stride + 3] = 255; // Alpha (unused, set to opaque)
     }
 
     // Draw 5-pixel boundaries for all init types except EMPTY
@@ -236,7 +236,7 @@ export class WorldGeneration {
     data[index] = particle.type;
     data[index + 1] = encodeVelocity(particle.velocityX);
     data[index + 2] = encodeVelocity(particle.velocityY);
-    data[index + 3] = particle.data ?? 0; // Default to 0 (unresolved) for new particles
+    data[index + 3] = particle.data ?? 255; // Default to 255 (opaque alpha)
 
     texture.needsUpdate = true;
   }
