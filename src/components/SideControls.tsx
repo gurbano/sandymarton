@@ -13,7 +13,9 @@ import {
   faPlus,
   faEraser,
   faFillDrip,
-  faChevronDown
+  faChevronDown,
+  faFolderOpen,
+  faFloppyDisk
 } from '@fortawesome/free-solid-svg-icons';
 import { ParticleType } from '../world/ParticleTypes';
 import { ParticleTypeRanges } from '../world/ParticleTypeConstants';
@@ -21,6 +23,8 @@ import { WorldInitType } from '../world/WorldGeneration';
 import { useState, useRef, useEffect } from 'react';
 import { SimulationControls } from './SimulationControls';
 import type { SimulationConfig } from '../types/SimulationConfig';
+import { loadLevelIndex } from '../utils/LevelLoader';
+import type { Level } from '../types/Level';
 
 interface SideControlsProps {
   particleTypes: { name: string; value: number }[];
@@ -31,6 +35,8 @@ interface SideControlsProps {
   onSimulationConfigChange: (config: SimulationConfig) => void;
   worldInitType?: WorldInitType;
   onWorldInitTypeChange?: (initType: WorldInitType) => void;
+  onLoadLevel: (levelId: string) => Promise<void>;
+  onSaveLevel: (levelName: string, description?: string) => void;
 }
 
 const particleIcons: Record<string, any> = {
@@ -57,10 +63,24 @@ export function SideControls({
   onSimulationConfigChange,
   worldInitType = WorldInitType.HOURGLASS,
   onWorldInitTypeChange,
+  onLoadLevel,
+  onSaveLevel,
 }: SideControlsProps) {
   const [toolMode, setToolMode] = useState<ToolMode>('add');
   const [showDropdown, setShowDropdown] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const [availableLevels, setAvailableLevels] = useState<Level[]>([]);
+  const [selectedLevel, setSelectedLevel] = useState<string>('');
+  const [showSaveDialog, setShowSaveDialog] = useState(false);
+  const [saveLevelName, setSaveLevelName] = useState('');
+  const [saveLevelDescription, setSaveLevelDescription] = useState('');
+
+  // Load available levels on mount
+  useEffect(() => {
+    loadLevelIndex()
+      .then((index) => setAvailableLevels(index.levels))
+      .catch((err) => console.error('Failed to load level index:', err));
+  }, []);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -73,6 +93,21 @@ export function SideControls({
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  const handleLoadLevelClick = () => {
+    if (selectedLevel) {
+      onLoadLevel(selectedLevel);
+    }
+  };
+
+  const handleSaveLevelClick = () => {
+    if (saveLevelName.trim()) {
+      onSaveLevel(saveLevelName.trim(), saveLevelDescription.trim() || undefined);
+      setShowSaveDialog(false);
+      setSaveLevelName('');
+      setSaveLevelDescription('');
+    }
+  };
 
   const getToolIcon = () => {
     switch (toolMode) {
@@ -311,6 +346,75 @@ export function SideControls({
         config={simulationConfig}
         onConfigChange={onSimulationConfigChange}
       />
+
+      <div className="divider"></div>
+
+      {/* Level Controls */}
+      <div className="simulation-controls">
+        <label className="control-label">
+          Level:
+          <select
+            value={selectedLevel}
+            onChange={(e) => setSelectedLevel(e.target.value)}
+            className="mode-select"
+          >
+            <option value="">-- Select Level --</option>
+            {availableLevels.map((level) => (
+              <option key={level.id} value={level.id}>
+                {level.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <button
+          onClick={handleLoadLevelClick}
+          className="icon-button"
+          title="Load Level"
+          disabled={!selectedLevel}
+        >
+          <FontAwesomeIcon icon={faFolderOpen} />
+        </button>
+        <button
+          onClick={() => setShowSaveDialog(true)}
+          className="icon-button"
+          title="Save Level"
+        >
+          <FontAwesomeIcon icon={faFloppyDisk} />
+        </button>
+      </div>
+
+      {showSaveDialog && (
+        <div className="save-dialog-overlay" onClick={() => setShowSaveDialog(false)}>
+          <div className="save-dialog" onClick={(e) => e.stopPropagation()}>
+            <h3>Save Level</h3>
+            <label>
+              Name:
+              <input
+                type="text"
+                value={saveLevelName}
+                onChange={(e) => setSaveLevelName(e.target.value)}
+                placeholder="My Level"
+                autoFocus
+              />
+            </label>
+            <label>
+              Description (optional):
+              <input
+                type="text"
+                value={saveLevelDescription}
+                onChange={(e) => setSaveLevelDescription(e.target.value)}
+                placeholder="A cool level"
+              />
+            </label>
+            <div className="dialog-buttons">
+              <button onClick={handleSaveLevelClick} disabled={!saveLevelName.trim()}>
+                Save
+              </button>
+              <button onClick={() => setShowSaveDialog(false)}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="divider"></div>
 

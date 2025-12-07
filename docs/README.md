@@ -1,0 +1,89 @@
+# Sandy2 Documentation
+
+This directory contains detailed technical documentation for Sandy2.
+
+## Contents
+
+- **[Architecture Overview](architecture.md)** - High-level system design and component structure
+- **[Simulation Pipeline](simulation.md)** - Detailed explanation of physics simulation stages
+- **[Rendering System](rendering.md)** - Post-processing effects and visual rendering
+- **[Level System](levels.md)** - Level loading, saving, and texture format
+
+## Project Structure
+
+```
+src/
+├── components/          # React components
+│   ├── MainSimulation.tsx       # Main simulation orchestrator
+│   ├── PostProcessRenderer.tsx  # Post-processing pipeline
+│   ├── TextureRenderer.tsx      # Final rendering with liquid animation
+│   ├── SideControls.tsx         # UI controls
+│   └── ParticleCounter.tsx      # Statistics display
+├── shaders/            # GLSL shaders
+│   ├── margolusShaders.ts       # Margolus CA transitions
+│   ├── liquidSpreadShaders.ts   # Liquid flow mechanics
+│   ├── archimedesShaders.ts     # Buoyancy system
+│   ├── postProcessShaders.ts    # Visual effects
+│   ├── rendererShader.ts        # Final rendering shader
+│   └── margolusShaderUtils.ts   # Shared utilities
+├── world/              # World generation and materials
+│   ├── WorldGeneration.ts       # Texture initialization
+│   ├── ParticleTypes.ts         # Particle type definitions
+│   └── MaterialDefinitions.ts   # Material properties
+├── utils/              # Utility functions
+│   ├── LevelLoader.ts           # Level loading from PNG
+│   └── LevelSaver.ts            # Level saving to PNG
+├── types/              # TypeScript type definitions
+│   ├── SimulationConfig.ts      # Simulation configuration
+│   ├── RenderConfig.ts          # Rendering configuration
+│   └── Level.ts                 # Level metadata
+└── hooks/              # React hooks
+    ├── useParticleDrawing.ts    # Interactive drawing
+    └── useCameraControls.ts     # Pan and zoom
+```
+
+## Tech Stack Details
+
+### Frontend
+- **React 19** - UI framework with concurrent rendering
+- **TypeScript** - Static typing and enhanced IDE support
+- **React Three Fiber** - React reconciler for Three.js
+- **Three.js** - WebGL abstraction and rendering engine
+
+### Rendering
+- **WebGL 2.0** - GPU-accelerated graphics
+- **GLSL ES 3.0** - Fragment shaders for simulation and rendering
+- **DataTexture** - GPU texture storage for particle state
+
+### Build Tools
+- **Vite** - Fast development server and optimized production builds
+- **ESLint** - Code linting
+- **Prettier** - Code formatting
+
+## Data Format
+
+### Particle State Texture (RGBA)
+Each pixel in the state texture represents one particle:
+- **R channel**: Particle type (0-255)
+- **G channel**: Velocity X (0-255, encoded as -128 to +127)
+- **B channel**: Velocity Y (0-255, encoded as -128 to +127)
+- **A channel**: Additional data (currently unused)
+
+### Material Types
+- **Empty** (0): Void space
+- **Static** (16-32): Immovable materials (stone, etc.)
+- **Solid** (33-63): Granular materials (sand, dirt, gravel)
+- **Liquid** (64-111): Flowing liquids (water, lava, slime, acid)
+- **Gas** (112-159): Gaseous materials (steam, smoke, poison)
+
+## Performance Characteristics
+
+- **World Size**: 2048×2048 particles (4.2M particles)
+- **Target FPS**: 60 fps
+- **GPU Memory**: ~16 MB for particle state textures
+- **Simulation Passes per Frame**:
+  - 4× Margolus iterations
+  - 1× Liquid spread
+  - 1× Archimedes buoyancy
+  - 2-3× Post-processing effects
+- **Render Resolution**: Independent of world size (adjustable pixel scale)

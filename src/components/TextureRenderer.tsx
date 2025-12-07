@@ -82,8 +82,31 @@ function TextureRenderer({
     };
   }, [baseColorResources]);
 
-  // Render base colors each frame (if renderConfig is provided)
-  useFrame(() => {
+  const shaderMaterial = useMemo(
+    () =>
+      new ShaderMaterial({
+        uniforms: {
+          uTexture: { value: texture },
+          uStateTexture: { value: texture }, // Always points to the state texture
+          uTextureSize: { value: [WORLD_SIZE, WORLD_SIZE] },
+          uCanvasSize: { value: canvasSize },
+          uPixelSize: { value: pixelSize },
+          uCenter: { value: [center.x, center.y] },
+          uIsColorTexture: { value: false },
+          uTime: { value: 0 },
+        },
+        vertexShader,
+        fragmentShader,
+        transparent: true,
+      }),
+    []
+  );
+
+  // Update time and render base colors each frame
+  useFrame((state) => {
+    // Update time uniform for liquid animation
+    shaderMaterial.uniforms.uTime.value = state.clock.elapsedTime;
+
     if (!baseColorResources) return;
 
     // Update state texture
@@ -95,24 +118,6 @@ function TextureRenderer({
     gl.setRenderTarget(null);
   });
 
-  const shaderMaterial = useMemo(
-    () =>
-      new ShaderMaterial({
-        uniforms: {
-          uTexture: { value: texture },
-          uTextureSize: { value: [WORLD_SIZE, WORLD_SIZE] },
-          uCanvasSize: { value: canvasSize },
-          uPixelSize: { value: pixelSize },
-          uCenter: { value: [center.x, center.y] },
-          uIsColorTexture: { value: false },
-        },
-        vertexShader,
-        fragmentShader,
-        transparent: true,
-      }),
-    []
-  );
-
   // Update uniforms when props change
   useEffect(() => {
     // Use post-processed texture if available, otherwise use the raw state texture
@@ -120,6 +125,7 @@ function TextureRenderer({
     const isColorTexture = postProcessedTexture !== null;
 
     shaderMaterial.uniforms.uTexture.value = displayTexture;
+    shaderMaterial.uniforms.uStateTexture.value = texture; // Always use state texture for particle type
     shaderMaterial.uniforms.uIsColorTexture.value = isColorTexture;
     shaderMaterial.uniforms.uCanvasSize.value = canvasSize;
     shaderMaterial.uniforms.uPixelSize.value = pixelSize;

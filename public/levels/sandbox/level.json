@@ -1,0 +1,8 @@
+{
+  "id": "sandbox",
+  "name": "Sandbox",
+  "description": "A simple sandbox level with some materials",
+  "textures": {
+    "particles": "particles.png"
+  }
+}

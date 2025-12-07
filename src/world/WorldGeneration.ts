@@ -219,6 +219,29 @@ export class WorldGeneration {
   }
 
   /**
+   * Initialize world from an existing DataTexture (for level loading)
+   * The texture should already contain valid particle data
+   */
+  initFromTexture(sourceTexture: DataTexture): DataTexture {
+    const width = sourceTexture.image.width;
+    const height = sourceTexture.image.height;
+
+    // Update dimensions
+    this.width = width;
+    this.height = height;
+
+    // Clone the texture data
+    const sourceData = sourceTexture.image.data as Uint8Array;
+    const worldData = new Uint8Array(sourceData);
+
+    // Create new DataTexture with cloned data
+    const texture = new DataTexture(worldData, width, height, RGBAFormat, UnsignedByteType);
+    texture.needsUpdate = true;
+
+    return texture;
+  }
+
+  /**
    * Set a particle at a specific position directly on a texture
    * Modifies the texture data in-place and marks it for update
    */

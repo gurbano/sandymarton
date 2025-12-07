@@ -16,6 +16,8 @@ import type { SimulationConfig } from './types/SimulationConfig';
 import { DEFAULT_RENDER_CONFIG } from './types/RenderConfig';
 import type { RenderConfig } from './types/RenderConfig';
 import { WORLD_SIZE } from './constants/worldConstants';
+import { loadLevel } from './utils/LevelLoader';
+import { saveLevel } from './utils/LevelSaver';
 
 function Scene({
   texture,
@@ -94,6 +96,32 @@ function App() {
     setSimulationEnabled(true);
   }, [worldGen, setCenter, worldInitType]);
 
+  // Load level handler
+  const handleLoadLevel = useCallback(async (levelId: string) => {
+    try {
+      setSimulationEnabled(false);
+      const { particleTexture } = await loadLevel(levelId);
+      const newTexture = worldGen.initFromTexture(particleTexture);
+      setWorldTexture(newTexture);
+      setCenter({ x: 0, y: 0 });
+      setResetCount(prev => prev + 1);
+      setSimulationEnabled(true);
+    } catch (error) {
+      console.error('Failed to load level:', error);
+      alert(`Failed to load level: ${error}`);
+    }
+  }, [worldGen, setCenter]);
+
+  // Save level handler
+  const handleSaveLevel = useCallback((levelName: string, description?: string) => {
+    try {
+      saveLevel(worldTexture, levelName, description);
+    } catch (error) {
+      console.error('Failed to save level:', error);
+      alert(`Failed to save level: ${error}`);
+    }
+  }, [worldTexture]);
+
   return (
     <div className="app-container">
       {/* Fullscreen Canvas */}
@@ -128,6 +156,8 @@ function App() {
         onSimulationConfigChange={setSimulationConfig}
         worldInitType={worldInitType}
         onWorldInitTypeChange={setWorldInitType}
+        onLoadLevel={handleLoadLevel}
+        onSaveLevel={handleSaveLevel}
       />
 
       {/* Overlay Status Bar */}
