@@ -74,7 +74,7 @@ export const materialVariationFragmentShader = `
 
 /**
  * Edge Blending Effect
- * Smooths alternating material/empty patterns by blending empty pixels with their material neighbors
+ * Fills in empty pixels that are sandwiched between material pixels (alternating patterns)
  * This reduces the checkerboard artifacts common in cellular automata
  */
 export const edgeBlendingFragmentShader = `
@@ -99,43 +99,55 @@ export const edgeBlendingFragmentShader = `
       return;
     }
 
-    // Sample 4 cardinal neighbors
+    // Check if this empty pixel is sandwiched between material pixels
     vec2 texelSize = 1.0 / uTextureSize;
-    vec2 offsets[4];
-    offsets[0] = vec2(0.0, texelSize.y);   // up
-    offsets[1] = vec2(0.0, -texelSize.y);  // down
-    offsets[2] = vec2(-texelSize.x, 0.0);  // left
-    offsets[3] = vec2(texelSize.x, 0.0);   // right
 
-    // Accumulate neighbor colors
-    vec3 neighborColorSum = vec3(0.0);
-    float neighborCount = 0.0;
+    // Sample neighbors
+    vec4 upState = texture2D(uStateTexture, vUv + vec2(0.0, texelSize.y));
+    vec4 downState = texture2D(uStateTexture, vUv + vec2(0.0, -texelSize.y));
+    vec4 leftState = texture2D(uStateTexture, vUv + vec2(-texelSize.x, 0.0));
+    vec4 rightState = texture2D(uStateTexture, vUv + vec2(texelSize.x, 0.0));
 
-    for (int i = 0; i < 4; i++) {
-      vec2 neighborUv = vUv + offsets[i];
+    float upType = upState.r * 255.0;
+    float downType = downState.r * 255.0;
+    float leftType = leftState.r * 255.0;
+    float rightType = rightState.r * 255.0;
 
-      // Skip if out of bounds
-      if (neighborUv.x < 0.0 || neighborUv.x > 1.0 || neighborUv.y < 0.0 || neighborUv.y > 1.0) {
-        continue;
+    bool upIsMaterial = upType >= EMPTY_MAX;
+    bool downIsMaterial = downType >= EMPTY_MAX;
+    bool leftIsMaterial = leftType >= EMPTY_MAX;
+    bool rightIsMaterial = rightType >= EMPTY_MAX;
+
+    // Check if sandwiched vertically or horizontally
+    bool verticalGap = upIsMaterial && downIsMaterial;
+    bool horizontalGap = leftIsMaterial && rightIsMaterial;
+
+    if (verticalGap || horizontalGap) {
+      // Fill in this gap by averaging the material colors on both sides
+      vec3 fillColor = vec3(0.0);
+      float count = 0.0;
+
+      if (verticalGap) {
+        vec4 upColor = texture2D(uColorTexture, vUv + vec2(0.0, texelSize.y));
+        vec4 downColor = texture2D(uColorTexture, vUv + vec2(0.0, -texelSize.y));
+        fillColor += upColor.rgb + downColor.rgb;
+        count += 2.0;
       }
 
-      vec4 neighborState = texture2D(uStateTexture, neighborUv);
-      float neighborType = neighborState.r * 255.0;
-
-      // Only blend with non-empty neighbors
-      if (neighborType >= EMPTY_MAX) {
-        vec4 neighborColor = texture2D(uColorTexture, neighborUv);
-        neighborColorSum += neighborColor.rgb;
-        neighborCount += 1.0;
+      if (horizontalGap) {
+        vec4 leftColor = texture2D(uColorTexture, vUv + vec2(-texelSize.x, 0.0));
+        vec4 rightColor = texture2D(uColorTexture, vUv + vec2(texelSize.x, 0.0));
+        fillColor += leftColor.rgb + rightColor.rgb;
+        count += 2.0;
       }
-    }
 
-    // If we have material neighbors, blend with them
-    if (neighborCount > 0.0) {
-      vec3 avgNeighborColor = neighborColorSum / neighborCount;
-      vec3 blendedColor = mix(currentColor.rgb, avgNeighborColor, uBlendStrength);
-      gl_FragColor = vec4(blendedColor, currentColor.a);
+      fillColor /= count;
+
+      // Blend between current (empty) color and fill color based on strength
+      vec3 blendedColor = mix(currentColor.rgb, fillColor, uBlendStrength);
+      gl_FragColor = vec4(blendedColor, 1.0);
     } else {
+      // Not a gap, keep original
       gl_FragColor = currentColor;
     }
   }
