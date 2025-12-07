@@ -23,7 +23,7 @@ export interface SimulationConfig {
 }
 
 export const DEFAULT_SIMULATION_CONFIG: SimulationConfig = {
-  frictionAmplifier: 2.5, // Increased to reduce pattern effects in Margolus CA
+  frictionAmplifier: 1.0,
   steps: [
     {
       type: SimulationStepType.MARGOLUS_CA,

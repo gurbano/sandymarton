@@ -116,7 +116,7 @@ const margolusTransitions = `
       // Check (i) first, then (j)
       if (!transitionApplied && !isSolid(tl) && isSolid(tr) && !isSolid(bl) && isSolid(br)) {
         float baseFriction = (getMaterialFriction(tr_orig) + getMaterialFriction(br_orig)) * 0.5;
-        float toppleProbability = clamp(baseFriction * uFrictionAmplifier, 0.0, 1.0);
+        float toppleProbability = 1.0 - clamp(baseFriction * uFrictionAmplifier, 0.0, 1.0);
         float rand = random(blockStart, uRandomSeed);
         if (rand < toppleProbability) {
           tl_new = tl; tr_new = bl; bl_new = br; br_new = tr;
@@ -126,7 +126,7 @@ const margolusTransitions = `
       }
       if (!transitionApplied && isSolid(tl) && !isSolid(tr) && isSolid(bl) && !isSolid(br)) {
         float baseFriction = (getMaterialFriction(tl_orig) + getMaterialFriction(bl_orig)) * 0.5;
-        float toppleProbability = clamp(baseFriction * uFrictionAmplifier, 0.0, 1.0);
+        float toppleProbability = 1.0 - clamp(baseFriction * uFrictionAmplifier, 0.0, 1.0);
         float rand = random(blockStart, uRandomSeed + 1.0);
         if (rand < toppleProbability) {
           tl_new = tl; tr_new = bl; bl_new = tr; br_new = br;
@@ -138,7 +138,7 @@ const margolusTransitions = `
       // Check (j) first, then (i)
       if (!transitionApplied && isSolid(tl) && !isSolid(tr) && isSolid(bl) && !isSolid(br)) {
         float baseFriction = (getMaterialFriction(tl_orig) + getMaterialFriction(bl_orig)) * 0.5;
-        float toppleProbability = clamp(baseFriction * uFrictionAmplifier, 0.0, 1.0);
+        float toppleProbability = 1.0 - clamp(baseFriction * uFrictionAmplifier, 0.0, 1.0);
         float rand = random(blockStart, uRandomSeed + 1.0);
         if (rand < toppleProbability) {
           tl_new = tl; tr_new = bl; bl_new = tr; br_new = br;
@@ -148,7 +148,7 @@ const margolusTransitions = `
       }
       if (!transitionApplied && !isSolid(tl) && isSolid(tr) && !isSolid(bl) && isSolid(br)) {
         float baseFriction = (getMaterialFriction(tr_orig) + getMaterialFriction(br_orig)) * 0.5;
-        float toppleProbability = clamp(baseFriction * uFrictionAmplifier, 0.0, 1.0);
+        float toppleProbability = 1.0 - clamp(baseFriction * uFrictionAmplifier, 0.0, 1.0);
         float rand = random(blockStart, uRandomSeed);
         if (rand < toppleProbability) {
           tl_new = tl; tr_new = bl; bl_new = br; br_new = tr;
