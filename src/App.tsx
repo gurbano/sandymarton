@@ -12,9 +12,21 @@ import { WorldGeneration, WorldInitType } from './world/WorldGeneration';
 import { ParticleType } from './world/ParticleTypes';
 import { DEFAULT_SIMULATION_CONFIG } from './types/SimulationConfig';
 import type { SimulationConfig } from './types/SimulationConfig';
+import { DEFAULT_RENDER_CONFIG } from './types/RenderConfig';
+import type { RenderConfig } from './types/RenderConfig';
 
-function Scene({ texture, pixelSize, center }: { texture: Texture; pixelSize: number; center: { x: number; y: number } }) {
-  return <TextureRenderer texture={texture} pixelSize={pixelSize} center={center} />;
+function Scene({
+  texture,
+  pixelSize,
+  center,
+  renderConfig,
+}: {
+  texture: Texture;
+  pixelSize: number;
+  center: { x: number; y: number };
+  renderConfig: RenderConfig;
+}) {
+  return <TextureRenderer texture={texture} pixelSize={pixelSize} center={center} renderConfig={renderConfig} />;
 }
 
 // Get all particle types except EMPTY and AIR
@@ -45,6 +57,9 @@ function App() {
 
   // Simulation configuration
   const [simulationConfig, setSimulationConfig] = useState<SimulationConfig>(DEFAULT_SIMULATION_CONFIG);
+
+  // Render configuration (post-processing effects)
+  const [renderConfig, setRenderConfig] = useState<RenderConfig>(DEFAULT_RENDER_CONFIG);
 
   // Handle drawing particles and updating texture
   const handleDraw = useCallback((texture: DataTexture) => {
@@ -94,7 +109,7 @@ function App() {
           config={simulationConfig}
           resetCount={resetCount}
         />
-        <Scene texture={worldTexture} pixelSize={pixelSize} center={center} />
+        <Scene texture={worldTexture} pixelSize={pixelSize} center={center} renderConfig={renderConfig} />
       </Canvas>
 
       {/* Overlay Controls */}

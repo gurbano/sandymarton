@@ -1,0 +1,183 @@
+import { useEffect, useMemo, useRef } from 'react';
+import {
+  Mesh,
+  NearestFilter,
+  OrthographicCamera,
+  PlaneGeometry,
+  RGBAFormat,
+  Scene,
+  ShaderMaterial,
+  Texture,
+  UnsignedByteType,
+  Vector2,
+  WebGLRenderTarget,
+} from 'three';
+import { useFrame, useThree } from '@react-three/fiber';
+import type { RenderConfig } from '../types/RenderConfig';
+import { RenderEffectType } from '../types/RenderConfig';
+import {
+  postProcessVertexShader,
+  materialVariationFragmentShader,
+} from '../shaders/postProcessShaders';
+
+interface PostProcessRendererProps {
+  colorTexture: Texture; // Base color texture
+  stateTexture: Texture; // Simulation state texture (for material type lookup)
+  textureSize: number;
+  config: RenderConfig;
+  onRenderComplete: (texture: Texture) => void;
+}
+
+const generateRenderTarget = (size: number) =>
+  new WebGLRenderTarget(size, size, {
+    type: UnsignedByteType,
+    format: RGBAFormat,
+    minFilter: NearestFilter,
+    magFilter: NearestFilter,
+    depthBuffer: false,
+    stencilBuffer: false,
+  });
+
+type EffectResources = {
+  scene: Scene;
+  camera: OrthographicCamera;
+  material: ShaderMaterial;
+  geometry: PlaneGeometry;
+  mesh: Mesh;
+};
+
+const createMaterialVariationResources = (
+  size: number,
+  colorTexture: Texture,
+  stateTexture: Texture
+): EffectResources => {
+  const scene = new Scene();
+  const camera = new OrthographicCamera(-1, 1, 1, -1, 0, 1);
+  const geometry = new PlaneGeometry(2, 2);
+  const material = new ShaderMaterial({
+    uniforms: {
+      uColorTexture: { value: colorTexture },
+      uStateTexture: { value: stateTexture },
+      uTextureSize: { value: new Vector2(size, size) },
+      uNoiseScale: { value: 4.0 },
+      uNoiseStrength: { value: 0.15 },
+    },
+    vertexShader: postProcessVertexShader,
+    fragmentShader: materialVariationFragmentShader,
+  });
+  const mesh = new Mesh(geometry, material);
+  scene.add(mesh);
+  return { scene, camera, material, geometry, mesh };
+};
+
+/**
+ * Post-processing renderer with modular effect pipeline
+ * Applies visual effects after simulation
+ */
+function PostProcessRenderer({
+  colorTexture,
+  stateTexture,
+  textureSize,
+  config,
+  onRenderComplete,
+}: PostProcessRendererProps) {
+  const { gl } = useThree();
+
+  // Render targets for ping-pong rendering
+  const renderTargets = useMemo(() => {
+    return [generateRenderTarget(textureSize), generateRenderTarget(textureSize)];
+  }, [textureSize]);
+
+  const materialVariationRef = useRef<EffectResources | null>(null);
+  const initializedRef = useRef(false);
+
+  // Create effect resources
+  useEffect(() => {
+    const materialVariation = createMaterialVariationResources(
+      textureSize,
+      colorTexture,
+      stateTexture
+    );
+
+    materialVariationRef.current = materialVariation;
+
+    // Initialize render targets
+    renderTargets.forEach((rt) => {
+      gl.initRenderTarget(rt);
+      gl.setRenderTarget(rt);
+      gl.clear();
+    });
+    gl.setRenderTarget(null);
+
+    initializedRef.current = true;
+
+    return () => {
+      [materialVariation].forEach((resources) => {
+        resources.scene.remove(resources.mesh);
+        resources.geometry.dispose();
+        resources.material.dispose();
+      });
+      renderTargets.forEach((rt) => rt.dispose());
+    };
+  }, [textureSize, colorTexture, stateTexture, gl, renderTargets]);
+
+  // Run post-processing pipeline each frame
+  useFrame(() => {
+    if (!initializedRef.current) {
+      return;
+    }
+
+    let currentSource: Texture = colorTexture;
+    let rtIndex = 0;
+
+    // Execute each enabled effect in order
+    for (const effect of config.effects) {
+      if (!effect.enabled) continue;
+
+      let resources: EffectResources | null = null;
+
+      switch (effect.type) {
+        case RenderEffectType.MATERIAL_VARIATION:
+          resources = materialVariationRef.current;
+          if (resources) {
+            // Update config-specific uniforms
+            resources.material.uniforms.uNoiseScale.value = config.materialVariation.noiseScale;
+            resources.material.uniforms.uNoiseStrength.value =
+              config.materialVariation.noiseStrength;
+          }
+          break;
+        // Future effects would go here
+      }
+
+      if (!resources) continue;
+
+      const targetRT = renderTargets[rtIndex % renderTargets.length];
+
+      // Update common uniforms
+      resources.material.uniforms.uColorTexture.value = currentSource;
+      resources.material.uniforms.uStateTexture.value = stateTexture;
+      resources.material.uniforms.uTextureSize.value.set(textureSize, textureSize);
+      resources.camera.position.z = 1;
+      resources.camera.updateProjectionMatrix();
+
+      // Render effect
+      gl.setRenderTarget(targetRT);
+      gl.render(resources.scene, resources.camera);
+      gl.setRenderTarget(null);
+
+      // Update source for next effect
+      currentSource = targetRT.texture;
+      rtIndex++;
+    }
+
+    // If no effects were applied, just pass through the original
+    const finalTexture = rtIndex > 0 ? currentSource : colorTexture;
+
+    // Notify parent with final rendered texture
+    onRenderComplete(finalTexture);
+  });
+
+  return null;
+}
+
+export default PostProcessRenderer;
