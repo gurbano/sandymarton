@@ -10,6 +10,7 @@ export const archimedesVertexShader = margolusVertexShader;
 const archimedesTransitions = `
     // ARCHIMEDES PRINCIPLE TRANSITIONS
     // Solids sink through liquids, liquids rise through solids (buoyancy)
+    // Denser liquids sink below lighter liquids
 
     // Both columns have solid above liquid: [S, S, L, L] -> [L, L, S, S]
     if (!transitionApplied && isSolid(tl) && isSolid(tr) && isLiquid(bl) && isLiquid(br)) {
@@ -30,6 +31,40 @@ const archimedesTransitions = `
       tr_new = br; br_new = tr;
       tr_new_orig = br_orig; br_new_orig = tr_orig;
       transitionApplied = true;
+    }
+
+    // Both columns: denser liquid above lighter liquid: [L1, L1, L2, L2] -> [L2, L2, L1, L1]
+    // where density(L1) > density(L2)
+    if (!transitionApplied && isLiquid(tl) && isLiquid(tr) && isLiquid(bl) && isLiquid(br)) {
+      float topDensity = (getMaterialDensity(tl_orig) + getMaterialDensity(tr_orig)) * 0.5;
+      float bottomDensity = (getMaterialDensity(bl_orig) + getMaterialDensity(br_orig)) * 0.5;
+      if (topDensity > bottomDensity) {
+        tl_new = bl; tr_new = br; bl_new = tl; br_new = tr;
+        tl_new_orig = bl_orig; tr_new_orig = br_orig; bl_new_orig = tl_orig; br_new_orig = tr_orig;
+        transitionApplied = true;
+      }
+    }
+
+    // Left column: denser liquid above lighter liquid: [L1, ?, L2, ?] -> [L2, ?, L1, ?]
+    if (!transitionApplied && isLiquid(tl) && isLiquid(bl)) {
+      float topDensity = getMaterialDensity(tl_orig);
+      float bottomDensity = getMaterialDensity(bl_orig);
+      if (topDensity > bottomDensity) {
+        tl_new = bl; bl_new = tl;
+        tl_new_orig = bl_orig; bl_new_orig = tl_orig;
+        transitionApplied = true;
+      }
+    }
+
+    // Right column: denser liquid above lighter liquid: [?, L1, ?, L2] -> [?, L2, ?, L1]
+    if (!transitionApplied && isLiquid(tr) && isLiquid(br)) {
+      float topDensity = getMaterialDensity(tr_orig);
+      float bottomDensity = getMaterialDensity(br_orig);
+      if (topDensity > bottomDensity) {
+        tr_new = br; br_new = tr;
+        tr_new_orig = br_orig; br_new_orig = tr_orig;
+        transitionApplied = true;
+      }
     }
 
     // Topple right through liquid: [S, E/L, L, E/L] -> [E/L, S, L, E/L]
