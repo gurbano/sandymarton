@@ -40,7 +40,7 @@ export const DEFAULT_SIMULATION_CONFIG: SimulationConfig = {
     {
       type: SimulationStepType.LIQUID_SPREAD,
       enabled: true,
-      passes: 3,
+      passes: 2,
       name: 'Liquid Spread',
       description: 'Fast liquid leveling and spreading',
     },

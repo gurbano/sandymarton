@@ -93,6 +93,7 @@ const createLiquidSpreadResources = (size: number, initialTexture: Texture): Sim
     uniforms: {
       uTextureSize: { value: new Vector2(size, size) },
       uCurrentState: { value: initialTexture },
+      uIteration: { value: 0 },
       uRandomSeed: { value: Math.random() * 1000 },
     },
     vertexShader: liquidSpreadVertexShader,
@@ -131,6 +132,7 @@ function MainSimulation({
   const margolusSceneRef = useRef<SimulationResources | null>(null);
   const liquidSpreadSceneRef = useRef<SimulationResources | null>(null);
   const margolusIterationRef = useRef(0);
+  const liquidSpreadIterationRef = useRef(0);
   const initializedRef = useRef(false);
 
   // Create simulation resources
@@ -152,6 +154,7 @@ function MainSimulation({
     gl.setRenderTarget(null);
 
     margolusIterationRef.current = 0;
+    liquidSpreadIterationRef.current = 0;
     initializedRef.current = true;
 
     return () => {
@@ -213,7 +216,9 @@ function MainSimulation({
           resources.material.uniforms.uRandomSeed.value = Math.random() * 1000;
           margolusIterationRef.current++;
         } else if (step.type === SimulationStepType.LIQUID_SPREAD) {
+          resources.material.uniforms.uIteration.value = liquidSpreadIterationRef.current % 2;
           resources.material.uniforms.uRandomSeed.value = Math.random() * 1000;
+          liquidSpreadIterationRef.current++;
         }
 
         // Render to target

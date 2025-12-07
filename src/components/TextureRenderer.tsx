@@ -1,6 +1,6 @@
 import { useRef, useMemo, useEffect, useState } from 'react';
 import { ShaderMaterial, Mesh, Texture } from 'three';
-import { vertexShader, fragmentShader } from '../shaders/particleShaders';
+import { vertexShader, fragmentShader } from '../shaders/rendererShader';
 import { useThree } from '@react-three/fiber';
 
 interface TextureRendererProps {

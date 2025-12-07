@@ -91,6 +91,7 @@ export const simulationFragmentShader = `
           // Take the particle
           nextState = abovePixel;
           nextState.b = encodeVelocity(aboveVelY);
+          nextState.a = 0.0; // Reset transition flag
         } else {
           nextState = vec4(0.0, 0.5, 0.5, 0.0);
         }
@@ -117,6 +118,7 @@ export const simulationFragmentShader = `
                 // Blocked, so it moves diagonally here
                 nextState = diagPixel;
                 nextState.b = encodeVelocity(diagVelY * 0.8); // Slow down a bit
+                nextState.a = 0.0; // Reset transition flag
                 foundDiagonal = true;
               }
             }
@@ -162,7 +164,7 @@ export const simulationFragmentShader = `
             nextState.r = currentPixel.r;
             nextState.g = currentPixel.g;
             nextState.b = encodeVelocity(0.0);
-            nextState.a = currentPixel.a;
+            nextState.a = 0.0; // Reset transition flag
           }
         }
       } else {
@@ -170,7 +172,7 @@ export const simulationFragmentShader = `
         nextState.r = currentPixel.r;
         nextState.g = currentPixel.g;
         nextState.b = encodeVelocity(currentVelY);
-        nextState.a = currentPixel.a;
+        nextState.a = 0.0; // Reset transition flag
       }
     }
 
