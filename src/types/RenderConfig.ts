@@ -50,7 +50,7 @@ export const DEFAULT_RENDER_CONFIG: RenderConfig = {
     },
   ],
   edgeBlending: {
-    blendStrength: 0.5,
+    blendStrength: 0.4,
   },
   materialVariation: {
     noiseScale: 4.0,
