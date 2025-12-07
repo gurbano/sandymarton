@@ -154,19 +154,19 @@ export const simulationFragmentShader = `
           nextState = vec4(0.0, 0.5, 0.5, 0.0);
         } else {
           // Blocked straight down - try diagonals
-          vec4 downLeft = getPixel(vec2(-1.0, -1.0));
-          vec4 downRight = getPixel(vec2(1.0, -1.0));
+          // vec4 downLeft = getPixel(vec2(-1.0, -1.0));
+          // vec4 downRight = getPixel(vec2(1.0, -1.0));
 
-          if (isEmpty(downLeft.r * 255.0) || isEmpty(downRight.r * 255.0)) {
-            // Can move diagonally - clear
-            nextState = vec4(0.0, 0.5, 0.5, 0.0);
-          } else {
-            // Stuck - reset velocity
-            nextState.r = currentPixel.r;
-            nextState.g = currentPixel.g;
-            nextState.b = encodeVelocity(0.0);
-            nextState.a = 0.0; // Reset transition flag
-          }
+          // if (isEmpty(downLeft.r * 255.0) || isEmpty(downRight.r * 255.0)) {
+          //   // Can move diagonally - clear
+          //   nextState = vec4(0.0, 0.5, 0.5, 0.0);
+          // } else {
+          //   // Stuck - reset velocity
+          //   nextState.r = currentPixel.r;
+          //   nextState.g = currentPixel.g;
+          //   nextState.b = encodeVelocity(0.0);
+          //   nextState.a = 0.0; // Reset transition flag
+          // }
         }
       } else {
         // Not moving yet - keep with updated velocity
