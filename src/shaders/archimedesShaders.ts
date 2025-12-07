@@ -31,6 +31,30 @@ const archimedesTransitions = `
       tr_new_orig = br_orig; br_new_orig = tr_orig;
       transitionApplied = true;
     }
+
+    // Topple right through liquid: [S, E/L, L, E/L] -> [E/L, S, L, E/L]
+    // Solid on left resting on liquid, topples right with friction
+    if (!transitionApplied && isSolid(tl) && !isSolid(tr) && isLiquid(bl) && !isSolid(br)) {
+      float toppleProbability = 1.0 - getFriction(tl_orig, bl_orig, uFrictionAmplifier);
+      float rand = random(blockStart, uRandomSeed);
+      if (rand < toppleProbability) {
+        tl_new = isLiquid(tr) ? tr : bl; tr_new = tl; bl_new = bl; br_new = br;
+        tl_new_orig = isLiquid(tr) ? tr_orig : bl_orig; tr_new_orig = tl_orig; bl_new_orig = bl_orig; br_new_orig = br_orig;
+        transitionApplied = true;
+      }
+    }
+
+    // Topple left through liquid: [E/L, S, E/L, L] -> [S, E/L, E/L, L]
+    // Solid on right resting on liquid, topples left with friction
+    if (!transitionApplied && !isSolid(tl) && isSolid(tr) && !isSolid(bl) && isLiquid(br)) {
+      float toppleProbability = 1.0 - getFriction(tr_orig, br_orig, uFrictionAmplifier);
+      float rand = random(blockStart, uRandomSeed + 1.0);
+      if (rand < toppleProbability) {
+        tl_new = tr; tr_new = isLiquid(tl) ? tl : br; bl_new = bl; br_new = br;
+        tl_new_orig = tr_orig; tr_new_orig = isLiquid(tl) ? tl_orig : br_orig; bl_new_orig = bl_orig; br_new_orig = br_orig;
+        transitionApplied = true;
+      }
+    }
 `;
 
 export const archimedesFragmentShader = createMargolusFragmentShader(archimedesTransitions);
