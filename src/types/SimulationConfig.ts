@@ -35,14 +35,14 @@ export const DEFAULT_SIMULATION_CONFIG: SimulationConfig = {
     {
       type: SimulationStepType.MARGOLUS_CA,
       enabled: true,
-      passes: 2,
+      passes: 4,
       name: 'Margolus CA',
       description: 'Cellular automata for realistic granular behavior (friction is per-material)',
     },
     {
       type: SimulationStepType.LIQUID_SPREAD,
       enabled: true,
-      passes: 2,
+      passes: 4,
       name: 'Liquid Spread',
       description: 'Fast liquid leveling and spreading',
     },

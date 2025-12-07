@@ -61,6 +61,9 @@ function App() {
   // Render configuration (post-processing effects)
   const [renderConfig, setRenderConfig] = useState<RenderConfig>(DEFAULT_RENDER_CONFIG);
 
+  // FPS tracking
+  const [fps, setFps] = useState<number>(0);
+
   // Handle drawing particles and updating texture
   const handleDraw = useCallback((texture: DataTexture) => {
     // Texture is already updated in-place, just trigger a re-render
@@ -108,6 +111,7 @@ function App() {
           enabled={simulationEnabled}
           config={simulationConfig}
           resetCount={resetCount}
+          onFpsUpdate={setFps}
         />
         <Scene texture={worldTexture} pixelSize={pixelSize} center={center} renderConfig={renderConfig} />
       </Canvas>
@@ -125,7 +129,7 @@ function App() {
       />
 
       {/* Overlay Status Bar */}
-      <StatusBar pixelSize={pixelSize} center={center} selectedParticle={selectedParticle} />
+      <StatusBar pixelSize={pixelSize} center={center} selectedParticle={selectedParticle} fps={fps} />
     </div>
   );
 }

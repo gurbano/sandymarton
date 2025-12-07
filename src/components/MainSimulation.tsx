@@ -27,6 +27,7 @@ interface MainSimulationProps {
   enabled?: boolean;
   config: SimulationConfig;
   resetCount?: number;
+  onFpsUpdate?: (fps: number) => void;
 }
 
 const generateRenderTarget = (size: number) =>
@@ -118,6 +119,7 @@ function MainSimulation({
   enabled = true,
   config,
   resetCount = 0,
+  onFpsUpdate,
 }: MainSimulationProps) {
   const { gl } = useThree();
 
@@ -137,6 +139,10 @@ function MainSimulation({
   const margolusIterationRef = useRef(0);
   const liquidSpreadIterationRef = useRef(0);
   const initializedRef = useRef(false);
+
+  // FPS tracking
+  const frameTimesRef = useRef<number[]>([]);
+  const lastFpsUpdateRef = useRef(0);
 
   // Create simulation resources
   useEffect(() => {
@@ -171,9 +177,26 @@ function MainSimulation({
   }, [textureSize, worldTexture, resetCount, gl, renderTargets]);
 
   // Run simulation pipeline each frame
-  useFrame((_, delta) => {
+  useFrame((state, delta) => {
     if (!enabled || !initializedRef.current) {
       return;
+    }
+
+    // Track FPS
+    if (onFpsUpdate) {
+      const now = state.clock.elapsedTime;
+      frameTimesRef.current.push(delta);
+
+      // Update FPS every 0.5 seconds
+      if (now - lastFpsUpdateRef.current > 0.5) {
+        if (frameTimesRef.current.length > 0) {
+          const avgDelta = frameTimesRef.current.reduce((a, b) => a + b, 0) / frameTimesRef.current.length;
+          const fps = Math.round(1 / avgDelta);
+          onFpsUpdate(fps);
+        }
+        frameTimesRef.current = [];
+        lastFpsUpdateRef.current = now;
+      }
     }
 
     let currentSource: Texture = worldTexture;
