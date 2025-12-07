@@ -35,7 +35,9 @@ const archimedesTransitions = `
     // Topple right through liquid: [S, E/L, L, E/L] -> [E/L, S, L, E/L]
     // Solid on left resting on liquid, topples right with friction
     if (!transitionApplied && isSolid(tl) && !isSolid(tr) && isLiquid(bl) && !isSolid(br)) {
-      float toppleProbability = 1.0 - getFriction(tl_orig, bl_orig, uFrictionAmplifier);
+      // Use average friction of the two particles involved, amplified by global parameter
+      float baseFriction = (getMaterialFriction(tl_orig) + getMaterialFriction(bl_orig)) * 0.5;
+      float toppleProbability = 1.0 - clamp(baseFriction * uFrictionAmplifier, 0.0, 1.0);
       float rand = random(blockStart, uRandomSeed);
       if (rand < toppleProbability) {
         tl_new = isLiquid(tr) ? tr : bl; tr_new = tl; bl_new = bl; br_new = br;
@@ -47,7 +49,9 @@ const archimedesTransitions = `
     // Topple left through liquid: [E/L, S, E/L, L] -> [S, E/L, E/L, L]
     // Solid on right resting on liquid, topples left with friction
     if (!transitionApplied && !isSolid(tl) && isSolid(tr) && !isSolid(bl) && isLiquid(br)) {
-      float toppleProbability = 1.0 - getFriction(tr_orig, br_orig, uFrictionAmplifier);
+      // Use average friction of the two particles involved, amplified by global parameter
+      float baseFriction = (getMaterialFriction(tr_orig) + getMaterialFriction(br_orig)) * 0.5;
+      float toppleProbability = 1.0 - clamp(baseFriction * uFrictionAmplifier, 0.0, 1.0);
       float rand = random(blockStart, uRandomSeed + 1.0);
       if (rand < toppleProbability) {
         tl_new = tr; tr_new = isLiquid(tl) ? tl : br; bl_new = bl; br_new = br;
