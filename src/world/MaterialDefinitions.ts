@@ -73,7 +73,7 @@ export const MaterialDefinitions: Partial<Record<ParticleType, MaterialAttribute
   boilingPoint: 2230,
   color: [255, 200, 100, 255],
   hardness: 4,
-  friction: 0.6,             // Medium friction - flows but piles
+  friction: 0.1,             // Very fluid - flows easily
 },
 
 [ParticleType.DIRT]: {
@@ -83,7 +83,7 @@ export const MaterialDefinitions: Partial<Record<ParticleType, MaterialAttribute
   boilingPoint: 1500,
   color: [139, 90, 43, 255],
   hardness: 2,
-  friction: 0.9,             // Very high friction - clumpy
+  friction: 0.5,             // Medium friction - exact middle
 },
 
 [ParticleType.GRAVEL]: {
@@ -93,7 +93,7 @@ export const MaterialDefinitions: Partial<Record<ParticleType, MaterialAttribute
   boilingPoint: 2500,
   color: [100, 100, 100, 255],
   hardness: 6,
-  friction: 0.85,            // Higher friction than sand (rocks interlock)
+  friction: 0.9,             // Very high friction - rocks interlock
 },
 
 // Liquid particles

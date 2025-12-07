@@ -19,11 +19,11 @@ export interface SimulationStep {
 
 export interface SimulationConfig {
   steps: SimulationStep[];
-  frictionAmplifier: number; // Global multiplier for friction effect (0-10, default 1)
+  frictionAmplifier: number; // Exponential friction power (0-10, default 1.3)
 }
 
 export const DEFAULT_SIMULATION_CONFIG: SimulationConfig = {
-  frictionAmplifier: 1.0,
+  frictionAmplifier: 1.3,
   steps: [
     {
       type: SimulationStepType.MARGOLUS_CA,
