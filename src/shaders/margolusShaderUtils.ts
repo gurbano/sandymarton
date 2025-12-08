@@ -76,7 +76,8 @@ export const margolusHelperFunctions = `
   }
 
   bool isMovable(float state) {
-    return state > INTERNAL_EMPTY && state < INTERNAL_STATIC;
+    // Only solids and liquids fall - gases rise (handled separately)
+    return state == INTERNAL_SOLID || state == INTERNAL_LIQUID;
   }
 
   bool isSolid(float state) {
@@ -85,6 +86,10 @@ export const margolusHelperFunctions = `
 
   bool isLiquid(float state) {
     return state == INTERNAL_LIQUID;
+  }
+
+  bool isGas(float state) {
+    return state == INTERNAL_GAS;
   }
 
   // Pseudo-random number generator

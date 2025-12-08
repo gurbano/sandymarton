@@ -134,6 +134,85 @@ const archimedesTransitions = `
         transitionApplied = true;
       }
     }
+
+    // GAS BUOYANCY TRANSITIONS
+    // Gases rise through solids and liquids (very light, always float up)
+
+    // Both columns have gas below solid: [S, S, G, G] -> [G, G, S, S]
+    if (!transitionApplied && isSolid(tl) && isSolid(tr) && isGas(bl) && isGas(br)) {
+      tl_new = bl; tr_new = br; bl_new = tl; br_new = tr;
+      tl_new_orig = bl_orig; tr_new_orig = br_orig; bl_new_orig = tl_orig; br_new_orig = tr_orig;
+      transitionApplied = true;
+    }
+
+    // Left column: gas below solid: [S, ?, G, ?] -> [G, ?, S, ?]
+    if (!transitionApplied && isSolid(tl) && isGas(bl)) {
+      tl_new = bl; bl_new = tl;
+      tl_new_orig = bl_orig; bl_new_orig = tl_orig;
+      transitionApplied = true;
+    }
+
+    // Right column: gas below solid: [?, S, ?, G] -> [?, G, ?, S]
+    if (!transitionApplied && isSolid(tr) && isGas(br)) {
+      tr_new = br; br_new = tr;
+      tr_new_orig = br_orig; br_new_orig = tr_orig;
+      transitionApplied = true;
+    }
+
+    // Both columns have gas below liquid: [L, L, G, G] -> [G, G, L, L]
+    if (!transitionApplied && isLiquid(tl) && isLiquid(tr) && isGas(bl) && isGas(br)) {
+      tl_new = bl; tr_new = br; bl_new = tl; br_new = tr;
+      tl_new_orig = bl_orig; tr_new_orig = br_orig; bl_new_orig = tl_orig; br_new_orig = tr_orig;
+      transitionApplied = true;
+    }
+
+    // Left column: gas below liquid: [L, ?, G, ?] -> [G, ?, L, ?]
+    if (!transitionApplied && isLiquid(tl) && isGas(bl)) {
+      tl_new = bl; bl_new = tl;
+      tl_new_orig = bl_orig; bl_new_orig = tl_orig;
+      transitionApplied = true;
+    }
+
+    // Right column: gas below liquid: [?, L, ?, G] -> [?, G, ?, L]
+    if (!transitionApplied && isLiquid(tr) && isGas(br)) {
+      tr_new = br; br_new = tr;
+      tr_new_orig = br_orig; br_new_orig = tr_orig;
+      transitionApplied = true;
+    }
+
+    // Gas density ordering: denser gas above lighter gas swaps
+    // Both columns: [G1, G1, G2, G2] -> [G2, G2, G1, G1] where density(G1) > density(G2)
+    if (!transitionApplied && isGas(tl) && isGas(tr) && isGas(bl) && isGas(br)) {
+      float topDensity = (getMaterialDensity(tl_orig) + getMaterialDensity(tr_orig)) * 0.5;
+      float bottomDensity = (getMaterialDensity(bl_orig) + getMaterialDensity(br_orig)) * 0.5;
+      if (topDensity > bottomDensity) {
+        tl_new = bl; tr_new = br; bl_new = tl; br_new = tr;
+        tl_new_orig = bl_orig; tr_new_orig = br_orig; bl_new_orig = tl_orig; br_new_orig = tr_orig;
+        transitionApplied = true;
+      }
+    }
+
+    // Left column: denser gas above lighter gas: [G1, ?, G2, ?] -> [G2, ?, G1, ?]
+    if (!transitionApplied && isGas(tl) && isGas(bl)) {
+      float topDensity = getMaterialDensity(tl_orig);
+      float bottomDensity = getMaterialDensity(bl_orig);
+      if (topDensity > bottomDensity) {
+        tl_new = bl; bl_new = tl;
+        tl_new_orig = bl_orig; bl_new_orig = tl_orig;
+        transitionApplied = true;
+      }
+    }
+
+    // Right column: denser gas above lighter gas: [?, G1, ?, G2] -> [?, G2, ?, G1]
+    if (!transitionApplied && isGas(tr) && isGas(br)) {
+      float topDensity = getMaterialDensity(tr_orig);
+      float bottomDensity = getMaterialDensity(br_orig);
+      if (topDensity > bottomDensity) {
+        tr_new = br; br_new = tr;
+        tr_new_orig = br_orig; br_new_orig = tr_orig;
+        transitionApplied = true;
+      }
+    }
 `;
 
 export const archimedesFragmentShader = createMargolusFragmentShader(archimedesTransitions);

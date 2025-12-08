@@ -175,6 +175,134 @@ const margolusTransitions = `
         }
       }
     }
+
+    // GAS RISING TRANSITIONS
+    // Gases rise upward (inverse of solid falling transitions)
+    // Randomize left vs right gas priority to eliminate directional bias
+    float gasLRPriority = random(blockStart, uRandomSeed + 20.0);
+
+    // Single gas rises from bottom-left: [E, E, G, E] -> [G, E, E, E]
+    // Single gas rises from bottom-right: [E, E, E, G] -> [E, G, E, E]
+    if (gasLRPriority < 0.5) {
+      // Check left first, then right
+      if (!transitionApplied && tl == INTERNAL_EMPTY && tr == INTERNAL_EMPTY && isGas(bl) && br == INTERNAL_EMPTY) {
+        tl_new = bl; tr_new = INTERNAL_EMPTY; bl_new = INTERNAL_EMPTY; br_new = INTERNAL_EMPTY;
+        tl_new_orig = bl_orig; tr_new_orig = EMPTY_TYPE; bl_new_orig = EMPTY_TYPE; br_new_orig = EMPTY_TYPE;
+        transitionApplied = true;
+      }
+      if (!transitionApplied && tl == INTERNAL_EMPTY && tr == INTERNAL_EMPTY && bl == INTERNAL_EMPTY && isGas(br)) {
+        tl_new = INTERNAL_EMPTY; tr_new = br; bl_new = INTERNAL_EMPTY; br_new = INTERNAL_EMPTY;
+        tl_new_orig = EMPTY_TYPE; tr_new_orig = br_orig; bl_new_orig = EMPTY_TYPE; br_new_orig = EMPTY_TYPE;
+        transitionApplied = true;
+      }
+    } else {
+      // Check right first, then left
+      if (!transitionApplied && tl == INTERNAL_EMPTY && tr == INTERNAL_EMPTY && bl == INTERNAL_EMPTY && isGas(br)) {
+        tl_new = INTERNAL_EMPTY; tr_new = br; bl_new = INTERNAL_EMPTY; br_new = INTERNAL_EMPTY;
+        tl_new_orig = EMPTY_TYPE; tr_new_orig = br_orig; bl_new_orig = EMPTY_TYPE; br_new_orig = EMPTY_TYPE;
+        transitionApplied = true;
+      }
+      if (!transitionApplied && tl == INTERNAL_EMPTY && tr == INTERNAL_EMPTY && isGas(bl) && br == INTERNAL_EMPTY) {
+        tl_new = bl; tr_new = INTERNAL_EMPTY; bl_new = INTERNAL_EMPTY; br_new = INTERNAL_EMPTY;
+        tl_new_orig = bl_orig; tr_new_orig = EMPTY_TYPE; bl_new_orig = EMPTY_TYPE; br_new_orig = EMPTY_TYPE;
+        transitionApplied = true;
+      }
+    }
+
+    // Two gases rise together: [E, E, G, G] -> [G, G, E, E]
+    if (!transitionApplied && tl == INTERNAL_EMPTY && tr == INTERNAL_EMPTY && isGas(bl) && isGas(br)) {
+      float randSwap = random(blockStart, uRandomSeed + 21.0);
+      if (randSwap < 0.5) {
+        // bl->tl, br->tr
+        tl_new = bl; tr_new = br; bl_new = INTERNAL_EMPTY; br_new = INTERNAL_EMPTY;
+        tl_new_orig = bl_orig; tr_new_orig = br_orig; bl_new_orig = EMPTY_TYPE; br_new_orig = EMPTY_TYPE;
+      } else {
+        // bl->tr, br->tl (swap positions)
+        tl_new = br; tr_new = bl; bl_new = INTERNAL_EMPTY; br_new = INTERNAL_EMPTY;
+        tl_new_orig = br_orig; tr_new_orig = bl_orig; bl_new_orig = EMPTY_TYPE; br_new_orig = EMPTY_TYPE;
+      }
+      transitionApplied = true;
+    }
+
+    // Gas rises into gap above: [E, G, G, G] -> [G, E, G, G] or [G, G, E, G]
+    if (!transitionApplied && tl == INTERNAL_EMPTY && isGas(tr) && isGas(bl) && isGas(br)) {
+      float randChoice = random(blockStart, uRandomSeed + 22.0);
+      if (randChoice < 0.5) {
+        // bl rises to tl
+        tl_new = bl; tr_new = tr; bl_new = INTERNAL_EMPTY; br_new = br;
+        tl_new_orig = bl_orig; tr_new_orig = tr_orig; bl_new_orig = EMPTY_TYPE; br_new_orig = br_orig;
+      } else {
+        // br rises to tl
+        tl_new = br; tr_new = tr; bl_new = bl; br_new = INTERNAL_EMPTY;
+        tl_new_orig = br_orig; tr_new_orig = tr_orig; bl_new_orig = bl_orig; br_new_orig = EMPTY_TYPE;
+      }
+      transitionApplied = true;
+    }
+
+    // Gas rises into gap above (mirror): [G, E, G, G] -> [G, G, E, G] or [G, G, G, E]
+    if (!transitionApplied && isGas(tl) && tr == INTERNAL_EMPTY && isGas(bl) && isGas(br)) {
+      float randChoice = random(blockStart, uRandomSeed + 23.0);
+      if (randChoice < 0.5) {
+        // bl rises to tr
+        tl_new = tl; tr_new = bl; bl_new = INTERNAL_EMPTY; br_new = br;
+        tl_new_orig = tl_orig; tr_new_orig = bl_orig; bl_new_orig = EMPTY_TYPE; br_new_orig = br_orig;
+      } else {
+        // br rises to tr
+        tl_new = tl; tr_new = br; bl_new = bl; br_new = INTERNAL_EMPTY;
+        tl_new_orig = tl_orig; tr_new_orig = br_orig; bl_new_orig = bl_orig; br_new_orig = EMPTY_TYPE;
+      }
+      transitionApplied = true;
+    }
+
+    // Gas diagonal rise: [G, E, E, G] -> [E, G, G, E] (similar to solid diagonal fall but inverted)
+    if (!transitionApplied && isGas(tl) && tr == INTERNAL_EMPTY && bl == INTERNAL_EMPTY && isGas(br)) {
+      float randSide = random(blockStart, uRandomSeed + 24.0);
+      if (randSide < 0.5) {
+        // Gases rise on their sides
+        tl_new = INTERNAL_EMPTY; tr_new = br; bl_new = tl; br_new = INTERNAL_EMPTY;
+        tl_new_orig = EMPTY_TYPE; tr_new_orig = br_orig; bl_new_orig = tl_orig; br_new_orig = EMPTY_TYPE;
+      } else {
+        // Gases cross over
+        tl_new = INTERNAL_EMPTY; tr_new = tl; bl_new = br; br_new = INTERNAL_EMPTY;
+        tl_new_orig = EMPTY_TYPE; tr_new_orig = tl_orig; bl_new_orig = br_orig; br_new_orig = EMPTY_TYPE;
+      }
+      transitionApplied = true;
+    }
+
+    // GAS TOPPLING TRANSITIONS (inverse of solid toppling)
+    // Gas columns spread horizontally when blocked, like solids topple when supported
+    // Randomize left vs right priority to eliminate directional bias
+    float gasTopplePriority = random(blockStart, uRandomSeed + 25.0);
+
+    if (gasTopplePriority < 0.5) {
+      // Check right topple first, then left
+      // Gas topple right: [G, E, G, E] -> [E, G, E, G] (gas column on left spreads right)
+      if (!transitionApplied && isGas(tl) && !isGas(tr) && isGas(bl) && !isGas(br)) {
+        tl_new = tr; tr_new = tl; bl_new = br; br_new = bl;
+        tl_new_orig = tr_orig; tr_new_orig = tl_orig; bl_new_orig = br_orig; br_new_orig = bl_orig;
+        transitionApplied = true;
+      }
+      // Gas topple left: [E, G, E, G] -> [G, E, G, E] (gas column on right spreads left)
+      if (!transitionApplied && !isGas(tl) && isGas(tr) && !isGas(bl) && isGas(br)) {
+        tl_new = tr; tr_new = tl; bl_new = br; br_new = bl;
+        tl_new_orig = tr_orig; tr_new_orig = tl_orig; bl_new_orig = br_orig; br_new_orig = bl_orig;
+        transitionApplied = true;
+      }
+    } else {
+      // Check left topple first, then right
+      // Gas topple left: [E, G, E, G] -> [G, E, G, E] (gas column on right spreads left)
+      if (!transitionApplied && !isGas(tl) && isGas(tr) && !isGas(bl) && isGas(br)) {
+        tl_new = tr; tr_new = tl; bl_new = br; br_new = bl;
+        tl_new_orig = tr_orig; tr_new_orig = tl_orig; bl_new_orig = br_orig; br_new_orig = bl_orig;
+        transitionApplied = true;
+      }
+      // Gas topple right: [G, E, G, E] -> [E, G, E, G] (gas column on left spreads right)
+      if (!transitionApplied && isGas(tl) && !isGas(tr) && isGas(bl) && !isGas(br)) {
+        tl_new = tr; tr_new = tl; bl_new = br; br_new = bl;
+        tl_new_orig = tr_orig; tr_new_orig = tl_orig; bl_new_orig = br_orig; br_new_orig = bl_orig;
+        transitionApplied = true;
+      }
+    }
 `;
 
 export const margolusFragmentShader = createMargolusFragmentShader(margolusTransitions);

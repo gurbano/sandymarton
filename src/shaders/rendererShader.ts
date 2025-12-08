@@ -167,6 +167,47 @@ ${generateParticleColorCode()}
       color.b += brightness * 1.0;
     }
 
+    // Apply chaotic animated effect to gases (types 112-159)
+    if (particleType >= 112.0 && particleType < 160.0) {
+      // Faster, more chaotic animation than liquids
+      float gasTime = uTime * 4.0; // Much faster than liquid
+
+      // Multiple noise layers at different scales and speeds for chaotic motion
+      // Layer 1: Large scale, slow drift
+      vec2 noiseCoord1 = worldParticleCoord * 0.05 + vec2(gasTime * 0.3, gasTime * 0.2);
+      float n1 = smoothNoise(noiseCoord1);
+
+      // Layer 2: Medium scale, medium speed, different direction
+      vec2 noiseCoord2 = worldParticleCoord * 0.12 + vec2(-gasTime * 0.5, gasTime * 0.4);
+      float n2 = smoothNoise(noiseCoord2);
+
+      // Layer 3: Fine detail, fast turbulence
+      vec2 noiseCoord3 = worldParticleCoord * 0.25 + vec2(gasTime * 0.8, -gasTime * 0.6);
+      float n3 = smoothNoise(noiseCoord3);
+
+      // Layer 4: Very fine, very fast (creates flickering effect)
+      vec2 noiseCoord4 = worldParticleCoord * 0.5 + vec2(gasTime * 1.5, gasTime * 1.2);
+      float n4 = noise(noiseCoord4); // Use non-smooth noise for sharper variation
+
+      // Combine noise layers with different weights
+      float combinedNoise = n1 * 0.3 + n2 * 0.3 + n3 * 0.25 + n4 * 0.15;
+
+      // Create brightness variation (more dramatic than liquids)
+      float brightness = (combinedNoise - 0.5) * 0.4;
+
+      // Apply brightness to color
+      color.rgb += vec3(brightness);
+
+      // Dynamic transparency - gas fades in and out
+      // Use different noise combination for alpha to create wispy effect
+      float alphaNoise = n1 * 0.4 + n2 * 0.35 + n3 * 0.25;
+      float alphaVariation = (alphaNoise - 0.5) * 0.5; // Range: -0.25 to +0.25
+
+      // Apply alpha variation (multiply base alpha by variation factor)
+      color.a *= (0.75 + alphaVariation); // Range: 0.5 to 1.0 multiplier
+      color.a = clamp(color.a, 0.1, 1.0); // Ensure some minimum visibility
+    }
+
     gl_FragColor = color;
   }
 `;

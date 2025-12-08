@@ -41,6 +41,38 @@ const liquidSpreadTransitions = `
       tl_new_orig = EMPTY_TYPE; tr_new_orig = tl_orig; bl_new_orig = bl_orig; br_new_orig = br_orig;
       transitionApplied = true;
     }
+
+    // GAS SPREADING TRANSITIONS (inverse of liquid spread)
+    // Gases spread horizontally in bottom row when blocked by ceiling above
+
+    // Gas horizontal spread left: [?,?,E,G] -> [?,?,G,E] if br has ceiling above (tr not empty)
+    if (!transitionApplied && bl == INTERNAL_EMPTY && isGas(br) && tr != INTERNAL_EMPTY) {
+      bl_new = br; br_new = INTERNAL_EMPTY; tl_new = tl; tr_new = tr;
+      bl_new_orig = br_orig; br_new_orig = EMPTY_TYPE; tl_new_orig = tl_orig; tr_new_orig = tr_orig;
+      transitionApplied = true;
+    }
+
+    // Gas horizontal spread right: [?,?,G,E] -> [?,?,E,G] if bl has ceiling above (tl not empty)
+    if (!transitionApplied && isGas(bl) && br == INTERNAL_EMPTY && tl != INTERNAL_EMPTY) {
+      bl_new = INTERNAL_EMPTY; br_new = bl; tl_new = tl; tr_new = tr;
+      bl_new_orig = EMPTY_TYPE; br_new_orig = bl_orig; tl_new_orig = tl_orig; tr_new_orig = tr_orig;
+      transitionApplied = true;
+    }
+
+    // Gas cascade up into gaps (inverse of liquid cascade down)
+    // Gas rises diagonally up-right when there's a gap: [G,E,G,E] -> [G,G,E,E]
+    if (!transitionApplied && isGas(tl) && tr == INTERNAL_EMPTY && isGas(bl) && br == INTERNAL_EMPTY) {
+      tl_new = tl; tr_new = bl; bl_new = INTERNAL_EMPTY; br_new = INTERNAL_EMPTY;
+      tl_new_orig = tl_orig; tr_new_orig = bl_orig; bl_new_orig = EMPTY_TYPE; br_new_orig = EMPTY_TYPE;
+      transitionApplied = true;
+    }
+
+    // Gas rises diagonally up-left when there's a gap: [E,G,E,G] -> [G,G,E,E]
+    if (!transitionApplied && tl == INTERNAL_EMPTY && isGas(tr) && bl == INTERNAL_EMPTY && isGas(br)) {
+      tl_new = br; tr_new = tr; bl_new = INTERNAL_EMPTY; br_new = INTERNAL_EMPTY;
+      tl_new_orig = br_orig; tr_new_orig = tr_orig; bl_new_orig = EMPTY_TYPE; br_new_orig = EMPTY_TYPE;
+      transitionApplied = true;
+    }
 `;
 
 export const liquidSpreadFragmentShader = createMargolusFragmentShader(liquidSpreadTransitions);
