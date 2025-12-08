@@ -31,18 +31,30 @@ export const ParticleTypeRanges = {
  * These match the ParticleType enum values
  */
 export const ParticleTypeConstants = {
+  // Empty
   EMPTY: 0,
+  // Static
   STONE: 17,
+  GLASS: 18,
+  HEITE: 19,
+  // Solid
   SAND: 35,
   DIRT: 37,
   GRAVEL: 39,
+  COPPER: 40,
+  ITE: 41,
+  // Liquid
   WATER: 65,
   LAVA: 80,
   SLIME: 96,
   ACID: 97,
+  OIL: 98,
+  COOLANT: 99,
+  // Gas
   STEAM: 113,
   SMOKE: 128,
   AIR: 144,
+  NITROGEN: 145,
 } as const;
 
 /**

@@ -99,70 +99,63 @@ export const particleHeatTransferFragmentShader = `
     // Update particle temperature from environment exchange
     newParticleTemp = newParticleTemp - tempChange;
 
-    // === STEP 2: Heat diffusion between same-material neighbors ===
-    // Sample 4 direct neighbors (von Neumann neighborhood)
-    float neighborTempSum = 0.0;
-    float neighborCount = 0.0;
+    // === STEP 2: Heat diffusion with neighbors ===
+    // Sample all 8 neighbors (Moore neighborhood)
+    // Diffuse with BOTH same-material and different-material neighbors
+    float sameMaterialTempSum = 0.0;
+    float sameMaterialWeight = 0.0;
+    float diffMaterialTempSum = 0.0;
+    float diffMaterialWeight = 0.0;
 
-    // Up neighbor
-    vec2 upUv = vUv + vec2(0.0, pixelSize.y);
-    if (upUv.y <= 1.0) {
-      vec4 upState = texture2D(uCurrentState, upUv);
-      float upType = upState.r * 255.0;
-      if (abs(upType - particleType) < 0.5) {
-        // Same material type - include in diffusion
-        float upTemp = decodeParticleTemperature(upState);
-        neighborTempSum += upTemp;
-        neighborCount += 1.0;
+    // Sample 3x3 neighborhood (excluding center)
+    for (int dy = -1; dy <= 1; dy++) {
+      for (int dx = -1; dx <= 1; dx++) {
+        if (dx == 0 && dy == 0) continue; // Skip self
+
+        vec2 neighborUv = vUv + vec2(float(dx), float(dy)) * pixelSize;
+
+        // Check bounds
+        if (neighborUv.x < 0.0 || neighborUv.x > 1.0 || neighborUv.y < 0.0 || neighborUv.y > 1.0) continue;
+
+        vec4 neighborState = texture2D(uCurrentState, neighborUv);
+        float neighborType = neighborState.r * 255.0;
+
+        // Skip empty neighbors
+        if (neighborType < 16.0) continue;
+
+        float neighborTemp = decodeParticleTemperature(neighborState);
+
+        // Weight diagonal neighbors less (distance ~1.41 vs 1.0)
+        float distWeight = (dx != 0 && dy != 0) ? 0.707 : 1.0;
+
+        // Same material type - fast diffusion
+        if (abs(neighborType - particleType) < 0.5) {
+          sameMaterialTempSum += neighborTemp * distWeight;
+          sameMaterialWeight += distWeight;
+        } else {
+          // Different material - diffusion rate based on both conductivities
+          float neighborConductivity = getMaterialThermalConductivity(neighborType);
+          float contactConductivity = min(thermalConductivity, neighborConductivity);
+          float weight = distWeight * contactConductivity;
+          diffMaterialTempSum += neighborTemp * weight;
+          diffMaterialWeight += weight;
+        }
       }
     }
 
-    // Down neighbor
-    vec2 downUv = vUv - vec2(0.0, pixelSize.y);
-    if (downUv.y >= 0.0) {
-      vec4 downState = texture2D(uCurrentState, downUv);
-      float downType = downState.r * 255.0;
-      if (abs(downType - particleType) < 0.5) {
-        float downTemp = decodeParticleTemperature(downState);
-        neighborTempSum += downTemp;
-        neighborCount += 1.0;
-      }
+    // Diffuse with same-material neighbors (fast)
+    if (sameMaterialWeight > 0.0) {
+      float avgNeighborTemp = sameMaterialTempSum / sameMaterialWeight;
+      // High base rate for same material
+      float diffusionRate = 0.3 + 0.5 * thermalConductivity;
+      newParticleTemp = mix(newParticleTemp, avgNeighborTemp, diffusionRate);
     }
 
-    // Left neighbor
-    vec2 leftUv = vUv - vec2(pixelSize.x, 0.0);
-    if (leftUv.x >= 0.0) {
-      vec4 leftState = texture2D(uCurrentState, leftUv);
-      float leftType = leftState.r * 255.0;
-      if (abs(leftType - particleType) < 0.5) {
-        float leftTemp = decodeParticleTemperature(leftState);
-        neighborTempSum += leftTemp;
-        neighborCount += 1.0;
-      }
-    }
-
-    // Right neighbor
-    vec2 rightUv = vUv + vec2(pixelSize.x, 0.0);
-    if (rightUv.x <= 1.0) {
-      vec4 rightState = texture2D(uCurrentState, rightUv);
-      float rightType = rightState.r * 255.0;
-      if (abs(rightType - particleType) < 0.5) {
-        float rightTemp = decodeParticleTemperature(rightState);
-        neighborTempSum += rightTemp;
-        neighborCount += 1.0;
-      }
-    }
-
-    // If we have same-material neighbors, diffuse heat toward average
-    if (neighborCount > 0.0) {
-      float avgNeighborTemp = neighborTempSum / neighborCount;
-
-      // Diffusion rate depends on thermal conductivity
-      // High conductivity (copper) = fast internal diffusion
-      // Low conductivity (glass) = slow internal diffusion
-      float diffusionRate = 0.1 * thermalConductivity;
-
-      // Blend toward neighbor average
+    // Diffuse with different-material neighbors (slower, based on conductivity)
+    if (diffMaterialWeight > 0.0) {
+      float avgNeighborTemp = diffMaterialTempSum / diffMaterialWeight;
+      // Rate depends on this particle's conductivity
+      float diffusionRate = 0.2 * thermalConductivity;
       newParticleTemp = mix(newParticleTemp, avgNeighborTemp, diffusionRate);
     }
 

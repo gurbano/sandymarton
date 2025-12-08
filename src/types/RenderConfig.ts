@@ -50,7 +50,7 @@ export const DEFAULT_RENDER_CONFIG: RenderConfig = {
   effects: [
     {
       type: RenderEffectType.EDGE_BLENDING,
-      enabled: true,
+      enabled: false,
       name: 'Edge Blending',
       description: 'Smooths material boundaries by blending pixels at edges',
     },

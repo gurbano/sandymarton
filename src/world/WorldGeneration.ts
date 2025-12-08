@@ -64,6 +64,18 @@ export class WorldGeneration {
       worldData[stride + 3] = 255; // Alpha (unused, set to opaque)
     }
 
+    // Helper to set a particle with its default temperature
+    const setParticle = (index: number, type: ParticleType) => {
+      const material = MaterialDefinitions[type];
+      const defaultAttrs = getDefaultBaseAttributes(type);
+      const temperature = material?.defaultTemperature ?? defaultAttrs.defaultTemperature;
+      const [pTempLow, pTempHigh] = encodeTemperature(temperature);
+      worldData[index] = type;
+      worldData[index + 1] = pTempLow;
+      worldData[index + 2] = pTempHigh;
+      worldData[index + 3] = 255;
+    };
+
     // Draw 5-pixel boundaries for all init types except EMPTY
     const initType = options?.initType ?? WorldInitType.EMPTY;
     if (initType !== WorldInitType.EMPTY) {
@@ -74,10 +86,10 @@ export class WorldGeneration {
         for (let x = 0; x < width; x++) {
           // Top boundary
           const topIndex = (thickness * width + x) * 4;
-          worldData[topIndex] = ParticleType.STONE;
+          setParticle(topIndex, ParticleType.STONE);
           // Bottom boundary
           const bottomIndex = ((height - 1 - thickness) * width + x) * 4;
-          worldData[bottomIndex] = ParticleType.STONE;
+          setParticle(bottomIndex, ParticleType.STONE);
         }
       }
 
@@ -86,10 +98,10 @@ export class WorldGeneration {
         for (let y = 0; y < height; y++) {
           // Left boundary
           const leftIndex = (y * width + thickness) * 4;
-          worldData[leftIndex] = ParticleType.STONE;
+          setParticle(leftIndex, ParticleType.STONE);
           // Right boundary
           const rightIndex = (y * width + (width - 1 - thickness)) * 4;
-          worldData[rightIndex] = ParticleType.STONE;
+          setParticle(rightIndex, ParticleType.STONE);
         }
       }
     }
@@ -108,7 +120,7 @@ export class WorldGeneration {
 
         // Pick a random particle type
         const randomType = availableTypes[Math.floor(Math.random() * availableTypes.length)];
-        worldData[index] = randomType;
+        setParticle(index, randomType);
       }
     }
 
@@ -138,11 +150,11 @@ export class WorldGeneration {
         for (let thickness = 0; thickness < 2; thickness++) {
           if (leftX - thickness >= 0 && leftX - thickness < width) {
             const index = (y * width + (leftX - thickness)) * 4;
-            worldData[index] = ParticleType.STONE;
+            setParticle(index, ParticleType.STONE);
           }
           if (rightX + thickness >= 0 && rightX + thickness < width) {
             const index = (y * width + (rightX + thickness)) * 4;
-            worldData[index] = ParticleType.STONE;
+            setParticle(index, ParticleType.STONE);
           }
         }
       }
@@ -162,7 +174,7 @@ export class WorldGeneration {
           const x = centerX + dx;
           if (x >= 0 && x < width) {
             const index = (y * width + x) * 4;
-            worldData[index] = ParticleType.SAND;
+            setParticle(index, ParticleType.SAND);
           }
         }
       }
@@ -174,13 +186,13 @@ export class WorldGeneration {
       // Horizontal axis
       for (let x = 0; x < width; x++) {
         const index = (midY * width + x) * 4;
-        worldData[index] = ParticleType.STONE;
+        setParticle(index, ParticleType.STONE);
       }
 
       // Vertical axis
       for (let y = 0; y < height; y++) {
         const index = (y * width + midX) * 4;
-        worldData[index] = ParticleType.STONE;
+        setParticle(index, ParticleType.STONE);
       }
     } else if (initType === WorldInitType.PLATFORMS) {
       // Create random horizontal platforms
@@ -207,7 +219,7 @@ export class WorldGeneration {
           for (let x = startX; x < startX + platformWidth; x++) {
             if (x >= 0 && x < width) {
               const index = (platformY * width + x) * 4;
-              worldData[index] = ParticleType.STONE;
+              setParticle(index, ParticleType.STONE);
             }
           }
         }

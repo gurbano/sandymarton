@@ -7,6 +7,8 @@ import type { Level, LevelIndex } from '../types/Level';
 import { DataTexture, RGBAFormat, UnsignedByteType, NearestFilter } from 'three';
 import { WORLD_SIZE } from '../constants/worldConstants';
 import { ParticleTypeRanges, ParticleTypeConstants } from '../world/ParticleTypeConstants';
+import { MaterialDefinitions, getDefaultBaseAttributes } from '../world/MaterialDefinitions';
+import { encodeTemperature, ParticleType } from '../world/ParticleTypes';
 
 /**
  * Normalize a particle type value to its canonical form
@@ -19,38 +21,48 @@ function normalizeParticleType(value: number): number {
     return ParticleTypeConstants.EMPTY;
   }
 
-  // Static range (16-32) -> STONE
+  // Static range (16-32) -> find closest: STONE(17), GLASS(18), HEITE(19)
   if (value >= ParticleTypeRanges.STATIC_MIN && value <= ParticleTypeRanges.STATIC_MAX) {
-    return ParticleTypeConstants.STONE;
+    const staticTypes = [
+      ParticleTypeConstants.STONE,
+      ParticleTypeConstants.GLASS,
+      ParticleTypeConstants.HEITE,
+    ];
+    return findClosest(value, staticTypes);
   }
 
-  // Solid range (33-63) -> find closest: SAND(35), DIRT(37), GRAVEL(39)
+  // Solid range (33-63) -> find closest: SAND(35), DIRT(37), GRAVEL(39), COPPER(40), ITE(41)
   if (value >= ParticleTypeRanges.SOLID_MIN && value <= ParticleTypeRanges.SOLID_MAX) {
     const solidTypes = [
       ParticleTypeConstants.SAND,
       ParticleTypeConstants.DIRT,
       ParticleTypeConstants.GRAVEL,
+      ParticleTypeConstants.COPPER,
+      ParticleTypeConstants.ITE,
     ];
     return findClosest(value, solidTypes);
   }
 
-  // Liquid range (64-111) -> find closest: WATER(65), LAVA(80), SLIME(96), ACID(97)
+  // Liquid range (64-111) -> find closest: WATER(65), LAVA(80), SLIME(96), ACID(97), OIL(98), COOLANT(99)
   if (value >= ParticleTypeRanges.LIQUID_MIN && value <= ParticleTypeRanges.LIQUID_MAX) {
     const liquidTypes = [
       ParticleTypeConstants.WATER,
       ParticleTypeConstants.LAVA,
       ParticleTypeConstants.SLIME,
       ParticleTypeConstants.ACID,
+      ParticleTypeConstants.OIL,
+      ParticleTypeConstants.COOLANT,
     ];
     return findClosest(value, liquidTypes);
   }
 
-  // Gas range (112-159) -> find closest: STEAM(113), SMOKE(128), AIR(144)
+  // Gas range (112-159) -> find closest: STEAM(113), SMOKE(128), AIR(144), NITROGEN(145)
   if (value >= ParticleTypeRanges.GAS_MIN && value <= ParticleTypeRanges.GAS_MAX) {
     const gasTypes = [
       ParticleTypeConstants.STEAM,
       ParticleTypeConstants.SMOKE,
       ParticleTypeConstants.AIR,
+      ParticleTypeConstants.NITROGEN,
     ];
     return findClosest(value, gasTypes);
   }
@@ -78,11 +90,29 @@ function findClosest(target: number, values: number[]): number {
 }
 
 /**
+ * Get the default temperature for a particle type
+ */
+function getDefaultTemperature(particleType: number): number {
+  const material = MaterialDefinitions[particleType as ParticleType];
+  const defaultAttrs = getDefaultBaseAttributes(particleType);
+  return material?.defaultTemperature ?? defaultAttrs.defaultTemperature;
+}
+
+/**
  * Normalize all particle types in a pixel data array
+ * Also sets proper default temperatures for each particle (for legacy levels without temp data)
  */
 function normalizePixelData(data: Uint8Array): void {
   for (let i = 0; i < data.length; i += 4) {
-    data[i] = normalizeParticleType(data[i]);
+    const normalizedType = normalizeParticleType(data[i]);
+    data[i] = normalizedType;
+
+    // Set default temperature for this particle type
+    const temperature = getDefaultTemperature(normalizedType);
+    const [tempLow, tempHigh] = encodeTemperature(temperature);
+    data[i + 1] = tempLow;  // G channel = temp low byte
+    data[i + 2] = tempHigh; // B channel = temp high byte
+    // A channel (data[i + 3]) is preserved as-is
   }
 }
 
