@@ -21,9 +21,9 @@ import {
   ambientHeatTransferVertexShader,
 } from '../shaders/ambientHeatTransferShaders';
 import {
-  particleHeatTransferFragmentShader,
-  particleHeatTransferVertexShader,
-} from '../shaders/particleHeatTransferShaders';
+  particleOnlyHeatFragmentShader,
+  particleOnlyHeatVertexShader,
+} from '../shaders/particleOnlyHeatShaders';
 import {
   forceTransferFragmentShader,
   forceTransferVertexShader,
@@ -131,7 +131,7 @@ function MainSimulation({
   const liquidSpreadSceneRef = useRef<SimulationResources | null>(null);
   const archimedesSceneRef = useRef<SimulationResources | null>(null);
   const heatTransferSceneRef = useRef<SimulationResources | null>(null);
-  const particleCoolingSceneRef = useRef<SimulationResources | null>(null);
+  const particleOnlyHeatSceneRef = useRef<SimulationResources | null>(null);
   const forceTransferSceneRef = useRef<SimulationResources | null>(null);
   const margolusIterationRef = useRef(0);
   const liquidSpreadIterationRef = useRef(0);
@@ -216,12 +216,11 @@ function MainSimulation({
     });
     heatTransferResources.material.uniforms.uHeatForceLayer = { value: heatForceTexture };
 
-    // Create particle heat transfer resources (updates particle temps from heat exchange + neighbor diffusion)
-    const particleCoolingResources = createSimulationResources(textureSize, worldTexture, {
-      vertexShader: particleHeatTransferVertexShader,
-      fragmentShader: particleHeatTransferFragmentShader,
+    // Create particle-only heat transfer resources (direct particle-to-particle heat diffusion, no heat layer)
+    const particleOnlyHeatResources = createSimulationResources(textureSize, worldTexture, {
+      vertexShader: particleOnlyHeatVertexShader,
+      fragmentShader: particleOnlyHeatFragmentShader,
     });
-    particleCoolingResources.material.uniforms.uHeatForceLayer = { value: heatForceTexture };
 
     const forceTransferResources = createSimulationResources(textureSize, worldTexture, {
       vertexShader: forceTransferVertexShader,
@@ -233,7 +232,7 @@ function MainSimulation({
     liquidSpreadSceneRef.current = liquidSpreadResources;
     archimedesSceneRef.current = archimedesResources;
     heatTransferSceneRef.current = heatTransferResources;
-    particleCoolingSceneRef.current = particleCoolingResources;
+    particleOnlyHeatSceneRef.current = particleOnlyHeatResources;
     forceTransferSceneRef.current = forceTransferResources;
 
     // Initialize render targets
@@ -263,7 +262,7 @@ function MainSimulation({
         liquidSpreadResources,
         archimedesResources,
         heatTransferResources,
-        particleCoolingResources,
+        particleOnlyHeatResources,
         forceTransferResources,
       ].forEach((resources) => {
         resources.scene.remove(resources.mesh);
@@ -320,6 +319,7 @@ function MainSimulation({
       // Skip heat/force transfer - handled separately below
       if (
         step.type === SimulationStepType.HEAT_TRANSFER ||
+        step.type === SimulationStepType.PARTICLE_ONLY_HEAT ||
         step.type === SimulationStepType.FORCE_TRANSFER
       ) {
         continue;
@@ -378,7 +378,37 @@ function MainSimulation({
       }
     }
 
-    // Read final particle state result
+    // Execute particle-only heat transfer BEFORE read-back (chain with main simulation)
+    // This avoids two separate GPU read-backs per frame
+    const particleOnlyHeatStep = config.steps.find(
+      (s) => s.type === SimulationStepType.PARTICLE_ONLY_HEAT
+    );
+    if (particleOnlyHeatStep?.enabled && particleOnlyHeatStep.passes > 0) {
+      const heatResources = particleOnlyHeatSceneRef.current;
+      if (heatResources) {
+        // Continue from wherever particle simulation left off (currentSource)
+        for (let i = 0; i < particleOnlyHeatStep.passes; i++) {
+          const targetRT = renderTargets[rtIndex % renderTargets.length];
+
+          // Update uniforms - only needs particle state texture
+          heatResources.material.uniforms.uCurrentState.value = currentSource;
+          heatResources.material.uniforms.uTextureSize.value.set(textureSize, textureSize);
+          heatResources.camera.position.z = 1;
+          heatResources.camera.updateProjectionMatrix();
+
+          // Render heat transfer to target
+          gl.setRenderTarget(targetRT);
+          gl.render(heatResources.scene, heatResources.camera);
+          gl.setRenderTarget(null);
+
+          // Update source for next pass
+          currentSource = targetRT.texture;
+          rtIndex++;
+        }
+      }
+    }
+
+    // Single GPU read-back at the end of all processing (particle sim + heat transfer)
     if (rtIndex > 0) {
       const finalRT = renderTargets[(rtIndex - 1) % renderTargets.length];
       const pixels = new Uint8Array(textureSize * textureSize * 4);
@@ -390,27 +420,27 @@ function MainSimulation({
       worldTexture.needsUpdate = true;
     }
 
-    // Execute heat transfer steps (writes to heat layer)
-    const heatStep = config.steps.find((s) => s.type === SimulationStepType.HEAT_TRANSFER);
-    if (heatStep?.enabled && heatStep.passes > 0 && heatForceLayerRef.current) {
+    // Execute ambient heat transfer (updates heat layer from particle temperatures)
+    const ambientHeatStep = config.steps.find(
+      (s) => s.type === SimulationStepType.HEAT_TRANSFER
+    );
+    if (ambientHeatStep?.enabled && ambientHeatStep.passes > 0 && heatForceLayerRef.current) {
       const heatResources = heatTransferSceneRef.current;
       if (heatResources) {
         let heatSource: Texture = heatForceLayerRef.current;
         let heatRtIndex = 0;
 
-        for (let i = 0; i < heatStep.passes; i++) {
+        for (let i = 0; i < ambientHeatStep.passes; i++) {
           const targetRT = heatRenderTargets[heatRtIndex % heatRenderTargets.length];
 
-          // Update uniforms - use current particle state for type lookup
+          // Update uniforms
           heatResources.material.uniforms.uCurrentState.value = worldTexture;
           heatResources.material.uniforms.uHeatForceLayer.value = heatSource;
           heatResources.material.uniforms.uTextureSize.value.set(textureSize, textureSize);
-          heatResources.material.uniforms.uIteration.value = heatTransferIterationRef.current;
-          heatResources.material.uniforms.uRandomSeed.value = heatTransferIterationRef.current;
           heatResources.camera.position.z = 1;
           heatResources.camera.updateProjectionMatrix();
 
-          // Render heat transfer to target
+          // Render to heat target
           gl.setRenderTarget(targetRT);
           gl.render(heatResources.scene, heatResources.camera);
           gl.setRenderTarget(null);
@@ -418,45 +448,17 @@ function MainSimulation({
           // Update source for next pass
           heatSource = targetRT.texture;
           heatRtIndex++;
-          heatTransferIterationRef.current++;
         }
 
-        // Read final heat result back to heatForceLayer
-        const finalHeatRT = heatRenderTargets[(heatRtIndex - 1) % heatRenderTargets.length];
-        const heatPixels = new Uint8Array(textureSize * textureSize * 4);
-        gl.readRenderTargetPixels(finalHeatRT, 0, 0, textureSize, textureSize, heatPixels);
+        // Read back final heat result to heatForceLayer DataTexture
+        if (heatRtIndex > 0) {
+          const finalHeatRT = heatRenderTargets[(heatRtIndex - 1) % heatRenderTargets.length];
+          const heatPixels = new Uint8Array(textureSize * textureSize * 4);
+          gl.readRenderTargetPixels(finalHeatRT, 0, 0, textureSize, textureSize, heatPixels);
 
-        // Update heat texture in-place
-        const heatData = heatForceLayerRef.current.image.data as Uint8Array;
-        heatData.set(heatPixels);
-        heatForceLayerRef.current.needsUpdate = true;
-
-        // Execute particle cooling (updates particle temperatures based on heat exchange)
-        const coolingResources = particleCoolingSceneRef.current;
-        if (coolingResources) {
-          // Use one of the particle render targets for cooling output
-          const coolingTargetRT = renderTargets[rtIndex % renderTargets.length];
-
-          // Update uniforms
-          coolingResources.material.uniforms.uCurrentState.value = worldTexture;
-          coolingResources.material.uniforms.uHeatForceLayer.value = heatForceLayerRef.current;
-          coolingResources.material.uniforms.uTextureSize.value.set(textureSize, textureSize);
-          coolingResources.camera.position.z = 1;
-          coolingResources.camera.updateProjectionMatrix();
-
-          // Render particle cooling
-          gl.setRenderTarget(coolingTargetRT);
-          gl.render(coolingResources.scene, coolingResources.camera);
-          gl.setRenderTarget(null);
-
-          // Read cooled particle state back to worldTexture
-          const cooledPixels = new Uint8Array(textureSize * textureSize * 4);
-          gl.readRenderTargetPixels(coolingTargetRT, 0, 0, textureSize, textureSize, cooledPixels);
-
-          // Update the worldTexture data in-place
-          const worldData = worldTexture.image.data as Uint8Array;
-          worldData.set(cooledPixels);
-          worldTexture.needsUpdate = true;
+          const heatData = heatForceLayerRef.current.image.data as Uint8Array;
+          heatData.set(heatPixels);
+          heatForceLayerRef.current.needsUpdate = true;
         }
       }
     }

@@ -13,6 +13,7 @@ export enum RenderEffectType {
 
 export enum OverlayType {
   HEAT = 'heat',
+  AMBIENT_HEAT = 'ambient-heat',
   FORCE = 'force',
 }
 
@@ -65,8 +66,14 @@ export const DEFAULT_RENDER_CONFIG: RenderConfig = {
     {
       type: OverlayType.HEAT,
       enabled: false,
-      name: 'Heat Overlay',
-      description: 'Visualize temperature distribution',
+      name: 'Particle Heat',
+      description: 'Visualize particle temperatures',
+    },
+    {
+      type: OverlayType.AMBIENT_HEAT,
+      enabled: false,
+      name: 'Ambient Heat',
+      description: 'Visualize ambient heat layer',
     },
     {
       type: OverlayType.FORCE,

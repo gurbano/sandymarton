@@ -24,6 +24,8 @@ import {
 import {
   overlayVertexShader,
   heatOverlayFragmentShader,
+  ambientHeatOverlayFragmentShader,
+  combinedHeatOverlayFragmentShader,
   forceOverlayFragmentShader,
 } from '../shaders/overlayShaders';
 
@@ -104,7 +106,7 @@ const createMaterialVariationResources = (
 const createHeatOverlayResources = (
   size: number,
   colorTexture: Texture,
-  heatTexture: Texture | null
+  stateTexture: Texture
 ): EffectResources => {
   const scene = new Scene();
   const camera = new OrthographicCamera(-1, 1, 1, -1, 0, 1);
@@ -112,7 +114,7 @@ const createHeatOverlayResources = (
   const material = new ShaderMaterial({
     uniforms: {
       uBaseTexture: { value: colorTexture },
-      uHeatForceLayer: { value: heatTexture },
+      uStateTexture: { value: stateTexture },
       uTextureSize: { value: new Vector2(size, size) },
       uOverlayStrength: { value: 0.7 },
     },
@@ -147,6 +149,56 @@ const createForceOverlayResources = (
   return { scene, camera, material, geometry, mesh };
 };
 
+const createAmbientHeatOverlayResources = (
+  size: number,
+  colorTexture: Texture,
+  stateTexture: Texture,
+  heatTexture: Texture | null
+): EffectResources => {
+  const scene = new Scene();
+  const camera = new OrthographicCamera(-1, 1, 1, -1, 0, 1);
+  const geometry = new PlaneGeometry(2, 2);
+  const material = new ShaderMaterial({
+    uniforms: {
+      uBaseTexture: { value: colorTexture },
+      uStateTexture: { value: stateTexture },
+      uHeatForceLayer: { value: heatTexture },
+      uTextureSize: { value: new Vector2(size, size) },
+      uOverlayStrength: { value: 0.7 },
+    },
+    vertexShader: overlayVertexShader,
+    fragmentShader: ambientHeatOverlayFragmentShader,
+  });
+  const mesh = new Mesh(geometry, material);
+  scene.add(mesh);
+  return { scene, camera, material, geometry, mesh };
+};
+
+const createCombinedHeatOverlayResources = (
+  size: number,
+  colorTexture: Texture,
+  stateTexture: Texture,
+  heatTexture: Texture | null
+): EffectResources => {
+  const scene = new Scene();
+  const camera = new OrthographicCamera(-1, 1, 1, -1, 0, 1);
+  const geometry = new PlaneGeometry(2, 2);
+  const material = new ShaderMaterial({
+    uniforms: {
+      uBaseTexture: { value: colorTexture },
+      uStateTexture: { value: stateTexture },
+      uHeatForceLayer: { value: heatTexture },
+      uTextureSize: { value: new Vector2(size, size) },
+      uOverlayStrength: { value: 0.7 },
+    },
+    vertexShader: overlayVertexShader,
+    fragmentShader: combinedHeatOverlayFragmentShader,
+  });
+  const mesh = new Mesh(geometry, material);
+  scene.add(mesh);
+  return { scene, camera, material, geometry, mesh };
+};
+
 /**
  * Post-processing renderer with modular effect pipeline
  * Applies visual effects after simulation
@@ -169,6 +221,8 @@ function PostProcessRenderer({
   const edgeBlendingRef = useRef<EffectResources | null>(null);
   const materialVariationRef = useRef<EffectResources | null>(null);
   const heatOverlayRef = useRef<EffectResources | null>(null);
+  const ambientHeatOverlayRef = useRef<EffectResources | null>(null);
+  const combinedHeatOverlayRef = useRef<EffectResources | null>(null);
   const forceOverlayRef = useRef<EffectResources | null>(null);
   const initializedRef = useRef(false);
 
@@ -180,12 +234,16 @@ function PostProcessRenderer({
       colorTexture,
       stateTexture
     );
-    const heatOverlay = createHeatOverlayResources(textureSize, colorTexture, heatTexture);
+    const heatOverlay = createHeatOverlayResources(textureSize, colorTexture, stateTexture);
+    const ambientHeatOverlay = createAmbientHeatOverlayResources(textureSize, colorTexture, stateTexture, heatTexture);
+    const combinedHeatOverlay = createCombinedHeatOverlayResources(textureSize, colorTexture, stateTexture, heatTexture);
     const forceOverlay = createForceOverlayResources(textureSize, colorTexture, heatTexture);
 
     edgeBlendingRef.current = edgeBlending;
     materialVariationRef.current = materialVariation;
     heatOverlayRef.current = heatOverlay;
+    ambientHeatOverlayRef.current = ambientHeatOverlay;
+    combinedHeatOverlayRef.current = combinedHeatOverlay;
     forceOverlayRef.current = forceOverlay;
 
     // Initialize render targets
@@ -199,7 +257,7 @@ function PostProcessRenderer({
     initializedRef.current = true;
 
     return () => {
-      [edgeBlending, materialVariation, heatOverlay, forceOverlay].forEach((resources) => {
+      [edgeBlending, materialVariation, heatOverlay, ambientHeatOverlay, combinedHeatOverlay, forceOverlay].forEach((resources) => {
         resources.scene.remove(resources.mesh);
         resources.geometry.dispose();
         resources.material.dispose();
@@ -263,43 +321,74 @@ function PostProcessRenderer({
       rtIndex++;
     }
 
-    // Execute overlays on top of effects (if heatTexture is available)
-    if (heatTexture) {
-      for (const overlay of config.overlays) {
-        if (!overlay.enabled) continue;
+    // Execute overlays on top of effects
+    // Check if both heat overlays are enabled - if so, use combined shader
+    const particleHeatEnabled = config.overlays.find(o => o.type === OverlayType.HEAT)?.enabled ?? false;
+    const ambientHeatEnabled = config.overlays.find(o => o.type === OverlayType.AMBIENT_HEAT)?.enabled ?? false;
+    const useCombinedHeat = particleHeatEnabled && ambientHeatEnabled && heatTexture;
 
-        let resources: EffectResources | null = null;
+    for (const overlay of config.overlays) {
+      if (!overlay.enabled) continue;
 
-        switch (overlay.type) {
-          case OverlayType.HEAT:
+      let resources: EffectResources | null = null;
+
+      switch (overlay.type) {
+        case OverlayType.HEAT:
+          if (useCombinedHeat) {
+            // Use combined shader (renders both at once)
+            resources = combinedHeatOverlayRef.current;
+            if (resources) {
+              resources.material.uniforms.uStateTexture.value = stateTexture;
+              resources.material.uniforms.uHeatForceLayer.value = heatTexture;
+            }
+          } else {
+            // Just particle heat
             resources = heatOverlayRef.current;
-            break;
-          case OverlayType.FORCE:
-            resources = forceOverlayRef.current;
-            break;
-        }
-
-        if (!resources) continue;
-
-        const targetRT = renderTargets[rtIndex % renderTargets.length];
-
-        // Update overlay uniforms
-        resources.material.uniforms.uBaseTexture.value = currentSource;
-        resources.material.uniforms.uHeatForceLayer.value = heatTexture;
-        resources.material.uniforms.uTextureSize.value.set(textureSize, textureSize);
-        resources.material.uniforms.uOverlayStrength.value = 0.7;
-        resources.camera.position.z = 1;
-        resources.camera.updateProjectionMatrix();
-
-        // Render overlay
-        gl.setRenderTarget(targetRT);
-        gl.render(resources.scene, resources.camera);
-        gl.setRenderTarget(null);
-
-        // Update source for next overlay
-        currentSource = targetRT.texture;
-        rtIndex++;
+            if (resources) {
+              resources.material.uniforms.uStateTexture.value = stateTexture;
+            }
+          }
+          break;
+        case OverlayType.AMBIENT_HEAT:
+          // Skip if using combined (already rendered with HEAT)
+          if (useCombinedHeat) continue;
+          // Ambient heat needs heatTexture
+          if (!heatTexture) continue;
+          resources = ambientHeatOverlayRef.current;
+          if (resources) {
+            resources.material.uniforms.uStateTexture.value = stateTexture;
+            resources.material.uniforms.uHeatForceLayer.value = heatTexture;
+          }
+          break;
+        case OverlayType.FORCE:
+          // Force overlay still needs heatTexture
+          if (!heatTexture) continue;
+          resources = forceOverlayRef.current;
+          if (resources) {
+            resources.material.uniforms.uHeatForceLayer.value = heatTexture;
+          }
+          break;
       }
+
+      if (!resources) continue;
+
+      const targetRT = renderTargets[rtIndex % renderTargets.length];
+
+      // Update common overlay uniforms
+      resources.material.uniforms.uBaseTexture.value = currentSource;
+      resources.material.uniforms.uTextureSize.value.set(textureSize, textureSize);
+      resources.material.uniforms.uOverlayStrength.value = 0.7;
+      resources.camera.position.z = 1;
+      resources.camera.updateProjectionMatrix();
+
+      // Render overlay
+      gl.setRenderTarget(targetRT);
+      gl.render(resources.scene, resources.camera);
+      gl.setRenderTarget(null);
+
+      // Update source for next overlay
+      currentSource = targetRT.texture;
+      rtIndex++;
     }
 
     // If no effects or overlays were applied, just pass through the original

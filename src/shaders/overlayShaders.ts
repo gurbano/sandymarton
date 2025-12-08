@@ -16,10 +16,11 @@ export const overlayVertexShader = `
  * Heat Overlay Fragment Shader
  * Visualizes temperature distribution using a color gradient
  * Blue (cold) -> Cyan -> Green -> Yellow -> Red -> White (very hot)
+ * Reads temperature directly from particle texture (G=temp_low, B=temp_high)
  */
 export const heatOverlayFragmentShader = `
   uniform sampler2D uBaseTexture;     // Base rendered color texture
-  uniform sampler2D uHeatForceLayer;  // Heat/Force layer (R=temp_low, G=temp_high, B=forceX, A=forceY)
+  uniform sampler2D uStateTexture;    // Particle state texture (R=type, G=temp_low, B=temp_high, A=unused)
   uniform vec2 uTextureSize;
   uniform float uOverlayStrength;     // Blend strength (0-1)
 
@@ -72,30 +73,214 @@ export const heatOverlayFragmentShader = `
     // Get base color
     vec4 baseColor = texture2D(uBaseTexture, vUv);
 
-    // Get heat data (R=temp_low, G=temp_high as 16-bit temperature)
-    vec4 heatData = texture2D(uHeatForceLayer, vUv);
+    // Get particle state (R=type, G=temp_low, B=temp_high)
+    vec4 particleData = texture2D(uStateTexture, vUv);
+    float particleType = particleData.r * 255.0;
 
-    // Decode 16-bit temperature from two bytes
-    float tempLow = heatData.r * 255.0;
-    float tempHigh = heatData.g * 255.0;
+    // Empty cells - pass through base color (no particle heat to show)
+    if (particleType < 16.0) {
+      gl_FragColor = baseColor;
+      return;
+    }
+
+    // Decode 16-bit temperature from G,B channels
+    float tempLow = particleData.g * 255.0;
+    float tempHigh = particleData.b * 255.0;
     float temperature = tempLow + tempHigh * 256.0;
+
+    // Calculate how much the temperature deviates from room temp (298K)
+    float tempDeviation = abs(temperature - 298.0) / 500.0;
+    float heatIntensity = clamp(tempDeviation, 0.0, 1.0);
 
     // Get temperature color
     vec3 heatColor = temperatureToColor(temperature);
 
-    // Blend heat color with base color based on overlay strength
-    // Use additive blending for a nice glow effect
-    vec3 finalColor = mix(baseColor.rgb, heatColor, uOverlayStrength * 0.7);
+    // Blend heat color with base color - stronger blend so heat is visible
+    vec3 finalColor = mix(baseColor.rgb, heatColor, 0.4 + heatIntensity * 0.4);
 
-    // Also add a subtle glow for very hot areas
-    float hotness = clamp((temperature - 500.0) / 1000.0, 0.0, 1.0);
-    finalColor += heatColor * hotness * uOverlayStrength * 0.3;
+    gl_FragColor = vec4(finalColor, max(baseColor.a, 0.9));
+  }
+`;
 
-    // Always show heat overlay even on transparent/empty areas
-    // Make alpha at least as strong as the overlay to ensure visibility
-    float finalAlpha = max(baseColor.a, uOverlayStrength);
+/**
+ * Ambient Heat Overlay Fragment Shader
+ * Visualizes the ambient heat layer temperature
+ * Reads from the heat/force layer texture (R=temp_low, G=temp_high)
+ */
+export const ambientHeatOverlayFragmentShader = `
+  uniform sampler2D uBaseTexture;     // Base rendered color texture
+  uniform sampler2D uStateTexture;    // Particle state texture (R=type)
+  uniform sampler2D uHeatForceLayer;  // Heat/Force layer (R=temp_low, G=temp_high, B=forceX, A=forceY)
+  uniform vec2 uTextureSize;
+  uniform float uOverlayStrength;     // Blend strength (0-1)
 
-    gl_FragColor = vec4(finalColor, finalAlpha);
+  varying vec2 vUv;
+
+  // Temperature color mapping function (same as particle heat)
+  vec3 temperatureToColor(float tempKelvin) {
+    float t = clamp(tempKelvin / 1500.0, 0.0, 1.0);
+
+    vec3 color;
+
+    if (t < 0.2) {
+      float f = t / 0.2;
+      color = mix(vec3(0.0, 0.0, 0.3), vec3(0.0, 0.3, 1.0), f);
+    } else if (t < 0.25) {
+      float f = (t - 0.2) / 0.05;
+      color = mix(vec3(0.0, 0.3, 1.0), vec3(0.0, 0.8, 0.8), f);
+    } else if (t < 0.35) {
+      float f = (t - 0.25) / 0.1;
+      color = mix(vec3(0.0, 0.8, 0.8), vec3(1.0, 1.0, 0.0), f);
+    } else if (t < 0.5) {
+      float f = (t - 0.35) / 0.15;
+      color = mix(vec3(1.0, 1.0, 0.0), vec3(1.0, 0.5, 0.0), f);
+    } else if (t < 0.7) {
+      float f = (t - 0.5) / 0.2;
+      color = mix(vec3(1.0, 0.5, 0.0), vec3(1.0, 0.0, 0.0), f);
+    } else {
+      float f = (t - 0.7) / 0.3;
+      color = mix(vec3(1.0, 0.0, 0.0), vec3(1.0, 1.0, 1.0), f);
+    }
+
+    return color;
+  }
+
+  void main() {
+    // Get base color
+    vec4 baseColor = texture2D(uBaseTexture, vUv);
+
+    // Check if cell has a particle
+    vec4 particleData = texture2D(uStateTexture, vUv);
+    float particleType = particleData.r * 255.0;
+    bool hasParticle = particleType >= 16.0;
+
+    // Get ambient heat data (R=temp_low, G=temp_high)
+    vec4 heatData = texture2D(uHeatForceLayer, vUv);
+
+    // Decode 16-bit temperature from R,G channels
+    float tempLow = heatData.r * 255.0;
+    float tempHigh = heatData.g * 255.0;
+    float temperature = tempLow + tempHigh * 256.0;
+
+    // Calculate how much the temperature deviates from room temp (298K)
+    float tempDeviation = abs(temperature - 298.0) / 500.0;
+    float heatIntensity = clamp(tempDeviation, 0.0, 1.0);
+
+    // Get temperature color
+    vec3 heatColor = temperatureToColor(temperature);
+
+    // For empty cells, show heat color directly (not mixed with black)
+    // For particles, blend heat with base color
+    vec3 finalColor;
+    float alpha;
+
+    if (hasParticle) {
+      // Blend heat with particle color - stronger blend
+      finalColor = mix(baseColor.rgb, heatColor, 0.4 + heatIntensity * 0.4);
+      alpha = 0.9;
+    } else {
+      // Empty cell - show heat color directly with intensity-based alpha
+      finalColor = heatColor;
+      alpha = 0.3 + heatIntensity * 0.5;
+    }
+
+    gl_FragColor = vec4(finalColor, alpha);
+  }
+`;
+
+/**
+ * Combined Heat Overlay Fragment Shader
+ * Shows both particle and ambient heat added together
+ */
+export const combinedHeatOverlayFragmentShader = `
+  uniform sampler2D uBaseTexture;     // Base rendered color texture
+  uniform sampler2D uStateTexture;    // Particle state texture (R=type, G=temp_low, B=temp_high)
+  uniform sampler2D uHeatForceLayer;  // Heat/Force layer (R=temp_low, G=temp_high)
+  uniform vec2 uTextureSize;
+  uniform float uOverlayStrength;     // Blend strength (0-1)
+
+  varying vec2 vUv;
+
+  // Temperature color mapping function
+  vec3 temperatureToColor(float tempKelvin) {
+    float t = clamp(tempKelvin / 1500.0, 0.0, 1.0);
+
+    vec3 color;
+
+    if (t < 0.2) {
+      float f = t / 0.2;
+      color = mix(vec3(0.0, 0.0, 0.3), vec3(0.0, 0.3, 1.0), f);
+    } else if (t < 0.25) {
+      float f = (t - 0.2) / 0.05;
+      color = mix(vec3(0.0, 0.3, 1.0), vec3(0.0, 0.8, 0.8), f);
+    } else if (t < 0.35) {
+      float f = (t - 0.25) / 0.1;
+      color = mix(vec3(0.0, 0.8, 0.8), vec3(1.0, 1.0, 0.0), f);
+    } else if (t < 0.5) {
+      float f = (t - 0.35) / 0.15;
+      color = mix(vec3(1.0, 1.0, 0.0), vec3(1.0, 0.5, 0.0), f);
+    } else if (t < 0.7) {
+      float f = (t - 0.5) / 0.2;
+      color = mix(vec3(1.0, 0.5, 0.0), vec3(1.0, 0.0, 0.0), f);
+    } else {
+      float f = (t - 0.7) / 0.3;
+      color = mix(vec3(1.0, 0.0, 0.0), vec3(1.0, 1.0, 1.0), f);
+    }
+
+    return color;
+  }
+
+  void main() {
+    // Get base color
+    vec4 baseColor = texture2D(uBaseTexture, vUv);
+
+    // Get particle state
+    vec4 particleData = texture2D(uStateTexture, vUv);
+    float particleType = particleData.r * 255.0;
+    bool hasParticle = particleType >= 16.0;
+
+    // Get ambient heat data
+    vec4 heatData = texture2D(uHeatForceLayer, vUv);
+
+    // Decode particle temperature (if not empty)
+    float particleTemp = 0.0;
+    if (hasParticle) {
+      float pTempLow = particleData.g * 255.0;
+      float pTempHigh = particleData.b * 255.0;
+      particleTemp = pTempLow + pTempHigh * 256.0;
+    }
+
+    // Decode ambient temperature
+    float aTempLow = heatData.r * 255.0;
+    float aTempHigh = heatData.g * 255.0;
+    float ambientTemp = aTempLow + aTempHigh * 256.0;
+
+    // Combine temperatures (use max for visualization)
+    float combinedTemp = max(particleTemp, ambientTemp);
+
+    // Calculate how much the temperature deviates from room temp (298K)
+    float tempDeviation = abs(combinedTemp - 298.0) / 500.0;
+    float heatIntensity = clamp(tempDeviation, 0.0, 1.0);
+
+    // Get temperature color
+    vec3 heatColor = temperatureToColor(combinedTemp);
+
+    // For empty cells, show heat color directly (not mixed with black)
+    // For particles, blend heat with base color
+    vec3 finalColor;
+    float alpha;
+
+    if (hasParticle) {
+      // Blend heat with particle color - stronger blend
+      finalColor = mix(baseColor.rgb, heatColor, 0.4 + heatIntensity * 0.4);
+      alpha = 0.9;
+    } else {
+      // Empty cell - show heat color directly with intensity-based alpha
+      finalColor = heatColor;
+      alpha = 0.3 + heatIntensity * 0.5;
+    }
+
+    gl_FragColor = vec4(finalColor, alpha);
   }
 `;
 

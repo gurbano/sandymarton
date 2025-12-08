@@ -8,6 +8,7 @@ export enum SimulationStepType {
   LIQUID_SPREAD = 'liquid-spread',
   ARCHIMEDES = 'archimedes',
   HEAT_TRANSFER = 'heat-transfer',
+  PARTICLE_ONLY_HEAT = 'particle-only-heat',
   FORCE_TRANSFER = 'force-transfer',
 }
 
@@ -50,10 +51,17 @@ export const DEFAULT_SIMULATION_CONFIG: SimulationConfig = {
     },
     {
       type: SimulationStepType.HEAT_TRANSFER,
-      enabled: true,
+      enabled: false,
       passes: 6,
-      name: 'Heat Transfer',
-      description: 'Temperature equilibrium and diffusion',
+      name: 'Ambient Heat Transfer',
+      description: 'Temperature equilibrium via heat layer (slower)',
+    },
+    {
+      type: SimulationStepType.PARTICLE_ONLY_HEAT,
+      enabled: true,
+      passes: 3,
+      name: 'Particle Heat',
+      description: 'Direct particle-to-particle heat diffusion (faster)',
     },
     {
       type: SimulationStepType.FORCE_TRANSFER,
