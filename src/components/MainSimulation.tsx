@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef } from 'react';
+import type { RefObject } from 'react';
 import {
   DataTexture,
   Mesh,
@@ -39,6 +40,8 @@ interface MainSimulationProps {
   textureSize: number;
   onTextureUpdate: (texture: DataTexture) => void;
   onHeatTextureReady?: (texture: DataTexture) => void;
+  /** Ref to share heat RT texture directly with rendering (avoids GPU read-back) */
+  heatRTRef?: RefObject<Texture | null>;
   enabled?: boolean;
   config: SimulationConfig;
   resetCount?: number;
@@ -105,6 +108,7 @@ function MainSimulation({
   textureSize,
   onTextureUpdate,
   onHeatTextureReady,
+  heatRTRef,
   enabled = true,
   config,
   resetCount = 0,
@@ -142,6 +146,9 @@ function MainSimulation({
 
   // Heat/Force layer texture - stores temperature (R), forceX (G), forceY (B)
   const heatForceLayerRef = useRef<DataTexture | null>(null);
+
+  // Track current heat RT index for ping-pong rendering
+  const currentHeatRTIndexRef = useRef(0);
 
   // FPS tracking with circular buffer to prevent memory leak
   const FPS_BUFFER_SIZE = 60; // Store last 60 frame times
@@ -427,8 +434,11 @@ function MainSimulation({
     if (ambientHeatStep?.enabled && ambientHeatStep.passes > 0 && heatForceLayerRef.current) {
       const heatResources = heatTransferSceneRef.current;
       if (heatResources) {
-        let heatSource: Texture = heatForceLayerRef.current;
-        let heatRtIndex = 0;
+        // Start from current heat RT (or DataTexture if first frame)
+        let heatSource: Texture = currentHeatRTIndexRef.current > 0
+          ? heatRenderTargets[(currentHeatRTIndexRef.current - 1) % heatRenderTargets.length].texture
+          : heatForceLayerRef.current;
+        let heatRtIndex = currentHeatRTIndexRef.current;
 
         for (let i = 0; i < ambientHeatStep.passes; i++) {
           const targetRT = heatRenderTargets[heatRtIndex % heatRenderTargets.length];
@@ -450,17 +460,19 @@ function MainSimulation({
           heatRtIndex++;
         }
 
-        // Read back final heat result to heatForceLayer DataTexture
-        if (heatRtIndex > 0) {
-          const finalHeatRT = heatRenderTargets[(heatRtIndex - 1) % heatRenderTargets.length];
-          const heatPixels = new Uint8Array(textureSize * textureSize * 4);
-          gl.readRenderTargetPixels(finalHeatRT, 0, 0, textureSize, textureSize, heatPixels);
+        // Update the current heat RT index for next frame
+        currentHeatRTIndexRef.current = heatRtIndex;
 
-          const heatData = heatForceLayerRef.current.image.data as Uint8Array;
-          heatData.set(heatPixels);
-          heatForceLayerRef.current.needsUpdate = true;
+        // Share heat RT texture via ref (no GPU read-back needed!)
+        if (heatRTRef && heatRtIndex > 0) {
+          const finalHeatRT = heatRenderTargets[(heatRtIndex - 1) % heatRenderTargets.length];
+          // Use type assertion to write to ref (RefObject is readonly by design but we need to write)
+          (heatRTRef as { current: Texture | null }).current = finalHeatRT.texture;
         }
       }
+    } else if (heatRTRef && heatForceLayerRef.current) {
+      // If ambient heat is disabled, still share the initial heat texture
+      (heatRTRef as { current: Texture | null }).current = heatForceLayerRef.current;
     }
 
     // Notify parent that texture was updated

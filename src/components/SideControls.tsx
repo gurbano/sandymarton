@@ -10,19 +10,20 @@ import {
   faSmog,
   faFlask,
   faBiohazard,
-  faPlus,
+  faPaintBrush,
   faEraser,
   faFillDrip,
   faChevronDown,
+  faChevronRight,
   faFolderOpen,
-  faFloppyDisk
+  faFloppyDisk,
+  faGear,
+  faLayerGroup,
 } from '@fortawesome/free-solid-svg-icons';
 import { ParticleType } from '../world/ParticleTypes';
 import { ParticleTypeRanges } from '../world/ParticleTypeConstants';
 import { WorldInitType } from '../world/WorldGeneration';
-import { useState, useRef, useEffect } from 'react';
-import { SimulationControls } from './SimulationControls';
-import type { SimulationConfig } from '../types/SimulationConfig';
+import { useState, useEffect } from 'react';
 import type { RenderConfig } from '../types/RenderConfig';
 import { loadLevelIndex } from '../utils/LevelLoader';
 import type { Level } from '../types/Level';
@@ -34,8 +35,6 @@ interface SideControlsProps {
   selectedParticle: ParticleType;
   onParticleSelect: (particle: ParticleType) => void;
   onResetWorld: () => void;
-  simulationConfig: SimulationConfig;
-  onSimulationConfigChange: (config: SimulationConfig) => void;
   renderConfig: RenderConfig;
   onRenderConfigChange: (config: RenderConfig) => void;
   worldInitType?: WorldInitType;
@@ -66,8 +65,6 @@ export function SideControls({
   selectedParticle,
   onParticleSelect,
   onResetWorld,
-  simulationConfig,
-  onSimulationConfigChange,
   renderConfig,
   onRenderConfigChange,
   worldInitType = WorldInitType.HOURGLASS,
@@ -79,31 +76,21 @@ export function SideControls({
   brushSize,
   onBrushSizeChange,
 }: SideControlsProps) {
-  const [showDropdown, setShowDropdown] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
   const [availableLevels, setAvailableLevels] = useState<Level[]>([]);
   const [selectedLevel, setSelectedLevel] = useState<string>('');
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [saveLevelName, setSaveLevelName] = useState('');
   const [saveLevelDescription, setSaveLevelDescription] = useState('');
 
+  // Collapsible sections - Settings expanded by default, Levels collapsed
+  const [showSettings, setShowSettings] = useState(true);
+  const [showLevels, setShowLevels] = useState(false);
+
   // Load available levels on mount
   useEffect(() => {
     loadLevelIndex()
       .then((index) => setAvailableLevels(index.levels))
       .catch((err) => console.error('Failed to load level index:', err));
-  }, []);
-
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setShowDropdown(false);
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   const handleLoadLevelClick = () => {
@@ -125,22 +112,6 @@ export function SideControls({
     const newOverlays = [...renderConfig.overlays];
     newOverlays[index] = { ...newOverlays[index], enabled: !newOverlays[index].enabled };
     onRenderConfigChange({ ...renderConfig, overlays: newOverlays });
-  };
-
-  const getToolIcon = () => {
-    switch (toolMode) {
-      case 'add': return faPlus;
-      case 'remove': return faEraser;
-      case 'fill': return faFillDrip;
-    }
-  };
-
-  const getToolLabel = () => {
-    switch (toolMode) {
-      case 'add': return 'Add';
-      case 'remove': return 'Remove';
-      case 'fill': return 'Fill';
-    }
   };
 
   const selectedParticleName = particleTypes.find(p => p.value === selectedParticle)?.name || 'SAND';
@@ -176,262 +147,223 @@ export function SideControls({
     e.stopPropagation();
   };
 
-  return (
-    <div className="top-bar" onMouseDown={handleMouseDown}>
-      <button onClick={onResetWorld} className="icon-button" title="Reset World">
-        <FontAwesomeIcon icon={faRotateRight} />
-      </button>
+  // Show materials panel when Draw or Fill is active
+  const shouldShowMaterials = toolMode === 'add' || toolMode === 'fill';
 
-      <div className="divider"></div>
-
-      {/* Tool Mode Dropdown */}
-      <div className="dropdown-container" ref={dropdownRef}>
+  // Render material grid (3 items per row)
+  const renderMaterialGrid = (materials: typeof particleTypes) => (
+    <div className="material-grid-3col">
+      {materials.map(({ name, value }) => (
         <button
-          className={`icon-button tool-button ${showDropdown ? 'active' : ''}`}
-          onClick={() => setShowDropdown(!showDropdown)}
-          title={getToolLabel()}
+          key={value}
+          className={`material-btn-compact ${selectedParticle === value ? 'selected' : ''}`}
+          onClick={() => onParticleSelect(value)}
+          title={name}
         >
-          <FontAwesomeIcon icon={getToolIcon()} />
-          <FontAwesomeIcon icon={faChevronDown} className="dropdown-arrow" />
+          <FontAwesomeIcon icon={particleIcons[name] || faCubes} />
+          <span>{name}</span>
         </button>
+      ))}
+    </div>
+  );
 
-        {showDropdown && (
-          <div className="dropdown-menu">
-            <div className="dropdown-section">
-              <div className="dropdown-title">{getToolLabel()}</div>
+  return (
+    <>
+      {/* LEFT TOOLBAR - Tools & Materials */}
+      <div className="toolbar-left" onMouseDown={handleMouseDown}>
+        {/* Tool Buttons */}
+        <div className="toolbar-section">
+          <button
+            className={`toolbar-btn ${toolMode === 'add' ? 'active' : ''}`}
+            onClick={() => onToolModeChange('add')}
+            title="Draw particles"
+          >
+            <FontAwesomeIcon icon={faPaintBrush} />
+            <span>Draw</span>
+          </button>
+          <button
+            className={`toolbar-btn ${toolMode === 'remove' ? 'active' : ''}`}
+            onClick={() => onToolModeChange('remove')}
+            title="Erase particles"
+          >
+            <FontAwesomeIcon icon={faEraser} />
+            <span>Erase</span>
+          </button>
+          <button
+            className={`toolbar-btn ${toolMode === 'fill' ? 'active' : ''}`}
+            onClick={() => onToolModeChange('fill')}
+            title="Fill area"
+          >
+            <FontAwesomeIcon icon={faFillDrip} />
+            <span>Fill</span>
+          </button>
+        </div>
 
-              {toolMode === 'add' && (
-                <div className="particle-categories">
-                  {particleCategories.static.length > 0 && (
-                    <div className="particle-category">
-                      <div className="category-label">Static</div>
-                      <div className="particle-grid">
-                        {particleCategories.static.map(({ name, value }) => (
-                          <button
-                            key={value}
-                            className={`particle-button ${selectedParticle === value ? 'selected' : ''}`}
-                            onClick={() => {
-                              onParticleSelect(value);
-                              setShowDropdown(false);
-                            }}
-                            title={name}
-                          >
-                            <FontAwesomeIcon icon={particleIcons[name] || faCubes} />
-                            <span className="particle-name">{name}</span>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
+        {/* Brush Size */}
+        <div className="toolbar-section">
+          <div className="brush-control-compact">
+            <span className="brush-label">{brushSize}px</span>
+            <input
+              type="range"
+              min="1"
+              max="20"
+              value={brushSize}
+              onChange={(e) => onBrushSizeChange(Number(e.target.value))}
+              className="brush-slider-vertical"
+            />
+          </div>
+        </div>
 
-                  {particleCategories.solid.length > 0 && (
-                    <div className="particle-category">
-                      <div className="category-label">Solids</div>
-                      <div className="particle-grid">
-                        {particleCategories.solid.map(({ name, value }) => (
-                          <button
-                            key={value}
-                            className={`particle-button ${selectedParticle === value ? 'selected' : ''}`}
-                            onClick={() => {
-                              onParticleSelect(value);
-                              setShowDropdown(false);
-                            }}
-                            title={name}
-                          >
-                            <FontAwesomeIcon icon={particleIcons[name] || faCubes} />
-                            <span className="particle-name">{name}</span>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
+        {/* Current Material */}
+        {shouldShowMaterials && (
+          <div className="toolbar-section current-material-compact">
+            <FontAwesomeIcon icon={particleIcons[selectedParticleName] || faCubes} />
+            <span>{selectedParticleName}</span>
+          </div>
+        )}
 
-                  {particleCategories.liquid.length > 0 && (
-                    <div className="particle-category">
-                      <div className="category-label">Liquids</div>
-                      <div className="particle-grid">
-                        {particleCategories.liquid.map(({ name, value }) => (
-                          <button
-                            key={value}
-                            className={`particle-button ${selectedParticle === value ? 'selected' : ''}`}
-                            onClick={() => {
-                              onParticleSelect(value);
-                              setShowDropdown(false);
-                            }}
-                            title={name}
-                          >
-                            <FontAwesomeIcon icon={particleIcons[name] || faCubes} />
-                            <span className="particle-name">{name}</span>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {particleCategories.gas.length > 0 && (
-                    <div className="particle-category">
-                      <div className="category-label">Gases</div>
-                      <div className="particle-grid">
-                        {particleCategories.gas.map(({ name, value }) => (
-                          <button
-                            key={value}
-                            className={`particle-button ${selectedParticle === value ? 'selected' : ''}`}
-                            onClick={() => {
-                              onParticleSelect(value);
-                              setShowDropdown(false);
-                            }}
-                            title={name}
-                          >
-                            <FontAwesomeIcon icon={particleIcons[name] || faCubes} />
-                            <span className="particle-name">{name}</span>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {toolMode === 'fill' && (
-                <div className="particle-grid">
-                  {particleTypes.map(({ name, value }) => (
-                    <button
-                      key={value}
-                      className={`particle-button ${selectedParticle === value ? 'selected' : ''}`}
-                      onClick={() => {
-                        onParticleSelect(value);
-                        setShowDropdown(false);
-                      }}
-                      title={name}
-                    >
-                      <FontAwesomeIcon icon={particleIcons[name] || faCubes} />
-                      <span className="particle-name">{name}</span>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div className="dropdown-divider"></div>
-
-            <div className="dropdown-section">
-              <div className="dropdown-title">Tool Mode</div>
-              <button
-                className={`mode-button ${toolMode === 'add' ? 'active' : ''}`}
-                onClick={() => { onToolModeChange('add'); }}
-              >
-                <FontAwesomeIcon icon={faPlus} />
-                <span>Add Material</span>
-              </button>
-              <button
-                className={`mode-button ${toolMode === 'remove' ? 'active' : ''}`}
-                onClick={() => { onToolModeChange('remove'); }}
-              >
-                <FontAwesomeIcon icon={faEraser} />
-                <span>Remove/Erase</span>
-              </button>
-              <button
-                className={`mode-button ${toolMode === 'fill' ? 'active' : ''}`}
-                onClick={() => { onToolModeChange('fill'); }}
-              >
-                <FontAwesomeIcon icon={faFillDrip} />
-                <span>Fill Area</span>
-              </button>
-            </div>
-
-            <div className="dropdown-divider"></div>
-
-            <div className="dropdown-section">
-              <div className="dropdown-title">Brush Size</div>
-              <div className="brush-size-options">
-                <select
-                  className="brush-size-select"
-                  value={brushSize}
-                  onChange={(e) => onBrushSizeChange(Number(e.target.value))}
-                >
-                  <option value="1">Small (1px)</option>
-                  <option value="3">Medium (3px)</option>
-                  <option value="5">Large (5px)</option>
-                  <option value="10">XLarge (10px)</option>
-                </select>
+        {/* Materials - shown when Draw/Fill active */}
+        {shouldShowMaterials && (
+          <div className="toolbar-section materials-section">
+            {particleCategories.static.length > 0 && (
+              <div className="material-category-compact">
+                <div className="category-label-compact">Static</div>
+                {renderMaterialGrid(particleCategories.static)}
               </div>
-            </div>
+            )}
+
+            {particleCategories.solid.length > 0 && (
+              <div className="material-category-compact">
+                <div className="category-label-compact">Solids</div>
+                {renderMaterialGrid(particleCategories.solid)}
+              </div>
+            )}
+
+            {particleCategories.liquid.length > 0 && (
+              <div className="material-category-compact">
+                <div className="category-label-compact">Liquids</div>
+                {renderMaterialGrid(particleCategories.liquid)}
+              </div>
+            )}
+
+            {particleCategories.gas.length > 0 && (
+              <div className="material-category-compact">
+                <div className="category-label-compact">Gases</div>
+                {renderMaterialGrid(particleCategories.gas)}
+              </div>
+            )}
           </div>
         )}
       </div>
 
-      {/* Current Selection Display */}
-      <div className="current-selection">
-        {toolMode === 'remove' ? (
-          <FontAwesomeIcon icon={faEraser} />
-        ) : (
-          <FontAwesomeIcon icon={particleIcons[selectedParticleName] || faCubes} />
-        )}
-        <span>{toolMode === 'remove' ? 'Erase' : selectedParticleName}</span>
-        <span className="brush-size-indicator">{brushSize}px</span>
-      </div>
-
-      <div className="divider"></div>
-
-      {/* Simulation Pipeline Controls */}
-      <SimulationControls
-        config={simulationConfig}
-        onConfigChange={onSimulationConfigChange}
-      />
-
-      <div className="divider"></div>
-
-      {/* Overlay Controls */}
-      <div className="simulation-controls">
-        <span className="control-label">Overlays:</span>
-        {renderConfig.overlays.map((overlay, index) => (
-          <button
-            key={overlay.type}
-            className={`icon-button ${overlay.enabled ? 'active' : ''}`}
-            onClick={() => handleOverlayToggle(index)}
-            title={overlay.name}
+      {/* RIGHT SIDEBAR - Settings & Levels */}
+      <div className="sidebar-right" onMouseDown={handleMouseDown}>
+        {/* Settings Section - Expanded by default */}
+        <div className="sidebar-section">
+          <div
+            className="section-header"
+            onClick={() => setShowSettings(!showSettings)}
           >
-            <FontAwesomeIcon icon={overlay.type === 'heat' ? faFire : faCloud} />
-          </button>
-        ))}
-      </div>
+            <FontAwesomeIcon icon={showSettings ? faChevronDown : faChevronRight} />
+            <FontAwesomeIcon icon={faGear} className="section-icon" />
+            <span>Settings</span>
+          </div>
 
-      <div className="divider"></div>
+          {showSettings && (
+            <div className="settings-panel">
+              {/* Overlay Controls */}
+              <div className="settings-group">
+                <div className="settings-group-label">Overlays</div>
+                <div className="overlay-buttons">
+                  {renderConfig.overlays.map((overlay, index) => (
+                    <button
+                      key={overlay.type}
+                      className={`overlay-btn ${overlay.enabled ? 'active' : ''}`}
+                      onClick={() => handleOverlayToggle(index)}
+                      title={overlay.name}
+                    >
+                      <FontAwesomeIcon icon={overlay.type === 'heat' ? faFire : faCloud} />
+                      <span>{overlay.name}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
 
-      {/* Level Controls */}
-      <div className="simulation-controls">
-        <label className="control-label">
-          Level:
-          <select
-            value={selectedLevel}
-            onChange={(e) => setSelectedLevel(e.target.value)}
-            className="mode-select"
+              {/* World Init Type */}
+              <div className="settings-group">
+                <div className="settings-group-label">World Type</div>
+                <select
+                  value={worldInitType}
+                  onChange={(e) => onWorldInitTypeChange?.(e.target.value as WorldInitType)}
+                  className="settings-select"
+                >
+                  <option value={WorldInitType.HOURGLASS}>Hourglass</option>
+                  <option value={WorldInitType.PLATFORMS}>Platforms</option>
+                  <option value={WorldInitType.AXIS}>Axis</option>
+                  <option value={WorldInitType.EMPTY}>Empty</option>
+                </select>
+              </div>
+
+              {/* Reset Button */}
+              <button onClick={onResetWorld} className="reset-btn">
+                <FontAwesomeIcon icon={faRotateRight} />
+                <span>Reset World</span>
+              </button>
+            </div>
+          )}
+        </div>
+
+        <div className="sidebar-divider"></div>
+
+        {/* Levels Section - Collapsed by default */}
+        <div className="sidebar-section">
+          <div
+            className="section-header"
+            onClick={() => setShowLevels(!showLevels)}
           >
-            <option value="">-- Select Level --</option>
-            {availableLevels.map((level) => (
-              <option key={level.id} value={level.id}>
-                {level.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <button
-          onClick={handleLoadLevelClick}
-          className="icon-button"
-          title="Load Level"
-          disabled={!selectedLevel}
-        >
-          <FontAwesomeIcon icon={faFolderOpen} />
-        </button>
-        <button
-          onClick={() => setShowSaveDialog(true)}
-          className="icon-button"
-          title="Save Level"
-        >
-          <FontAwesomeIcon icon={faFloppyDisk} />
-        </button>
+            <FontAwesomeIcon icon={showLevels ? faChevronDown : faChevronRight} />
+            <FontAwesomeIcon icon={faLayerGroup} className="section-icon" />
+            <span>Levels</span>
+          </div>
+
+          {showLevels && (
+            <div className="levels-panel">
+              <select
+                value={selectedLevel}
+                onChange={(e) => setSelectedLevel(e.target.value)}
+                className="settings-select"
+              >
+                <option value="">Select level...</option>
+                {availableLevels.map((level) => (
+                  <option key={level.id} value={level.id}>
+                    {level.name}
+                  </option>
+                ))}
+              </select>
+
+              <div className="level-buttons">
+                <button
+                  onClick={handleLoadLevelClick}
+                  className="level-btn"
+                  disabled={!selectedLevel}
+                >
+                  <FontAwesomeIcon icon={faFolderOpen} />
+                  <span>Load</span>
+                </button>
+                <button
+                  onClick={() => setShowSaveDialog(true)}
+                  className="level-btn"
+                >
+                  <FontAwesomeIcon icon={faFloppyDisk} />
+                  <span>Save</span>
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
+      {/* Save Dialog */}
       {showSaveDialog && (
         <div className="save-dialog-overlay" onClick={() => setShowSaveDialog(false)}>
           <div className="save-dialog" onClick={(e) => e.stopPropagation()}>
@@ -464,25 +396,6 @@ export function SideControls({
           </div>
         </div>
       )}
-
-      <div className="divider"></div>
-
-      {/* World Init Controls */}
-      <div className="simulation-controls">
-        <label className="control-label">
-          World:
-          <select
-            value={worldInitType}
-            onChange={(e) => onWorldInitTypeChange?.(e.target.value as WorldInitType)}
-            className="mode-select"
-          >
-            <option value={WorldInitType.HOURGLASS}>Hourglass</option>
-            <option value={WorldInitType.PLATFORMS}>Platforms</option>
-            <option value={WorldInitType.AXIS}>Axis</option>
-            <option value={WorldInitType.EMPTY}>Empty</option>
-          </select>
-        </label>
-      </div>
-    </div>
+    </>
   );
 }

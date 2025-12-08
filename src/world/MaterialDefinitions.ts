@@ -133,7 +133,7 @@ export const MaterialDefinitions: Partial<Record<ParticleType, MaterialAttribute
   hardness: 1,
   friction: 0.2,             // Slow flowing but still liquid
   defaultTemperature: celsiusToKelvin(1000), // 1000°C = 1273K (molten rock)
-  thermalCapacity: 0.99,     // Very high capacity - lava loses only 5% of emitted heat
+  thermalCapacity: 0.90,     // Very high capacity - lava loses only 5% of emitted heat
   thermalConductivity: 0.2,  // Moderate conductivity - transfers heat but not too fast
 },
 

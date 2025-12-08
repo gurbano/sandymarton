@@ -1,12 +1,12 @@
 import { Canvas } from '@react-three/fiber';
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useRef } from 'react';
+import type { RefObject } from 'react';
 import { DataTexture, Texture } from 'three';
 import './App.css';
 import TextureRenderer from './components/TextureRenderer';
 import MainSimulation from './components/MainSimulation';
 import { SideControls } from './components/SideControls';
 import { StatusBar } from './components/StatusBar';
-import { ParticleCounter } from './components/ParticleCounter';
 import { useTextureControls } from './hooks/useTextureControls';
 import { useParticleDrawing } from './hooks/useParticleDrawing';
 import { WorldGeneration, WorldInitType } from './world/WorldGeneration';
@@ -18,17 +18,16 @@ import type { RenderConfig } from './types/RenderConfig';
 import { WORLD_SIZE } from './constants/worldConstants';
 import { loadLevel } from './utils/LevelLoader';
 import { saveLevel } from './utils/LevelSaver';
-import { calculateAverageTemperature, calculateAverageParticleTemperature } from './utils/temperatureUtils';
 
 function Scene({
   texture,
-  heatTexture,
+  heatTextureRef,
   pixelSize,
   center,
   renderConfig,
 }: {
   texture: Texture;
-  heatTexture: DataTexture | null;
+  heatTextureRef: RefObject<Texture | null>;
   pixelSize: number;
   center: { x: number; y: number };
   renderConfig: RenderConfig;
@@ -36,7 +35,7 @@ function Scene({
   return (
     <TextureRenderer
       texture={texture}
-      heatTexture={heatTexture}
+      heatTextureRef={heatTextureRef}
       pixelSize={pixelSize}
       center={center}
       renderConfig={renderConfig}
@@ -85,8 +84,8 @@ function App() {
   // FPS tracking
   const [fps, setFps] = useState<number>(0);
 
-  // Heat texture from simulation
-  const [heatTexture, setHeatTexture] = useState<DataTexture | null>(null);
+  // Ref to share heat RT texture between MainSimulation and TextureRenderer (avoids GPU read-back)
+  const heatRTRef = useRef<Texture | null>(null);
 
   // Handle drawing particles and updating texture
   const handleDraw = useCallback((texture: DataTexture) => {
@@ -94,24 +93,22 @@ function App() {
     texture.needsUpdate = true;
   }, []);
 
-  // Mouse position for brush cursor
-  const [mousePos, setMousePos] = useState<{ x: number; y: number } | null>(null);
+  // Brush cursor ref - direct DOM manipulation for performance (no React re-renders)
+  const brushCursorRef = useRef<HTMLDivElement>(null);
 
-  // World position for temperature display
-  const [worldPos, setWorldPos] = useState<{ x: number; y: number } | null>(null);
+  // Update brush cursor directly via DOM (bypasses React rendering)
+  const handleMouseMove = useCallback((pos: { x: number; y: number } | null) => {
+    const cursor = brushCursorRef.current;
+    if (!cursor) return;
 
-  // Calculate average temperature under brush (heat layer - includes empty cells)
-  const averageTemperature = useMemo(() => {
-    if (!worldPos || !heatTexture) return null;
-    return calculateAverageTemperature(heatTexture, worldPos.x, worldPos.y, brushSize);
-  }, [worldPos, heatTexture, brushSize]);
-
-  // Calculate average temperature of particles only (non-empty cells)
-  // Reads particle temperature directly from particle texture (G,B channels)
-  const averageParticleTemperature = useMemo(() => {
-    if (!worldPos || !worldTexture) return null;
-    return calculateAverageParticleTemperature(worldTexture, worldPos.x, worldPos.y, brushSize);
-  }, [worldPos, worldTexture, brushSize]);
+    if (pos) {
+      cursor.style.display = 'block';
+      cursor.style.left = `${pos.x}px`;
+      cursor.style.top = `${pos.y}px`;
+    } else {
+      cursor.style.display = 'none';
+    }
+  }, []);
 
   // Use particle drawing hook
   useParticleDrawing({
@@ -123,8 +120,7 @@ function App() {
     worldTexture: worldTexture,
     toolMode,
     brushSize,
-    onMouseMove: setMousePos,
-    onWorldPosChange: setWorldPos,
+    onMouseMove: handleMouseMove,
   });
 
   // Reset world handler
@@ -181,13 +177,14 @@ function App() {
           onTextureUpdate={(newTexture) => {
             setWorldTexture(newTexture);
           }}
-          onHeatTextureReady={setHeatTexture}
+          onHeatTextureReady={() => {}}
+          heatRTRef={heatRTRef}
           enabled={simulationEnabled}
           config={simulationConfig}
           resetCount={resetCount}
           onFpsUpdate={setFps}
         />
-        <Scene texture={worldTexture} heatTexture={heatTexture} pixelSize={pixelSize} center={center} renderConfig={renderConfig} />
+        <Scene texture={worldTexture} heatTextureRef={heatRTRef} pixelSize={pixelSize} center={center} renderConfig={renderConfig} />
       </Canvas>
 
       {/* Overlay Controls */}
@@ -196,8 +193,6 @@ function App() {
         selectedParticle={selectedParticle}
         onParticleSelect={setSelectedParticle}
         onResetWorld={handleResetWorld}
-        simulationConfig={simulationConfig}
-        onSimulationConfigChange={setSimulationConfig}
         renderConfig={renderConfig}
         onRenderConfigChange={setRenderConfig}
         worldInitType={worldInitType}
@@ -210,24 +205,27 @@ function App() {
         onBrushSizeChange={setBrushSize}
       />
 
-      {/* Brush Cursor */}
-      {mousePos && (
-        <div
-          className="brush-cursor"
-          style={{
-            left: mousePos.x,
-            top: mousePos.y,
-            width: brushSize * pixelSize * 2,
-            height: brushSize * pixelSize * 2,
-          }}
-        />
-      )}
+      {/* Brush Cursor - ref-based for performance */}
+      <div
+        ref={brushCursorRef}
+        className="brush-cursor"
+        style={{
+          display: 'none',
+          width: brushSize * pixelSize * 2,
+          height: brushSize * pixelSize * 2,
+        }}
+      />
 
       {/* Overlay Status Bar */}
-      <StatusBar pixelSize={pixelSize} center={center} selectedParticle={selectedParticle} fps={fps} averageTemperature={averageTemperature} averageParticleTemperature={averageParticleTemperature} />
-
-      {/* Particle Counter */}
-      <ParticleCounter worldTexture={worldTexture} />
+      <StatusBar
+        pixelSize={pixelSize}
+        center={center}
+        selectedParticle={selectedParticle}
+        fps={fps}
+        worldTexture={worldTexture}
+        simulationConfig={simulationConfig}
+        onSimulationConfigChange={setSimulationConfig}
+      />
     </div>
   );
 }

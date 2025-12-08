@@ -1,6 +1,6 @@
 import { useRef, useMemo, useEffect, useState } from 'react';
+import type { RefObject } from 'react';
 import {
-  DataTexture,
   ShaderMaterial,
   Mesh,
   Texture,
@@ -21,7 +21,8 @@ import { WORLD_SIZE } from '../constants/worldConstants';
 
 interface TextureRendererProps {
   texture: Texture;
-  heatTexture: DataTexture | null; // Heat/force layer texture
+  /** Ref to heat RT texture (shared from MainSimulation, avoids GPU read-back) */
+  heatTextureRef: RefObject<Texture | null>;
   pixelSize?: number;
   center?: { x: number; y: number };
   renderConfig?: RenderConfig; // Optional post-processing config
@@ -29,7 +30,7 @@ interface TextureRendererProps {
 
 function TextureRenderer({
   texture,
-  heatTexture,
+  heatTextureRef,
   pixelSize = 16,
   center = { x: 0, y: 0 },
   renderConfig,
@@ -146,7 +147,7 @@ function TextureRenderer({
         <PostProcessRenderer
           colorTexture={baseColorResources.renderTarget.texture}
           stateTexture={texture}
-          heatTexture={heatTexture}
+          heatTextureRef={heatTextureRef}
           textureSize={WORLD_SIZE}
           config={renderConfig}
           onRenderComplete={handlePostProcessComplete}

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef } from 'react';
+import type { RefObject } from 'react';
 import {
-  DataTexture,
   Mesh,
   NearestFilter,
   OrthographicCamera,
@@ -32,7 +32,8 @@ import {
 interface PostProcessRendererProps {
   colorTexture: Texture; // Base color texture
   stateTexture: Texture; // Simulation state texture (for material type lookup)
-  heatTexture: DataTexture | null; // Heat/force layer texture
+  /** Ref to heat RT texture (read each frame, avoids GPU read-back) */
+  heatTextureRef: RefObject<Texture | null>;
   textureSize: number;
   config: RenderConfig;
   onRenderComplete: (texture: Texture) => void;
@@ -206,7 +207,7 @@ const createCombinedHeatOverlayResources = (
 function PostProcessRenderer({
   colorTexture,
   stateTexture,
-  heatTexture,
+  heatTextureRef,
   textureSize,
   config,
   onRenderComplete,
@@ -226,7 +227,7 @@ function PostProcessRenderer({
   const forceOverlayRef = useRef<EffectResources | null>(null);
   const initializedRef = useRef(false);
 
-  // Create effect resources
+  // Create effect resources (heatTextureRef.current read in useFrame, not here)
   useEffect(() => {
     const edgeBlending = createEdgeBlendingResources(textureSize, colorTexture, stateTexture);
     const materialVariation = createMaterialVariationResources(
@@ -235,9 +236,10 @@ function PostProcessRenderer({
       stateTexture
     );
     const heatOverlay = createHeatOverlayResources(textureSize, colorTexture, stateTexture);
-    const ambientHeatOverlay = createAmbientHeatOverlayResources(textureSize, colorTexture, stateTexture, heatTexture);
-    const combinedHeatOverlay = createCombinedHeatOverlayResources(textureSize, colorTexture, stateTexture, heatTexture);
-    const forceOverlay = createForceOverlayResources(textureSize, colorTexture, heatTexture);
+    // Pass null initially - heat texture updated in useFrame from ref
+    const ambientHeatOverlay = createAmbientHeatOverlayResources(textureSize, colorTexture, stateTexture, null);
+    const combinedHeatOverlay = createCombinedHeatOverlayResources(textureSize, colorTexture, stateTexture, null);
+    const forceOverlay = createForceOverlayResources(textureSize, colorTexture, null);
 
     edgeBlendingRef.current = edgeBlending;
     materialVariationRef.current = materialVariation;
@@ -264,7 +266,7 @@ function PostProcessRenderer({
       });
       renderTargets.forEach((rt) => rt.dispose());
     };
-  }, [textureSize, colorTexture, stateTexture, heatTexture, gl, renderTargets]);
+  }, [textureSize, colorTexture, stateTexture, gl, renderTargets]);
 
   // Run post-processing pipeline each frame
   useFrame(() => {
@@ -322,6 +324,9 @@ function PostProcessRenderer({
     }
 
     // Execute overlays on top of effects
+    // Read heat texture from ref (updated by MainSimulation each frame)
+    const heatTexture = heatTextureRef.current;
+
     // Check if both heat overlays are enabled - if so, use combined shader
     const particleHeatEnabled = config.overlays.find(o => o.type === OverlayType.HEAT)?.enabled ?? false;
     const ambientHeatEnabled = config.overlays.find(o => o.type === OverlayType.AMBIENT_HEAT)?.enabled ?? false;

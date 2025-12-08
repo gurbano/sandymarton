@@ -1,7 +1,6 @@
 import { useEffect, useState, useMemo, useRef } from 'react';
 import type { DataTexture } from 'three';
 import { ParticleType } from '../world/ParticleTypes';
-import './ParticleCounter.css';
 
 interface ParticleCounterProps {
   worldTexture: DataTexture;
@@ -25,6 +24,7 @@ const TYPE_NAMES: string[] = (() => {
 export function ParticleCounter({ worldTexture }: ParticleCounterProps) {
   const [counts, setCounts] = useState<ParticleCounts>({});
   const [totalParticles, setTotalParticles] = useState(0);
+  const [isOpen, setIsOpen] = useState(false);
 
   // Pre-allocate count array to avoid object property lookups in hot loop
   const countArrayRef = useRef(new Uint32Array(256));
@@ -85,17 +85,24 @@ export function ParticleCounter({ worldTexture }: ParticleCounterProps) {
   const sortedEntries = Object.entries(counts).sort((a, b) => b[1] - a[1]);
 
   return (
-    <div className="particle-counter">
-      <div className="particle-counter-header">Particle Count</div>
-      <div className="particle-counter-total">Total: {totalParticles.toLocaleString()}</div>
-      <div className="particle-counter-list">
-        {sortedEntries.map(([type, count]) => (
-          <div key={type} className="particle-counter-item">
-            <span className="particle-counter-type">{type}</span>
-            <span className="particle-counter-count">{count.toLocaleString()}</span>
-          </div>
-        ))}
-      </div>
+    <div
+      className={`particle-counter-inline ${isOpen ? 'active' : ''}`}
+      onClick={() => setIsOpen(!isOpen)}
+    >
+      <span className="particle-count-value">{totalParticles.toLocaleString()}</span>
+      <span className="particle-count-label">particles ▾</span>
+
+      {isOpen && sortedEntries.length > 0 && (
+        <div className="particle-counter-tooltip">
+          <div className="tooltip-header">Breakdown</div>
+          {sortedEntries.map(([type, count]) => (
+            <div key={type} className="tooltip-row">
+              <span className="tooltip-type">{type}</span>
+              <span className="tooltip-count">{count.toLocaleString()}</span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
