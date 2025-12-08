@@ -106,7 +106,7 @@ function App() {
     if (!cursor) return;
 
     if (pos) {
-      cursor.style.display = toolMode === 'inspect' ? 'none' : 'block';
+      cursor.style.display = 'block';
       cursor.style.left = `${pos.x}px`;
       cursor.style.top = `${pos.y}px`;
     } else {
@@ -116,12 +116,12 @@ function App() {
     // Also update inspect tooltip position
     const tooltip = inspectTooltipRef.current;
     if (tooltip) {
-      if (pos && toolMode === 'inspect') {
+      if (pos) {
         tooltip.style.left = `${pos.x + 15}px`;
         tooltip.style.top = `${pos.y + 15}px`;
       }
     }
-  }, [toolMode]);
+  }, []);
 
   // Update inspect tooltip content via DOM
   const handleInspectData = useCallback((data: InspectData | null) => {
@@ -153,6 +153,7 @@ function App() {
       <div class="inspect-header">${data.mainComponent}</div>
       <div class="inspect-bar">${compositionBar}</div>
       <div class="inspect-details">
+        <div class="inspect-row"><span>Brush:</span><span>${data.brushSize}px</span></div>
         <div class="inspect-row"><span>Particles:</span><span>${data.totalParticles}</span></div>
         <div class="inspect-row"><span>Avg Temp:</span><span>${tempDisplay}</span></div>
       </div>

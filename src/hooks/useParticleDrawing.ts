@@ -13,6 +13,7 @@ export interface InspectData {
   avgParticleTemp: number | null;
   totalParticles: number;
   position: { x: number; y: number };
+  brushSize: number;
 }
 
 // Particle type colors for visualization
@@ -64,7 +65,7 @@ export function useParticleDrawing({
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const lastMousePosRef = useRef<{ x: number; y: number } | null>(null);
   const drawIntervalRef = useRef<number | null>(null);
-  const inspectTimeoutRef = useRef<number | null>(null);
+  const inspectThrottleRef = useRef<boolean>(false);
   const lastInspectPosRef = useRef<{ x: number; y: number } | null>(null);
 
   // Convert screen coordinates to world texture coordinates
@@ -148,9 +149,10 @@ export function useParticleDrawing({
             totalParticles++;
 
             // Read temperature from G,B channels (16-bit value)
-            const tempHigh = data[idx + 1];
-            const tempLow = data[idx + 2];
-            const tempKelvin = (tempHigh << 8) | tempLow;
+            // G channel = temp_low, B channel = temp_high
+            const tempLow = data[idx + 1];
+            const tempHigh = data[idx + 2];
+            const tempKelvin = tempLow + tempHigh * 256;
             if (tempKelvin > 0) {
               totalTemp += tempKelvin;
               tempCount++;
@@ -188,6 +190,7 @@ export function useParticleDrawing({
       avgParticleTemp,
       totalParticles,
       position: worldPos,
+      brushSize,
     };
   }, [worldTexture, brushSize]);
 
@@ -223,20 +226,28 @@ export function useParticleDrawing({
     onDraw(worldTexture);
   }, [worldTexture, worldGen, selectedParticle, screenToWorld, onDraw, toolMode, brushSize]);
 
-  // Debounced inspect function
+  // Leading-edge throttled inspect function
+  // Executes immediately on first call, then ignores calls for 500ms
   const scheduleInspect = useCallback((worldPos: { x: number; y: number }) => {
-    // Clear previous timeout
-    if (inspectTimeoutRef.current !== null) {
-      clearTimeout(inspectTimeoutRef.current);
-    }
-
     lastInspectPosRef.current = worldPos;
 
-    // Schedule new inspect after 500ms
-    inspectTimeoutRef.current = window.setTimeout(() => {
+    // If throttled, ignore this call
+    if (inspectThrottleRef.current) {
+      return;
+    }
+
+    // Execute immediately (leading edge)
+    const inspectData = inspectAt(worldPos);
+    onInspectData?.(inspectData);
+
+    // Start throttle period
+    inspectThrottleRef.current = true;
+    window.setTimeout(() => {
+      inspectThrottleRef.current = false;
+      // Optionally update with latest position after throttle ends
       if (lastInspectPosRef.current) {
-        const inspectData = inspectAt(lastInspectPosRef.current);
-        onInspectData?.(inspectData);
+        const latestData = inspectAt(lastInspectPosRef.current);
+        onInspectData?.(latestData);
       }
     }, 500);
   }, [inspectAt, onInspectData]);
@@ -302,10 +313,6 @@ export function useParticleDrawing({
         // Mouse is outside canvas - hide cursor and clear inspect
         onMouseMove?.(null);
         onInspectData?.(null);
-        if (inspectTimeoutRef.current !== null) {
-          clearTimeout(inspectTimeoutRef.current);
-          inspectTimeoutRef.current = null;
-        }
         return;
       }
 
@@ -331,10 +338,6 @@ export function useParticleDrawing({
     const handleMouseLeave = () => {
       onMouseMove?.(null);
       onInspectData?.(null);
-      if (inspectTimeoutRef.current !== null) {
-        clearTimeout(inspectTimeoutRef.current);
-        inspectTimeoutRef.current = null;
-      }
     };
 
     const handleMouseUp = (e: MouseEvent) => {
@@ -361,14 +364,10 @@ export function useParticleDrawing({
       window.removeEventListener('mouseup', handleMouseUp);
       window.removeEventListener('mouseleave', handleMouseLeave);
 
-      // Clean up intervals/timeouts on unmount
+      // Clean up intervals on unmount
       if (drawIntervalRef.current !== null) {
         clearInterval(drawIntervalRef.current);
         drawIntervalRef.current = null;
-      }
-      if (inspectTimeoutRef.current !== null) {
-        clearTimeout(inspectTimeoutRef.current);
-        inspectTimeoutRef.current = null;
       }
     };
   }, [drawParticle, onMouseMove, onInspectData, screenToWorld, toolMode, scheduleInspect]);
