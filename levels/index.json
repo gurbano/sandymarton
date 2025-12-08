@@ -1,0 +1,20 @@
+{
+  "levels": [
+    {
+      "id": "empty",
+      "name": "Empty World",
+      "description": "A blank canvas to start creating",
+      "textures": {
+        "particles": "particles.png"
+      }
+    },
+    {
+      "id": "sandbox",
+      "name": "Sandbox",
+      "description": "A simple sandbox level with some materials",
+      "textures": {
+        "particles": "particles.png"
+      }
+    }
+  ]
+}

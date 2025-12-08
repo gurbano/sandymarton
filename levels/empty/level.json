@@ -1,0 +1,8 @@
+{
+  "id": "empty",
+  "name": "Empty World",
+  "description": "A blank canvas to start creating",
+  "textures": {
+    "particles": "particles.png"
+  }
+}
