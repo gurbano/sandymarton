@@ -9,6 +9,7 @@ import { SideControls } from './components/SideControls';
 import { StatusBar } from './components/StatusBar';
 import { useTextureControls } from './hooks/useTextureControls';
 import { useParticleDrawing } from './hooks/useParticleDrawing';
+import type { InspectData } from './hooks/useParticleDrawing';
 import { WorldGeneration, WorldInitType } from './world/WorldGeneration';
 import { ParticleType } from './world/ParticleTypes';
 import { DEFAULT_SIMULATION_CONFIG } from './types/SimulationConfig';
@@ -69,8 +70,8 @@ function App() {
   // State for selected particle type
   const [selectedParticle, setSelectedParticle] = useState<ParticleType>(ParticleType.SAND);
 
-  // Tool mode state (add, remove, fill)
-  const [toolMode, setToolMode] = useState<'add' | 'remove' | 'fill'>('add');
+  // Tool mode state (inspect, add, remove, fill)
+  const [toolMode, setToolMode] = useState<'inspect' | 'add' | 'remove' | 'fill'>('add');
 
   // Brush size state
   const [brushSize, setBrushSize] = useState<number>(3);
@@ -96,18 +97,67 @@ function App() {
   // Brush cursor ref - direct DOM manipulation for performance (no React re-renders)
   const brushCursorRef = useRef<HTMLDivElement>(null);
 
+  // Inspect tooltip ref - direct DOM manipulation for performance
+  const inspectTooltipRef = useRef<HTMLDivElement>(null);
+
   // Update brush cursor directly via DOM (bypasses React rendering)
   const handleMouseMove = useCallback((pos: { x: number; y: number } | null) => {
     const cursor = brushCursorRef.current;
     if (!cursor) return;
 
     if (pos) {
-      cursor.style.display = 'block';
+      cursor.style.display = toolMode === 'inspect' ? 'none' : 'block';
       cursor.style.left = `${pos.x}px`;
       cursor.style.top = `${pos.y}px`;
     } else {
       cursor.style.display = 'none';
     }
+
+    // Also update inspect tooltip position
+    const tooltip = inspectTooltipRef.current;
+    if (tooltip) {
+      if (pos && toolMode === 'inspect') {
+        tooltip.style.left = `${pos.x + 15}px`;
+        tooltip.style.top = `${pos.y + 15}px`;
+      }
+    }
+  }, [toolMode]);
+
+  // Update inspect tooltip content via DOM
+  const handleInspectData = useCallback((data: InspectData | null) => {
+    const tooltip = inspectTooltipRef.current;
+    if (!tooltip) return;
+
+    if (!data) {
+      tooltip.style.display = 'none';
+      return;
+    }
+
+    tooltip.style.display = 'block';
+
+    // Build composition bar HTML
+    const compositionBar = data.composition
+      .map(c => `<div class="inspect-bar-segment" style="width: ${c.percentage}%; background: rgb(${c.color.join(',')});" title="${c.type}: ${c.percentage.toFixed(1)}%"></div>`)
+      .join('');
+
+    // Build composition list
+    const compositionList = data.composition
+      .map(c => `<div class="inspect-comp-row"><span class="inspect-comp-color" style="background: rgb(${c.color.join(',')});"></span><span class="inspect-comp-name">${c.type}</span><span class="inspect-comp-pct">${c.percentage.toFixed(1)}%</span></div>`)
+      .join('');
+
+    const tempDisplay = data.avgParticleTemp !== null
+      ? `${data.avgParticleTemp.toFixed(1)}°C`
+      : '--';
+
+    tooltip.innerHTML = `
+      <div class="inspect-header">${data.mainComponent}</div>
+      <div class="inspect-bar">${compositionBar}</div>
+      <div class="inspect-details">
+        <div class="inspect-row"><span>Particles:</span><span>${data.totalParticles}</span></div>
+        <div class="inspect-row"><span>Avg Temp:</span><span>${tempDisplay}</span></div>
+      </div>
+      ${data.composition.length > 1 ? `<div class="inspect-composition">${compositionList}</div>` : ''}
+    `;
   }, []);
 
   // Use particle drawing hook
@@ -121,6 +171,7 @@ function App() {
     toolMode,
     brushSize,
     onMouseMove: handleMouseMove,
+    onInspectData: handleInspectData,
   });
 
   // Reset world handler
@@ -214,6 +265,13 @@ function App() {
           width: brushSize * pixelSize * 2,
           height: brushSize * pixelSize * 2,
         }}
+      />
+
+      {/* Inspect Tooltip - ref-based for performance */}
+      <div
+        ref={inspectTooltipRef}
+        className="inspect-tooltip"
+        style={{ display: 'none' }}
       />
 
       {/* Overlay Status Bar */}

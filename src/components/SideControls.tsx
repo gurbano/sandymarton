@@ -10,6 +10,7 @@ import {
   faSmog,
   faFlask,
   faBiohazard,
+  faMagnifyingGlass,
   faPaintBrush,
   faEraser,
   faFillDrip,
@@ -28,7 +29,7 @@ import type { RenderConfig } from '../types/RenderConfig';
 import { loadLevelIndex } from '../utils/LevelLoader';
 import type { Level } from '../types/Level';
 
-export type ToolMode = 'add' | 'remove' | 'fill';
+export type ToolMode = 'inspect' | 'add' | 'remove' | 'fill';
 
 interface SideControlsProps {
   particleTypes: { name: string; value: number }[];
@@ -173,6 +174,14 @@ export function SideControls({
       <div className="toolbar-left" onMouseDown={handleMouseDown}>
         {/* Tool Buttons */}
         <div className="toolbar-section">
+          <button
+            className={`toolbar-btn ${toolMode === 'inspect' ? 'active' : ''}`}
+            onClick={() => onToolModeChange('inspect')}
+            title="Inspect particles"
+          >
+            <FontAwesomeIcon icon={faMagnifyingGlass} />
+            <span>Inspect</span>
+          </button>
           <button
             className={`toolbar-btn ${toolMode === 'add' ? 'active' : ''}`}
             onClick={() => onToolModeChange('add')}

@@ -4,7 +4,31 @@ import { ParticleType } from '../world/ParticleTypes';
 import type { DataTexture } from 'three';
 import { WORLD_SIZE } from '../constants/worldConstants';
 
-type ToolMode = 'add' | 'remove' | 'fill';
+type ToolMode = 'inspect' | 'add' | 'remove' | 'fill';
+
+// Inspect data structure
+export interface InspectData {
+  composition: { type: string; count: number; percentage: number; color: [number, number, number] }[];
+  mainComponent: string;
+  avgParticleTemp: number | null;
+  totalParticles: number;
+  position: { x: number; y: number };
+}
+
+// Particle type colors for visualization
+const PARTICLE_COLORS: Record<string, [number, number, number]> = {
+  SAND: [194, 178, 128],
+  DIRT: [139, 90, 43],
+  STONE: [128, 128, 128],
+  GRAVEL: [160, 160, 160],
+  WATER: [64, 164, 223],
+  LAVA: [255, 80, 20],
+  SLIME: [0, 255, 100],
+  ACID: [180, 255, 0],
+  STEAM: [200, 200, 220],
+  SMOKE: [80, 80, 80],
+  AIR: [135, 206, 235],
+};
 
 interface UseParticleDrawingProps {
   worldGen: WorldGeneration;
@@ -16,7 +40,12 @@ interface UseParticleDrawingProps {
   toolMode?: ToolMode;
   brushSize?: number;
   onMouseMove?: (pos: { x: number; y: number } | null) => void;
-  onWorldPosChange?: (pos: { x: number; y: number } | null) => void;
+  onInspectData?: (data: InspectData | null) => void;
+}
+
+// Convert Kelvin to Celsius
+function kelvinToCelsius(kelvin: number): number {
+  return kelvin - 273.15;
 }
 
 export function useParticleDrawing({
@@ -29,12 +58,14 @@ export function useParticleDrawing({
   toolMode = 'add',
   brushSize = 3,
   onMouseMove,
-  onWorldPosChange,
+  onInspectData,
 }: UseParticleDrawingProps) {
   const isDrawingRef = useRef(false);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const lastMousePosRef = useRef<{ x: number; y: number } | null>(null);
   const drawIntervalRef = useRef<number | null>(null);
+  const inspectTimeoutRef = useRef<number | null>(null);
+  const lastInspectPosRef = useRef<{ x: number; y: number } | null>(null);
 
   // Convert screen coordinates to world texture coordinates
   // This mirrors the shader logic exactly
@@ -86,7 +117,84 @@ export function useParticleDrawing({
     return { x: worldX, y: worldY };
   }, [pixelSize, center]);
 
+  // Inspect particles at a world position
+  const inspectAt = useCallback((worldPos: { x: number; y: number }) => {
+    const data = worldTexture.image.data as Uint8Array;
+    if (!data) return null;
+
+    const counts: Record<number, number> = {};
+    let totalTemp = 0;
+    let tempCount = 0;
+    let totalParticles = 0;
+
+    // Sample in a radius around the position
+    for (let dy = -brushSize; dy <= brushSize; dy++) {
+      for (let dx = -brushSize; dx <= brushSize; dx++) {
+        const distSq = dx * dx + dy * dy;
+        if (distSq <= brushSize * brushSize) {
+          const sampleX = worldPos.x + dx;
+          const sampleY = worldPos.y + dy;
+
+          // Bounds check
+          if (sampleX < 0 || sampleX >= WORLD_SIZE || sampleY < 0 || sampleY >= WORLD_SIZE) {
+            continue;
+          }
+
+          const idx = (sampleY * WORLD_SIZE + sampleX) * 4;
+          const particleType = data[idx]; // R channel = particle type
+
+          if (particleType !== ParticleType.EMPTY) {
+            counts[particleType] = (counts[particleType] || 0) + 1;
+            totalParticles++;
+
+            // Read temperature from G,B channels (16-bit value)
+            const tempHigh = data[idx + 1];
+            const tempLow = data[idx + 2];
+            const tempKelvin = (tempHigh << 8) | tempLow;
+            if (tempKelvin > 0) {
+              totalTemp += tempKelvin;
+              tempCount++;
+            }
+          }
+        }
+      }
+    }
+
+    if (totalParticles === 0) {
+      return null;
+    }
+
+    // Build composition array
+    const composition: InspectData['composition'] = [];
+    for (const [typeStr, count] of Object.entries(counts)) {
+      const typeNum = parseInt(typeStr, 10);
+      const typeName = ParticleType[typeNum] || `UNKNOWN_${typeNum}`;
+      composition.push({
+        type: typeName,
+        count,
+        percentage: (count / totalParticles) * 100,
+        color: PARTICLE_COLORS[typeName] || [128, 128, 128],
+      });
+    }
+
+    // Sort by count descending
+    composition.sort((a, b) => b.count - a.count);
+
+    const avgParticleTemp = tempCount > 0 ? kelvinToCelsius(totalTemp / tempCount) : null;
+
+    return {
+      composition,
+      mainComponent: composition[0]?.type || 'EMPTY',
+      avgParticleTemp,
+      totalParticles,
+      position: worldPos,
+    };
+  }, [worldTexture, brushSize]);
+
   const drawParticle = useCallback((screenX: number, screenY: number) => {
+    // Don't draw in inspect mode
+    if (toolMode === 'inspect') return;
+
     const worldPos = screenToWorld(screenX, screenY);
     if (!worldPos) return;
 
@@ -115,6 +223,24 @@ export function useParticleDrawing({
     onDraw(worldTexture);
   }, [worldTexture, worldGen, selectedParticle, screenToWorld, onDraw, toolMode, brushSize]);
 
+  // Debounced inspect function
+  const scheduleInspect = useCallback((worldPos: { x: number; y: number }) => {
+    // Clear previous timeout
+    if (inspectTimeoutRef.current !== null) {
+      clearTimeout(inspectTimeoutRef.current);
+    }
+
+    lastInspectPosRef.current = worldPos;
+
+    // Schedule new inspect after 500ms
+    inspectTimeoutRef.current = window.setTimeout(() => {
+      if (lastInspectPosRef.current) {
+        const inspectData = inspectAt(lastInspectPosRef.current);
+        onInspectData?.(inspectData);
+      }
+    }, 500);
+  }, [inspectAt, onInspectData]);
+
   useEffect(() => {
     // Store canvas element reference
     const findCanvas = () => {
@@ -128,6 +254,9 @@ export function useParticleDrawing({
     setTimeout(findCanvas, 100);
 
     const handleMouseDown = (e: MouseEvent) => {
+      // Don't process drawing in inspect mode
+      if (toolMode === 'inspect') return;
+
       const canvas = canvasRef.current;
       if (!canvas) return;
 
@@ -170,20 +299,29 @@ export function useParticleDrawing({
       const y = e.clientY;
 
       if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) {
-        // Mouse is outside canvas - hide cursor
+        // Mouse is outside canvas - hide cursor and clear inspect
         onMouseMove?.(null);
-        onWorldPosChange?.(null);
+        onInspectData?.(null);
+        if (inspectTimeoutRef.current !== null) {
+          clearTimeout(inspectTimeoutRef.current);
+          inspectTimeoutRef.current = null;
+        }
         return;
       }
 
       // Update cursor position
       onMouseMove?.({ x: e.clientX, y: e.clientY });
 
-      // Update world position for temperature display
-      const worldPos = screenToWorld(e.clientX, e.clientY);
-      onWorldPosChange?.(worldPos);
+      // Handle inspect mode
+      if (toolMode === 'inspect') {
+        const worldPos = screenToWorld(e.clientX, e.clientY);
+        if (worldPos) {
+          scheduleInspect(worldPos);
+        }
+        return;
+      }
 
-      // Draw if left mouse button is held
+      // Draw if left mouse button is held (non-inspect modes)
       if (isDrawingRef.current) {
         lastMousePosRef.current = { x: e.clientX, y: e.clientY };
         drawParticle(e.clientX, e.clientY);
@@ -192,7 +330,11 @@ export function useParticleDrawing({
 
     const handleMouseLeave = () => {
       onMouseMove?.(null);
-      onWorldPosChange?.(null);
+      onInspectData?.(null);
+      if (inspectTimeoutRef.current !== null) {
+        clearTimeout(inspectTimeoutRef.current);
+        inspectTimeoutRef.current = null;
+      }
     };
 
     const handleMouseUp = (e: MouseEvent) => {
@@ -219,11 +361,15 @@ export function useParticleDrawing({
       window.removeEventListener('mouseup', handleMouseUp);
       window.removeEventListener('mouseleave', handleMouseLeave);
 
-      // Clean up interval on unmount
+      // Clean up intervals/timeouts on unmount
       if (drawIntervalRef.current !== null) {
         clearInterval(drawIntervalRef.current);
         drawIntervalRef.current = null;
       }
+      if (inspectTimeoutRef.current !== null) {
+        clearTimeout(inspectTimeoutRef.current);
+        inspectTimeoutRef.current = null;
+      }
     };
-  }, [drawParticle, onMouseMove, onWorldPosChange, screenToWorld]);
+  }, [drawParticle, onMouseMove, onInspectData, screenToWorld, toolMode, scheduleInspect]);
 }
