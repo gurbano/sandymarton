@@ -7,19 +7,20 @@ done
 
 to improve:
 
+- gas behaviour
 - different materials friction/behaviour
   - exponential rather than linear - materials are too similar
+- temperature, force, etc overlays
 
 bugs:
 
-- click through ui
+- reset button
 
 todo:
 
-- gas behaviour
+- state change (evaporation, sublimation)
 - materials interaction (mix)
 - dynamic particles
-- temperature, force, etc overlays
 - new renderer
   - bloom
   - texture
