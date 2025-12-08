@@ -108,7 +108,7 @@ function MainSimulation({
 }: MainSimulationProps) {
   const { gl } = useThree();
 
-  // Render targets for ping-pong rendering
+  // Render targets for ping-pong rendering (particle state)
   const renderTargets = useMemo(() => {
     return [
       generateRenderTarget(textureSize),
@@ -116,6 +116,11 @@ function MainSimulation({
       generateRenderTarget(textureSize),
       generateRenderTarget(textureSize),
     ];
+  }, [textureSize]);
+
+  // Dedicated render targets for heat layer ping-pong
+  const heatRenderTargets = useMemo(() => {
+    return [generateRenderTarget(textureSize), generateRenderTarget(textureSize)];
   }, [textureSize]);
 
   const margolusSceneRef = useRef<SimulationResources | null>(null);
@@ -218,6 +223,12 @@ function MainSimulation({
       gl.setRenderTarget(rt);
       gl.clear();
     });
+    // Initialize heat render targets
+    heatRenderTargets.forEach((rt) => {
+      gl.initRenderTarget(rt);
+      gl.setRenderTarget(rt);
+      gl.clear();
+    });
     gl.setRenderTarget(null);
 
     margolusIterationRef.current = 0;
@@ -240,9 +251,10 @@ function MainSimulation({
         resources.material.dispose();
       });
       renderTargets.forEach((rt) => rt.dispose());
+      heatRenderTargets.forEach((rt) => rt.dispose());
       heatForceTexture.dispose();
     };
-  }, [textureSize, worldTexture, resetCount, gl, renderTargets]);
+  }, [textureSize, worldTexture, resetCount, gl, renderTargets, heatRenderTargets]);
 
   // Run simulation pipeline each frame
   useFrame((state, delta) => {
@@ -281,9 +293,17 @@ function MainSimulation({
     let currentSource: Texture = worldTexture;
     let rtIndex = 0;
 
-    // Execute each enabled step in order
+    // Execute particle state steps (non-heat/force steps)
     for (const step of config.steps) {
       if (!step.enabled || step.passes <= 0) continue;
+
+      // Skip heat/force transfer - handled separately below
+      if (
+        step.type === SimulationStepType.HEAT_TRANSFER ||
+        step.type === SimulationStepType.FORCE_TRANSFER
+      ) {
+        continue;
+      }
 
       let resources: SimulationResources | null = null;
 
@@ -296,12 +316,6 @@ function MainSimulation({
           break;
         case SimulationStepType.ARCHIMEDES:
           resources = archimedesSceneRef.current;
-          break;
-        case SimulationStepType.HEAT_TRANSFER:
-          resources = heatTransferSceneRef.current;
-          break;
-        case SimulationStepType.FORCE_TRANSFER:
-          resources = forceTransferSceneRef.current;
           break;
       }
 
@@ -321,35 +335,16 @@ function MainSimulation({
         // Update step-specific uniforms
         if (step.type === SimulationStepType.MARGOLUS_CA) {
           resources.material.uniforms.uIteration.value = margolusIterationRef.current % 4;
-          // Use iteration as deterministic seed (same iteration + position = same random value)
           resources.material.uniforms.uRandomSeed.value = margolusIterationRef.current;
           margolusIterationRef.current++;
         } else if (step.type === SimulationStepType.LIQUID_SPREAD) {
           resources.material.uniforms.uIteration.value = liquidSpreadIterationRef.current % 2;
-          // Use iteration as deterministic seed (same iteration + position = same random value)
           resources.material.uniforms.uRandomSeed.value = liquidSpreadIterationRef.current;
           liquidSpreadIterationRef.current++;
         } else if (step.type === SimulationStepType.ARCHIMEDES) {
           resources.material.uniforms.uIteration.value = archimedesIterationRef.current % 4;
-          // Use iteration as deterministic seed (same iteration + position = same random value)
           resources.material.uniforms.uRandomSeed.value = archimedesIterationRef.current;
           archimedesIterationRef.current++;
-        } else if (step.type === SimulationStepType.HEAT_TRANSFER) {
-          resources.material.uniforms.uIteration.value = heatTransferIterationRef.current;
-          resources.material.uniforms.uRandomSeed.value = heatTransferIterationRef.current;
-          // Update the heat/force layer texture reference
-          if (heatForceLayerRef.current) {
-            resources.material.uniforms.uHeatForceLayer.value = heatForceLayerRef.current;
-          }
-          heatTransferIterationRef.current++;
-        } else if (step.type === SimulationStepType.FORCE_TRANSFER) {
-          resources.material.uniforms.uIteration.value = forceTransferIterationRef.current;
-          resources.material.uniforms.uRandomSeed.value = forceTransferIterationRef.current;
-          // Update the heat/force layer texture reference
-          if (heatForceLayerRef.current) {
-            resources.material.uniforms.uHeatForceLayer.value = heatForceLayerRef.current;
-          }
-          forceTransferIterationRef.current++;
         }
 
         // Render to target
@@ -363,15 +358,60 @@ function MainSimulation({
       }
     }
 
-    // Read final result
-    const finalRT = renderTargets[(rtIndex - 1) % renderTargets.length];
-    const pixels = new Uint8Array(textureSize * textureSize * 4);
-    gl.readRenderTargetPixels(finalRT, 0, 0, textureSize, textureSize, pixels);
+    // Read final particle state result
+    if (rtIndex > 0) {
+      const finalRT = renderTargets[(rtIndex - 1) % renderTargets.length];
+      const pixels = new Uint8Array(textureSize * textureSize * 4);
+      gl.readRenderTargetPixels(finalRT, 0, 0, textureSize, textureSize, pixels);
 
-    // Update the worldTexture data in-place
-    const worldData = worldTexture.image.data as Uint8Array;
-    worldData.set(pixels);
-    worldTexture.needsUpdate = true;
+      // Update the worldTexture data in-place
+      const worldData = worldTexture.image.data as Uint8Array;
+      worldData.set(pixels);
+      worldTexture.needsUpdate = true;
+    }
+
+    // Execute heat transfer steps (writes to heat layer)
+    const heatStep = config.steps.find((s) => s.type === SimulationStepType.HEAT_TRANSFER);
+    if (heatStep?.enabled && heatStep.passes > 0 && heatForceLayerRef.current) {
+      const heatResources = heatTransferSceneRef.current;
+      if (heatResources) {
+        let heatSource: Texture = heatForceLayerRef.current;
+        let heatRtIndex = 0;
+
+        for (let i = 0; i < heatStep.passes; i++) {
+          const targetRT = heatRenderTargets[heatRtIndex % heatRenderTargets.length];
+
+          // Update uniforms - use current particle state for type lookup
+          heatResources.material.uniforms.uCurrentState.value = worldTexture;
+          heatResources.material.uniforms.uHeatForceLayer.value = heatSource;
+          heatResources.material.uniforms.uTextureSize.value.set(textureSize, textureSize);
+          heatResources.material.uniforms.uIteration.value = heatTransferIterationRef.current;
+          heatResources.material.uniforms.uRandomSeed.value = heatTransferIterationRef.current;
+          heatResources.camera.position.z = 1;
+          heatResources.camera.updateProjectionMatrix();
+
+          // Render heat transfer to target
+          gl.setRenderTarget(targetRT);
+          gl.render(heatResources.scene, heatResources.camera);
+          gl.setRenderTarget(null);
+
+          // Update source for next pass
+          heatSource = targetRT.texture;
+          heatRtIndex++;
+          heatTransferIterationRef.current++;
+        }
+
+        // Read final heat result back to heatForceLayer
+        const finalHeatRT = heatRenderTargets[(heatRtIndex - 1) % heatRenderTargets.length];
+        const heatPixels = new Uint8Array(textureSize * textureSize * 4);
+        gl.readRenderTargetPixels(finalHeatRT, 0, 0, textureSize, textureSize, heatPixels);
+
+        // Update heat texture in-place
+        const heatData = heatForceLayerRef.current.image.data as Uint8Array;
+        heatData.set(heatPixels);
+        heatForceLayerRef.current.needsUpdate = true;
+      }
+    }
 
     // Notify parent that texture was updated
     onTextureUpdate(worldTexture);
