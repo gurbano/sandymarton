@@ -91,7 +91,11 @@ export const heatOverlayFragmentShader = `
     float hotness = clamp((temperature - 500.0) / 1000.0, 0.0, 1.0);
     finalColor += heatColor * hotness * uOverlayStrength * 0.3;
 
-    gl_FragColor = vec4(finalColor, baseColor.a);
+    // Always show heat overlay even on transparent/empty areas
+    // Make alpha at least as strong as the overlay to ensure visibility
+    float finalAlpha = max(baseColor.a, uOverlayStrength);
+
+    gl_FragColor = vec4(finalColor, finalAlpha);
   }
 `;
 
