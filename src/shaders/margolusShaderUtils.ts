@@ -54,7 +54,22 @@ export const margolusHelperFunctions = `
     }
   }
 
-  vec4 createPixel(float cellState, float originalType, float unused) {
+  // Decode 16-bit temperature from particle texture (G=low, B=high)
+  float decodeParticleTemperature(vec4 particleData) {
+    float tempLow = particleData.g * 255.0;
+    float tempHigh = particleData.b * 255.0;
+    return tempLow + tempHigh * 256.0;
+  }
+
+  // Encode 16-bit temperature to two bytes for output
+  vec2 encodeParticleTemperature(float temp) {
+    float clamped = clamp(temp, 0.0, 65535.0);
+    float tempLow = mod(clamped, 256.0);
+    float tempHigh = floor(clamped / 256.0);
+    return vec2(tempLow / 255.0, tempHigh / 255.0);
+  }
+
+  vec4 createPixel(float cellState, float originalType, float temperature) {
     // Preserve original type if it matches the behavior category, otherwise use default
     float particleType;
 
@@ -72,7 +87,9 @@ export const margolusHelperFunctions = `
       particleType = EMPTY_TYPE;
     }
 
-    return vec4(particleType / 255.0, 0.5, 0.5, 1.0);
+    // Encode temperature into G,B channels
+    vec2 encodedTemp = encodeParticleTemperature(temperature);
+    return vec4(particleType / 255.0, encodedTemp.x, encodedTemp.y, 1.0);
   }
 
   bool isMovable(float state) {
@@ -144,6 +161,12 @@ export const margolusBlockSetup = `
   float bl_orig = bl_px.r * 255.0;
   float br_orig = br_px.r * 255.0;
 
+  // Extract particle temperatures from G,B channels
+  float tl_temp = decodeParticleTemperature(tl_px);
+  float tr_temp = decodeParticleTemperature(tr_px);
+  float bl_temp = decodeParticleTemperature(bl_px);
+  float br_temp = decodeParticleTemperature(br_px);
+
   // Map to internal cell states for Margolus algorithm
   float tl = getCellState(tl_orig);
   float tr = getCellState(tr_orig);
@@ -157,7 +180,7 @@ export const margolusBlockSetup = `
   }
 
   // Apply Margolus transitions
-  // Track both state and original particle type
+  // Track state, original particle type, and temperature
   float tl_new = tl;
   float tr_new = tr;
   float bl_new = bl;
@@ -167,6 +190,11 @@ export const margolusBlockSetup = `
   float tr_new_orig = tr_orig;
   float bl_new_orig = bl_orig;
   float br_new_orig = br_orig;
+
+  float tl_new_temp = tl_temp;
+  float tr_new_temp = tr_temp;
+  float bl_new_temp = bl_temp;
+  float br_new_temp = br_temp;
 
   bool transitionApplied = false;
 `;
@@ -179,21 +207,26 @@ export const margolusOutputSelection = `
   // Remember to swap top/bottom since texture Y is flipped
   float outputState;
   float outputOriginal;
+  float outputTemp;
   if (posInBlock.x < 0.5 && posInBlock.y < 0.5) {
     outputState = bl_new; // Bottom-left in texture = top-left in CA
     outputOriginal = bl_new_orig;
+    outputTemp = bl_new_temp;
   } else if (posInBlock.x >= 0.5 && posInBlock.y < 0.5) {
     outputState = br_new; // Bottom-right in texture = top-right in CA
     outputOriginal = br_new_orig;
+    outputTemp = br_new_temp;
   } else if (posInBlock.x < 0.5 && posInBlock.y >= 0.5) {
     outputState = tl_new; // Top-left in texture = bottom-left in CA
     outputOriginal = tl_new_orig;
+    outputTemp = tl_new_temp;
   } else {
     outputState = tr_new; // Top-right in texture = bottom-right in CA
     outputOriginal = tr_new_orig;
+    outputTemp = tr_new_temp;
   }
 
-  gl_FragColor = createPixel(outputState, outputOriginal, 0.5);
+  gl_FragColor = createPixel(outputState, outputOriginal, outputTemp);
 `;
 
 /**
@@ -203,6 +236,7 @@ export const margolusOutputSelection = `
 export function createMargolusFragmentShader(transitionLogic: string): string {
   return `
   uniform sampler2D uCurrentState;
+  uniform sampler2D uHeatForceLayer; // Heat texture for temperature-aware transitions
   uniform vec2 uTextureSize;
   uniform float uIteration; // 0, 1, 2, or 3 for the 4-iteration cycle
   uniform float uRandomSeed; // For pseudo-random number generation

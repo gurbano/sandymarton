@@ -16,6 +16,7 @@ interface UseParticleDrawingProps {
   toolMode?: ToolMode;
   brushSize?: number;
   onMouseMove?: (pos: { x: number; y: number } | null) => void;
+  onWorldPosChange?: (pos: { x: number; y: number } | null) => void;
 }
 
 export function useParticleDrawing({
@@ -28,6 +29,7 @@ export function useParticleDrawing({
   toolMode = 'add',
   brushSize = 3,
   onMouseMove,
+  onWorldPosChange,
 }: UseParticleDrawingProps) {
   const isDrawingRef = useRef(false);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -101,10 +103,9 @@ export function useParticleDrawing({
           const drawY = worldPos.y + dy;
 
           // Draw the particle directly on the texture
+          // Temperature will be set to default for the particle type
           worldGen.setParticleOnTexture(worldTexture, drawX, drawY, {
             type: particleType,
-            velocityX: 0,
-            velocityY: 0,
           });
         }
       }
@@ -171,11 +172,16 @@ export function useParticleDrawing({
       if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) {
         // Mouse is outside canvas - hide cursor
         onMouseMove?.(null);
+        onWorldPosChange?.(null);
         return;
       }
 
       // Update cursor position
       onMouseMove?.({ x: e.clientX, y: e.clientY });
+
+      // Update world position for temperature display
+      const worldPos = screenToWorld(e.clientX, e.clientY);
+      onWorldPosChange?.(worldPos);
 
       // Draw if left mouse button is held
       if (isDrawingRef.current) {
@@ -186,6 +192,7 @@ export function useParticleDrawing({
 
     const handleMouseLeave = () => {
       onMouseMove?.(null);
+      onWorldPosChange?.(null);
     };
 
     const handleMouseUp = (e: MouseEvent) => {
@@ -218,5 +225,5 @@ export function useParticleDrawing({
         drawIntervalRef.current = null;
       }
     };
-  }, [drawParticle, onMouseMove]);
+  }, [drawParticle, onMouseMove, onWorldPosChange, screenToWorld]);
 }

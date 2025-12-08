@@ -17,9 +17,13 @@ import { margolusFragmentShader, margolusVertexShader } from '../shaders/margolu
 import { liquidSpreadFragmentShader, liquidSpreadVertexShader } from '../shaders/liquidSpreadShaders';
 import { archimedesFragmentShader, archimedesVertexShader } from '../shaders/archimedesShaders';
 import {
-  heatTransferFragmentShader,
-  heatTransferVertexShader,
-} from '../shaders/heatTransferShaders';
+  ambientHeatTransferFragmentShader,
+  ambientHeatTransferVertexShader,
+} from '../shaders/ambientHeatTransferShaders';
+import {
+  particleHeatTransferFragmentShader,
+  particleHeatTransferVertexShader,
+} from '../shaders/particleHeatTransferShaders';
 import {
   forceTransferFragmentShader,
   forceTransferVertexShader,
@@ -127,6 +131,7 @@ function MainSimulation({
   const liquidSpreadSceneRef = useRef<SimulationResources | null>(null);
   const archimedesSceneRef = useRef<SimulationResources | null>(null);
   const heatTransferSceneRef = useRef<SimulationResources | null>(null);
+  const particleCoolingSceneRef = useRef<SimulationResources | null>(null);
   const forceTransferSceneRef = useRef<SimulationResources | null>(null);
   const margolusIterationRef = useRef(0);
   const liquidSpreadIterationRef = useRef(0);
@@ -189,21 +194,34 @@ function MainSimulation({
       vertexShader: margolusVertexShader,
       fragmentShader: margolusFragmentShader,
     });
+    margolusResources.material.uniforms.uHeatForceLayer = { value: heatForceTexture };
+
     const liquidSpreadResources = createSimulationResources(textureSize, worldTexture, {
       vertexShader: liquidSpreadVertexShader,
       fragmentShader: liquidSpreadFragmentShader,
     });
+    liquidSpreadResources.material.uniforms.uHeatForceLayer = { value: heatForceTexture };
+
     const archimedesResources = createSimulationResources(textureSize, worldTexture, {
       vertexShader: archimedesVertexShader,
       fragmentShader: archimedesFragmentShader,
     });
+    // Add heat texture for temperature-based convection
+    archimedesResources.material.uniforms.uHeatForceLayer = { value: heatForceTexture };
 
-    // Create heat/force transfer resources with additional uniform for layer texture
+    // Create ambient heat transfer resources (updates heat layer from particle emission + diffusion)
     const heatTransferResources = createSimulationResources(textureSize, worldTexture, {
-      vertexShader: heatTransferVertexShader,
-      fragmentShader: heatTransferFragmentShader,
+      vertexShader: ambientHeatTransferVertexShader,
+      fragmentShader: ambientHeatTransferFragmentShader,
     });
     heatTransferResources.material.uniforms.uHeatForceLayer = { value: heatForceTexture };
+
+    // Create particle heat transfer resources (updates particle temps from heat exchange + neighbor diffusion)
+    const particleCoolingResources = createSimulationResources(textureSize, worldTexture, {
+      vertexShader: particleHeatTransferVertexShader,
+      fragmentShader: particleHeatTransferFragmentShader,
+    });
+    particleCoolingResources.material.uniforms.uHeatForceLayer = { value: heatForceTexture };
 
     const forceTransferResources = createSimulationResources(textureSize, worldTexture, {
       vertexShader: forceTransferVertexShader,
@@ -215,6 +233,7 @@ function MainSimulation({
     liquidSpreadSceneRef.current = liquidSpreadResources;
     archimedesSceneRef.current = archimedesResources;
     heatTransferSceneRef.current = heatTransferResources;
+    particleCoolingSceneRef.current = particleCoolingResources;
     forceTransferSceneRef.current = forceTransferResources;
 
     // Initialize render targets
@@ -244,6 +263,7 @@ function MainSimulation({
         liquidSpreadResources,
         archimedesResources,
         heatTransferResources,
+        particleCoolingResources,
         forceTransferResources,
       ].forEach((resources) => {
         resources.scene.remove(resources.mesh);
@@ -410,6 +430,34 @@ function MainSimulation({
         const heatData = heatForceLayerRef.current.image.data as Uint8Array;
         heatData.set(heatPixels);
         heatForceLayerRef.current.needsUpdate = true;
+
+        // Execute particle cooling (updates particle temperatures based on heat exchange)
+        const coolingResources = particleCoolingSceneRef.current;
+        if (coolingResources) {
+          // Use one of the particle render targets for cooling output
+          const coolingTargetRT = renderTargets[rtIndex % renderTargets.length];
+
+          // Update uniforms
+          coolingResources.material.uniforms.uCurrentState.value = worldTexture;
+          coolingResources.material.uniforms.uHeatForceLayer.value = heatForceLayerRef.current;
+          coolingResources.material.uniforms.uTextureSize.value.set(textureSize, textureSize);
+          coolingResources.camera.position.z = 1;
+          coolingResources.camera.updateProjectionMatrix();
+
+          // Render particle cooling
+          gl.setRenderTarget(coolingTargetRT);
+          gl.render(coolingResources.scene, coolingResources.camera);
+          gl.setRenderTarget(null);
+
+          // Read cooled particle state back to worldTexture
+          const cooledPixels = new Uint8Array(textureSize * textureSize * 4);
+          gl.readRenderTargetPixels(coolingTargetRT, 0, 0, textureSize, textureSize, cooledPixels);
+
+          // Update the worldTexture data in-place
+          const worldData = worldTexture.image.data as Uint8Array;
+          worldData.set(cooledPixels);
+          worldTexture.needsUpdate = true;
+        }
       }
     }
 

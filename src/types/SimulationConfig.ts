@@ -51,9 +51,9 @@ export const DEFAULT_SIMULATION_CONFIG: SimulationConfig = {
     {
       type: SimulationStepType.HEAT_TRANSFER,
       enabled: true,
-      passes: 2,
+      passes: 6,
       name: 'Heat Transfer',
-      description: 'Temperature equilibrium and diffusion (2 phases per tick)',
+      description: 'Temperature equilibrium and diffusion',
     },
     {
       type: SimulationStepType.FORCE_TRANSFER,

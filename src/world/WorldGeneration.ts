@@ -1,5 +1,6 @@
 import { DataTexture, RGBAFormat, UnsignedByteType } from 'three';
-import { ParticleType, encodeVelocity } from './ParticleTypes';
+import { ParticleType, encodeTemperature } from './ParticleTypes';
+import { MaterialDefinitions, getDefaultBaseAttributes } from './MaterialDefinitions';
 
 export const WorldInitType = {
   EMPTY: 'empty',
@@ -19,8 +20,7 @@ export interface WorldOptions {
 
 export interface Particle {
   type: ParticleType;
-  velocityX: number;
-  velocityY: number;
+  temperature?: number; // Temperature in Kelvin (optional - uses default for type if not specified)
   data?: number; // Alpha channel for additional data
 }
 
@@ -51,14 +51,16 @@ export class WorldGeneration {
     // Fill with empty particles
     // RGBA format:
     // R = Particle Type
-    // G = Velocity X (encoded -128 to +127 as 0-255)
-    // B = Velocity Y (encoded -128 to +127 as 0-255)
+    // G = Temperature Low byte (16-bit Kelvin encoded in G,B)
+    // B = Temperature High byte
     // A = Unused (set to 255)
+    const roomTemp = 298; // Room temperature in Kelvin (25°C)
+    const [tempLow, tempHigh] = encodeTemperature(roomTemp);
     for (let i = 0; i < width * height; i++) {
       const stride = i * 4;
       worldData[stride] = ParticleType.EMPTY;  // Type
-      worldData[stride + 1] = encodeVelocity(0); // Velocity X
-      worldData[stride + 2] = encodeVelocity(0); // Velocity Y
+      worldData[stride + 1] = tempLow;  // Temperature low byte
+      worldData[stride + 2] = tempHigh; // Temperature high byte
       worldData[stride + 3] = 255; // Alpha (unused, set to opaque)
     }
 
@@ -256,9 +258,18 @@ export class WorldGeneration {
     const data = texture.image.data as Uint8Array;
     const index = (y * width + x) * 4;
 
+    // Get temperature - use provided value or default for the particle type
+    let temperature = particle.temperature;
+    if (temperature === undefined) {
+      const material = MaterialDefinitions[particle.type];
+      const defaultAttrs = getDefaultBaseAttributes(particle.type);
+      temperature = material?.defaultTemperature ?? defaultAttrs.defaultTemperature;
+    }
+    const [tempLow, tempHigh] = encodeTemperature(temperature);
+
     data[index] = particle.type;
-    data[index + 1] = encodeVelocity(particle.velocityX);
-    data[index + 2] = encodeVelocity(particle.velocityY);
+    data[index + 1] = tempLow;  // Temperature low byte
+    data[index + 2] = tempHigh; // Temperature high byte
     data[index + 3] = particle.data ?? 255; // Default to 255 (opaque alpha)
 
     texture.needsUpdate = true;
@@ -278,10 +289,14 @@ export class WorldGeneration {
     const data = texture.image.data as Uint8Array;
     const index = (y * width + x) * 4;
 
+    // Decode temperature from G,B channels
+    const tempLow = data[index + 1];
+    const tempHigh = data[index + 2];
+    const temperature = tempLow + tempHigh * 256;
+
     return {
       type: data[index] as ParticleType,
-      velocityX: data[index + 1] - 128,
-      velocityY: data[index + 2] - 128,
+      temperature: temperature,
       data: data[index + 3],
     };
   }

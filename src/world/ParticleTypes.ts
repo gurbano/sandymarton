@@ -13,12 +13,16 @@ export enum ParticleType {
   // static particles (16-32)
   // STATIC = 16,
   STONE = 17,
+  GLASS = 18,      // Insulator - very low conductivity
+  HEITE = 19,      // Heat emitter - constantly hot
 
   // Solid movable particles (33-63)
   // SOLID = 33,
   SAND = 35,
   DIRT = 37,
   GRAVEL = 39,
+  COPPER = 40,     // Conductor - very high conductivity
+  ITE = 41,     // Insulator - wool-like, very low conductivity
 
   // Liquid particles (64-111)
   // LIQUID = 64,
@@ -26,12 +30,15 @@ export enum ParticleType {
   LAVA = 80,
   SLIME = 96,
   ACID = 97,
+  OIL = 98,        // Insulator liquid - low conductivity
+  COOLANT = 99,    // Cooling liquid - high conductivity, cold default
 
   // Gas particles (112-159)
   // GAS = 112,
   STEAM = 113,
   SMOKE = 128,
   AIR = 144,
+  NITROGEN = 145,  // Cold gas - cooling effect
 
 }
 
@@ -72,6 +79,8 @@ export type MaterialAttributes = {
   hardness: number;
   friction: number; // For Margolus CA topple probability (0.0 - 1.0)
   defaultTemperature: number; // Default temperature in Kelvin when particle is created
+  thermalCapacity: number; // Thermal capacity (0.0 - 1.0): higher = particle loses LESS temp when emitting heat (lava=0.9 loses 10% of emitted heat)
+  thermalConductivity: number; // Thermal conductivity (0.0 - 1.0): rate of heat transfer. Low = insulator, High = conductor
 }
 
 /**
@@ -82,30 +91,26 @@ export type MaterialAttributes = {
 export const ParticleColors: Record<number, [number, number, number, number]> = {
   [ParticleType.EMPTY]: [0, 0, 0, 0],           // Transparent
   [ParticleType.STONE]: [128, 128, 128, 255],   // Opaque gray
+  [ParticleType.GLASS]: [200, 230, 255, 150],   // Semi-transparent light blue (glass)
+  [ParticleType.HEITE]: [255, 100, 50, 255],    // Orange-red (heat emitter)
   [ParticleType.SAND]: [255, 200, 100, 255],    // Opaque yellow-orange
   [ParticleType.DIRT]: [139, 90, 43, 255],      // Opaque brown
   [ParticleType.GRAVEL]: [100, 100, 100, 255],  // Opaque dark gray
+  [ParticleType.COPPER]: [184, 115, 51, 255],   // Copper brown-orange
+  [ParticleType.ITE]: [255, 250, 220, 255],  // Off-white (wool/insulation)
   [ParticleType.WATER]: [50, 150, 255, 220],    // Bright cyan-blue, less transparent
-  [ParticleType.LAVA]: [255, 0, 0, 255],      // Opaque orange-red
+  [ParticleType.LAVA]: [255, 0, 0, 255],        // Opaque orange-red
   [ParticleType.SLIME]: [100, 255, 100, 200],   // Semi-transparent green
   [ParticleType.ACID]: [150, 255, 50, 220],     // Semi-transparent lime green
+  [ParticleType.OIL]: [40, 30, 20, 200],        // Dark brown (oil)
+  [ParticleType.COOLANT]: [100, 200, 255, 200], // Light blue (coolant)
   [ParticleType.STEAM]: [200, 200, 255, 100],   // Very transparent light blue
   [ParticleType.SMOKE]: [80, 80, 80, 150],      // Semi-transparent dark gray
+  [ParticleType.NITROGEN]: [150, 200, 255, 80], // Very transparent cold blue
 };
 
-/**
- * Encode velocity from range [-128, 127] to [0, 255]
- */
-export function encodeVelocity(velocity: number): number {
-  return Math.max(0, Math.min(255, Math.round(velocity + 128)));
-}
-
-/**
- * Decode velocity from range [0, 255] to [-128, 127]
- */
-export function decodeVelocity(encoded: number): number {
-  return encoded - 128;
-}
+// Note: Velocity functions removed - particle texture now stores temperature in G,B channels
+// Particle texture format: R=type, G=temp_low, B=temp_high, A=unused
 
 /**
  * Helper to check if a particle type is empty

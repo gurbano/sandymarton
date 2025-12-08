@@ -19,11 +19,13 @@ const margolusTransitions = `
       if (!transitionApplied && isMovable(tl) && tr == INTERNAL_EMPTY && bl == INTERNAL_EMPTY && br == INTERNAL_EMPTY) {
         tl_new = INTERNAL_EMPTY; tr_new = INTERNAL_EMPTY; bl_new = INTERNAL_EMPTY; br_new = tl;
         tl_new_orig = EMPTY_TYPE; tr_new_orig = EMPTY_TYPE; bl_new_orig = EMPTY_TYPE; br_new_orig = tl_orig;
+        tl_new_temp = tl_temp; tr_new_temp = tr_temp; bl_new_temp = bl_temp; br_new_temp = tl_temp;
         transitionApplied = true;
       }
       if (!transitionApplied && tl == INTERNAL_EMPTY && isMovable(tr) && bl == INTERNAL_EMPTY && br == INTERNAL_EMPTY) {
         tl_new = INTERNAL_EMPTY; tr_new = INTERNAL_EMPTY; bl_new = INTERNAL_EMPTY; br_new = tr;
         tl_new_orig = EMPTY_TYPE; tr_new_orig = EMPTY_TYPE; bl_new_orig = EMPTY_TYPE; br_new_orig = tr_orig;
+        tl_new_temp = tl_temp; tr_new_temp = tr_temp; bl_new_temp = bl_temp; br_new_temp = tr_temp;
         transitionApplied = true;
       }
     } else {
@@ -31,11 +33,13 @@ const margolusTransitions = `
       if (!transitionApplied && tl == INTERNAL_EMPTY && isMovable(tr) && bl == INTERNAL_EMPTY && br == INTERNAL_EMPTY) {
         tl_new = INTERNAL_EMPTY; tr_new = INTERNAL_EMPTY; bl_new = INTERNAL_EMPTY; br_new = tr;
         tl_new_orig = EMPTY_TYPE; tr_new_orig = EMPTY_TYPE; bl_new_orig = EMPTY_TYPE; br_new_orig = tr_orig;
+        tl_new_temp = tl_temp; tr_new_temp = tr_temp; bl_new_temp = bl_temp; br_new_temp = tr_temp;
         transitionApplied = true;
       }
       if (!transitionApplied && isMovable(tl) && tr == INTERNAL_EMPTY && bl == INTERNAL_EMPTY && br == INTERNAL_EMPTY) {
         tl_new = INTERNAL_EMPTY; tr_new = INTERNAL_EMPTY; bl_new = INTERNAL_EMPTY; br_new = tl;
         tl_new_orig = EMPTY_TYPE; tr_new_orig = EMPTY_TYPE; bl_new_orig = EMPTY_TYPE; br_new_orig = tl_orig;
+        tl_new_temp = tl_temp; tr_new_temp = tr_temp; bl_new_temp = bl_temp; br_new_temp = tl_temp;
         transitionApplied = true;
       }
     }
@@ -48,10 +52,12 @@ const margolusTransitions = `
         // Original: tr->bl, tl->br
         tl_new = INTERNAL_EMPTY; tr_new = INTERNAL_EMPTY; bl_new = tr; br_new = tl;
         tl_new_orig = EMPTY_TYPE; tr_new_orig = EMPTY_TYPE; bl_new_orig = tr_orig; br_new_orig = tl_orig;
+        tl_new_temp = tl_temp; tr_new_temp = tr_temp; bl_new_temp = tr_temp; br_new_temp = tl_temp;
       } else {
         // Swapped: tl->bl, tr->br
         tl_new = INTERNAL_EMPTY; tr_new = INTERNAL_EMPTY; bl_new = tl; br_new = tr;
         tl_new_orig = EMPTY_TYPE; tr_new_orig = EMPTY_TYPE; bl_new_orig = tl_orig; br_new_orig = tr_orig;
+        tl_new_temp = tl_temp; tr_new_temp = tr_temp; bl_new_temp = tl_temp; br_new_temp = tr_temp;
       }
       transitionApplied = true;
     }
@@ -64,10 +70,12 @@ const margolusTransitions = `
         // Original: tl falls to br
         tl_new = INTERNAL_EMPTY; tr_new = tr; bl_new = bl; br_new = tl;
         tl_new_orig = EMPTY_TYPE; tr_new_orig = tr_orig; bl_new_orig = bl_orig; br_new_orig = tl_orig;
+        tl_new_temp = tl_temp; tr_new_temp = tr_temp; bl_new_temp = bl_temp; br_new_temp = tl_temp;
       } else {
         // Swapped: tr falls to br
         tl_new = tl; tr_new = INTERNAL_EMPTY; bl_new = bl; br_new = tr;
         tl_new_orig = tl_orig; tr_new_orig = EMPTY_TYPE; bl_new_orig = bl_orig; br_new_orig = tr_orig;
+        tl_new_temp = tl_temp; tr_new_temp = tr_temp; bl_new_temp = bl_temp; br_new_temp = tr_temp;
       }
       transitionApplied = true;
     }
@@ -80,10 +88,12 @@ const margolusTransitions = `
         // Original: tr->br, bl->bl
         tl_new = INTERNAL_EMPTY; tr_new = INTERNAL_EMPTY; bl_new = bl; br_new = tr;
         tl_new_orig = EMPTY_TYPE; tr_new_orig = EMPTY_TYPE; bl_new_orig = bl_orig; br_new_orig = tr_orig;
+        tl_new_temp = tl_temp; tr_new_temp = tr_temp; bl_new_temp = bl_temp; br_new_temp = tr_temp;
       } else {
         // Swapped: tr->bl, bl->br
         tl_new = INTERNAL_EMPTY; tr_new = INTERNAL_EMPTY; bl_new = tr; br_new = bl;
         tl_new_orig = EMPTY_TYPE; tr_new_orig = EMPTY_TYPE; bl_new_orig = tr_orig; br_new_orig = bl_orig;
+        tl_new_temp = tl_temp; tr_new_temp = tr_temp; bl_new_temp = tr_temp; br_new_temp = bl_temp;
       }
       transitionApplied = true;
     }
@@ -96,10 +106,12 @@ const margolusTransitions = `
         // Original: particles stay on their sides (tl->tl, br->tr)
         tl_new = tl; tr_new = br; bl_new = INTERNAL_EMPTY; br_new = INTERNAL_EMPTY;
         tl_new_orig = tl_orig; tr_new_orig = br_orig; bl_new_orig = EMPTY_TYPE; br_new_orig = EMPTY_TYPE;
+        tl_new_temp = tl_temp; tr_new_temp = br_temp; bl_new_temp = bl_temp; br_new_temp = br_temp;
       } else {
         // Mirrored: particles swap sides (tl->tr, br->bl)
         tl_new = INTERNAL_EMPTY; tr_new = tl; bl_new = br; br_new = INTERNAL_EMPTY;
         tl_new_orig = EMPTY_TYPE; tr_new_orig = tl_orig; bl_new_orig = br_orig; br_new_orig = EMPTY_TYPE;
+        tl_new_temp = tl_temp; tr_new_temp = tl_temp; bl_new_temp = br_temp; br_new_temp = br_temp;
       }
       transitionApplied = true;
     }
@@ -112,10 +124,12 @@ const margolusTransitions = `
         // Original: br moves to bl
         tl_new = tl; tr_new = tr; bl_new = br; br_new = INTERNAL_EMPTY;
         tl_new_orig = tl_orig; tr_new_orig = tr_orig; bl_new_orig = br_orig; br_new_orig = EMPTY_TYPE;
+        tl_new_temp = tl_temp; tr_new_temp = tr_temp; bl_new_temp = br_temp; br_new_temp = br_temp;
       } else {
         // Alternative: tl moves to bl
         tl_new = INTERNAL_EMPTY; tr_new = tr; bl_new = tl; br_new = br;
         tl_new_orig = EMPTY_TYPE; tr_new_orig = tr_orig; bl_new_orig = tl_orig; br_new_orig = br_orig;
+        tl_new_temp = tl_temp; tr_new_temp = tr_temp; bl_new_temp = tl_temp; br_new_temp = br_temp;
       }
       transitionApplied = true;
     }
@@ -139,6 +153,7 @@ const margolusTransitions = `
         if (rand < toppleProbability) {
           tl_new = tl; tr_new = bl; bl_new = br; br_new = tr;
           tl_new_orig = tl_orig; tr_new_orig = bl_orig; bl_new_orig = br_orig; br_new_orig = tr_orig;
+          tl_new_temp = tl_temp; tr_new_temp = bl_temp; bl_new_temp = br_temp; br_new_temp = tr_temp;
           transitionApplied = true;
         }
       }
@@ -149,6 +164,7 @@ const margolusTransitions = `
         if (rand < toppleProbability) {
           tl_new = tl; tr_new = bl; bl_new = tr; br_new = br;
           tl_new_orig = tl_orig; tr_new_orig = bl_orig; bl_new_orig = tr_orig; br_new_orig = br_orig;
+          tl_new_temp = tl_temp; tr_new_temp = bl_temp; bl_new_temp = tr_temp; br_new_temp = br_temp;
           transitionApplied = true;
         }
       }
@@ -161,6 +177,7 @@ const margolusTransitions = `
         if (rand < toppleProbability) {
           tl_new = tl; tr_new = bl; bl_new = tr; br_new = br;
           tl_new_orig = tl_orig; tr_new_orig = bl_orig; bl_new_orig = tr_orig; br_new_orig = br_orig;
+          tl_new_temp = tl_temp; tr_new_temp = bl_temp; bl_new_temp = tr_temp; br_new_temp = br_temp;
           transitionApplied = true;
         }
       }
@@ -171,6 +188,7 @@ const margolusTransitions = `
         if (rand < toppleProbability) {
           tl_new = tl; tr_new = bl; bl_new = br; br_new = tr;
           tl_new_orig = tl_orig; tr_new_orig = bl_orig; bl_new_orig = br_orig; br_new_orig = tr_orig;
+          tl_new_temp = tl_temp; tr_new_temp = bl_temp; bl_new_temp = br_temp; br_new_temp = tr_temp;
           transitionApplied = true;
         }
       }
@@ -188,11 +206,13 @@ const margolusTransitions = `
       if (!transitionApplied && tl == INTERNAL_EMPTY && tr == INTERNAL_EMPTY && isGas(bl) && br == INTERNAL_EMPTY) {
         tl_new = bl; tr_new = INTERNAL_EMPTY; bl_new = INTERNAL_EMPTY; br_new = INTERNAL_EMPTY;
         tl_new_orig = bl_orig; tr_new_orig = EMPTY_TYPE; bl_new_orig = EMPTY_TYPE; br_new_orig = EMPTY_TYPE;
+        tl_new_temp = bl_temp; tr_new_temp = tr_temp; bl_new_temp = bl_temp; br_new_temp = br_temp;
         transitionApplied = true;
       }
       if (!transitionApplied && tl == INTERNAL_EMPTY && tr == INTERNAL_EMPTY && bl == INTERNAL_EMPTY && isGas(br)) {
         tl_new = INTERNAL_EMPTY; tr_new = br; bl_new = INTERNAL_EMPTY; br_new = INTERNAL_EMPTY;
         tl_new_orig = EMPTY_TYPE; tr_new_orig = br_orig; bl_new_orig = EMPTY_TYPE; br_new_orig = EMPTY_TYPE;
+        tl_new_temp = tl_temp; tr_new_temp = br_temp; bl_new_temp = bl_temp; br_new_temp = br_temp;
         transitionApplied = true;
       }
     } else {
@@ -200,11 +220,13 @@ const margolusTransitions = `
       if (!transitionApplied && tl == INTERNAL_EMPTY && tr == INTERNAL_EMPTY && bl == INTERNAL_EMPTY && isGas(br)) {
         tl_new = INTERNAL_EMPTY; tr_new = br; bl_new = INTERNAL_EMPTY; br_new = INTERNAL_EMPTY;
         tl_new_orig = EMPTY_TYPE; tr_new_orig = br_orig; bl_new_orig = EMPTY_TYPE; br_new_orig = EMPTY_TYPE;
+        tl_new_temp = tl_temp; tr_new_temp = br_temp; bl_new_temp = bl_temp; br_new_temp = br_temp;
         transitionApplied = true;
       }
       if (!transitionApplied && tl == INTERNAL_EMPTY && tr == INTERNAL_EMPTY && isGas(bl) && br == INTERNAL_EMPTY) {
         tl_new = bl; tr_new = INTERNAL_EMPTY; bl_new = INTERNAL_EMPTY; br_new = INTERNAL_EMPTY;
         tl_new_orig = bl_orig; tr_new_orig = EMPTY_TYPE; bl_new_orig = EMPTY_TYPE; br_new_orig = EMPTY_TYPE;
+        tl_new_temp = bl_temp; tr_new_temp = tr_temp; bl_new_temp = bl_temp; br_new_temp = br_temp;
         transitionApplied = true;
       }
     }
@@ -216,10 +238,12 @@ const margolusTransitions = `
         // bl->tl, br->tr
         tl_new = bl; tr_new = br; bl_new = INTERNAL_EMPTY; br_new = INTERNAL_EMPTY;
         tl_new_orig = bl_orig; tr_new_orig = br_orig; bl_new_orig = EMPTY_TYPE; br_new_orig = EMPTY_TYPE;
+        tl_new_temp = bl_temp; tr_new_temp = br_temp; bl_new_temp = bl_temp; br_new_temp = br_temp;
       } else {
         // bl->tr, br->tl (swap positions)
         tl_new = br; tr_new = bl; bl_new = INTERNAL_EMPTY; br_new = INTERNAL_EMPTY;
         tl_new_orig = br_orig; tr_new_orig = bl_orig; bl_new_orig = EMPTY_TYPE; br_new_orig = EMPTY_TYPE;
+        tl_new_temp = br_temp; tr_new_temp = bl_temp; bl_new_temp = bl_temp; br_new_temp = br_temp;
       }
       transitionApplied = true;
     }
@@ -231,10 +255,12 @@ const margolusTransitions = `
         // bl rises to tl
         tl_new = bl; tr_new = tr; bl_new = INTERNAL_EMPTY; br_new = br;
         tl_new_orig = bl_orig; tr_new_orig = tr_orig; bl_new_orig = EMPTY_TYPE; br_new_orig = br_orig;
+        tl_new_temp = bl_temp; tr_new_temp = tr_temp; bl_new_temp = bl_temp; br_new_temp = br_temp;
       } else {
         // br rises to tl
         tl_new = br; tr_new = tr; bl_new = bl; br_new = INTERNAL_EMPTY;
         tl_new_orig = br_orig; tr_new_orig = tr_orig; bl_new_orig = bl_orig; br_new_orig = EMPTY_TYPE;
+        tl_new_temp = br_temp; tr_new_temp = tr_temp; bl_new_temp = bl_temp; br_new_temp = br_temp;
       }
       transitionApplied = true;
     }
@@ -246,10 +272,12 @@ const margolusTransitions = `
         // bl rises to tr
         tl_new = tl; tr_new = bl; bl_new = INTERNAL_EMPTY; br_new = br;
         tl_new_orig = tl_orig; tr_new_orig = bl_orig; bl_new_orig = EMPTY_TYPE; br_new_orig = br_orig;
+        tl_new_temp = tl_temp; tr_new_temp = bl_temp; bl_new_temp = bl_temp; br_new_temp = br_temp;
       } else {
         // br rises to tr
         tl_new = tl; tr_new = br; bl_new = bl; br_new = INTERNAL_EMPTY;
         tl_new_orig = tl_orig; tr_new_orig = br_orig; bl_new_orig = bl_orig; br_new_orig = EMPTY_TYPE;
+        tl_new_temp = tl_temp; tr_new_temp = br_temp; bl_new_temp = bl_temp; br_new_temp = br_temp;
       }
       transitionApplied = true;
     }
@@ -261,10 +289,12 @@ const margolusTransitions = `
         // Gases rise on their sides
         tl_new = INTERNAL_EMPTY; tr_new = br; bl_new = tl; br_new = INTERNAL_EMPTY;
         tl_new_orig = EMPTY_TYPE; tr_new_orig = br_orig; bl_new_orig = tl_orig; br_new_orig = EMPTY_TYPE;
+        tl_new_temp = tl_temp; tr_new_temp = br_temp; bl_new_temp = tl_temp; br_new_temp = br_temp;
       } else {
         // Gases cross over
         tl_new = INTERNAL_EMPTY; tr_new = tl; bl_new = br; br_new = INTERNAL_EMPTY;
         tl_new_orig = EMPTY_TYPE; tr_new_orig = tl_orig; bl_new_orig = br_orig; br_new_orig = EMPTY_TYPE;
+        tl_new_temp = tl_temp; tr_new_temp = tl_temp; bl_new_temp = br_temp; br_new_temp = br_temp;
       }
       transitionApplied = true;
     }
@@ -280,12 +310,14 @@ const margolusTransitions = `
       if (!transitionApplied && isGas(tl) && !isGas(tr) && isGas(bl) && !isGas(br)) {
         tl_new = tr; tr_new = tl; bl_new = br; br_new = bl;
         tl_new_orig = tr_orig; tr_new_orig = tl_orig; bl_new_orig = br_orig; br_new_orig = bl_orig;
+        tl_new_temp = tr_temp; tr_new_temp = tl_temp; bl_new_temp = br_temp; br_new_temp = bl_temp;
         transitionApplied = true;
       }
       // Gas topple left: [E, G, E, G] -> [G, E, G, E] (gas column on right spreads left)
       if (!transitionApplied && !isGas(tl) && isGas(tr) && !isGas(bl) && isGas(br)) {
         tl_new = tr; tr_new = tl; bl_new = br; br_new = bl;
         tl_new_orig = tr_orig; tr_new_orig = tl_orig; bl_new_orig = br_orig; br_new_orig = bl_orig;
+        tl_new_temp = tr_temp; tr_new_temp = tl_temp; bl_new_temp = br_temp; br_new_temp = bl_temp;
         transitionApplied = true;
       }
     } else {
@@ -294,12 +326,14 @@ const margolusTransitions = `
       if (!transitionApplied && !isGas(tl) && isGas(tr) && !isGas(bl) && isGas(br)) {
         tl_new = tr; tr_new = tl; bl_new = br; br_new = bl;
         tl_new_orig = tr_orig; tr_new_orig = tl_orig; bl_new_orig = br_orig; br_new_orig = bl_orig;
+        tl_new_temp = tr_temp; tr_new_temp = tl_temp; bl_new_temp = br_temp; br_new_temp = bl_temp;
         transitionApplied = true;
       }
       // Gas topple right: [G, E, G, E] -> [E, G, E, G] (gas column on left spreads right)
       if (!transitionApplied && isGas(tl) && !isGas(tr) && isGas(bl) && !isGas(br)) {
         tl_new = tr; tr_new = tl; bl_new = br; br_new = bl;
         tl_new_orig = tr_orig; tr_new_orig = tl_orig; bl_new_orig = br_orig; br_new_orig = bl_orig;
+        tl_new_temp = tr_temp; tr_new_temp = tl_temp; bl_new_temp = br_temp; br_new_temp = bl_temp;
         transitionApplied = true;
       }
     }

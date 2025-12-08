@@ -18,6 +18,7 @@ import type { RenderConfig } from './types/RenderConfig';
 import { WORLD_SIZE } from './constants/worldConstants';
 import { loadLevel } from './utils/LevelLoader';
 import { saveLevel } from './utils/LevelSaver';
+import { calculateAverageTemperature, calculateAverageParticleTemperature } from './utils/temperatureUtils';
 
 function Scene({
   texture,
@@ -96,6 +97,22 @@ function App() {
   // Mouse position for brush cursor
   const [mousePos, setMousePos] = useState<{ x: number; y: number } | null>(null);
 
+  // World position for temperature display
+  const [worldPos, setWorldPos] = useState<{ x: number; y: number } | null>(null);
+
+  // Calculate average temperature under brush (heat layer - includes empty cells)
+  const averageTemperature = useMemo(() => {
+    if (!worldPos || !heatTexture) return null;
+    return calculateAverageTemperature(heatTexture, worldPos.x, worldPos.y, brushSize);
+  }, [worldPos, heatTexture, brushSize]);
+
+  // Calculate average temperature of particles only (non-empty cells)
+  // Reads particle temperature directly from particle texture (G,B channels)
+  const averageParticleTemperature = useMemo(() => {
+    if (!worldPos || !worldTexture) return null;
+    return calculateAverageParticleTemperature(worldTexture, worldPos.x, worldPos.y, brushSize);
+  }, [worldPos, worldTexture, brushSize]);
+
   // Use particle drawing hook
   useParticleDrawing({
     worldGen,
@@ -107,6 +124,7 @@ function App() {
     toolMode,
     brushSize,
     onMouseMove: setMousePos,
+    onWorldPosChange: setWorldPos,
   });
 
   // Reset world handler
@@ -206,7 +224,7 @@ function App() {
       )}
 
       {/* Overlay Status Bar */}
-      <StatusBar pixelSize={pixelSize} center={center} selectedParticle={selectedParticle} fps={fps} />
+      <StatusBar pixelSize={pixelSize} center={center} selectedParticle={selectedParticle} fps={fps} averageTemperature={averageTemperature} averageParticleTemperature={averageParticleTemperature} />
 
       {/* Particle Counter */}
       <ParticleCounter worldTexture={worldTexture} />

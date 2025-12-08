@@ -16,6 +16,7 @@ const archimedesTransitions = `
     if (!transitionApplied && isSolid(tl) && isSolid(tr) && isLiquid(bl) && isLiquid(br)) {
       tl_new = bl; tr_new = br; bl_new = tl; br_new = tr;
       tl_new_orig = bl_orig; tr_new_orig = br_orig; bl_new_orig = tl_orig; br_new_orig = tr_orig;
+      tl_new_temp = bl_temp; tr_new_temp = br_temp; bl_new_temp = tl_temp; br_new_temp = tr_temp;
       transitionApplied = true;
     }
 
@@ -23,6 +24,7 @@ const archimedesTransitions = `
     if (!transitionApplied && isSolid(tl) && isLiquid(bl)) {
       tl_new = bl; bl_new = tl;
       tl_new_orig = bl_orig; bl_new_orig = tl_orig;
+      tl_new_temp = bl_temp; bl_new_temp = tl_temp;
       transitionApplied = true;
     }
 
@@ -30,39 +32,82 @@ const archimedesTransitions = `
     if (!transitionApplied && isSolid(tr) && isLiquid(br)) {
       tr_new = br; br_new = tr;
       tr_new_orig = br_orig; br_new_orig = tr_orig;
+      tr_new_temp = br_temp; br_new_temp = tr_temp;
       transitionApplied = true;
     }
 
     // Both columns: denser liquid above lighter liquid: [L1, L1, L2, L2] -> [L2, L2, L1, L1]
-    // where density(L1) > density(L2)
+    // where density(L1) > density(L2), OR same density but bottom is hotter (hot rises)
     if (!transitionApplied && isLiquid(tl) && isLiquid(tr) && isLiquid(bl) && isLiquid(br)) {
       float topDensity = (getMaterialDensity(tl_orig) + getMaterialDensity(tr_orig)) * 0.5;
       float bottomDensity = (getMaterialDensity(bl_orig) + getMaterialDensity(br_orig)) * 0.5;
+
+      bool shouldSwap = false;
       if (topDensity > bottomDensity) {
+        shouldSwap = true;
+      } else if (abs(topDensity - bottomDensity) < 1.0) {
+        // Same density - check temperature from particle texture (hot fluid rises)
+        float topTemp = (tl_temp + tr_temp) * 0.5;
+        float bottomTemp = (bl_temp + br_temp) * 0.5;
+
+        // Hot fluid rises - swap if bottom is significantly hotter
+        if (bottomTemp > topTemp + 10.0) {
+          shouldSwap = true;
+        }
+      }
+
+      if (shouldSwap) {
         tl_new = bl; tr_new = br; bl_new = tl; br_new = tr;
         tl_new_orig = bl_orig; tr_new_orig = br_orig; bl_new_orig = tl_orig; br_new_orig = tr_orig;
+        tl_new_temp = bl_temp; tr_new_temp = br_temp; bl_new_temp = tl_temp; br_new_temp = tr_temp;
         transitionApplied = true;
       }
     }
 
     // Left column: denser liquid above lighter liquid: [L1, ?, L2, ?] -> [L2, ?, L1, ?]
+    // OR same density but bottom is hotter (hot rises)
     if (!transitionApplied && isLiquid(tl) && isLiquid(bl)) {
       float topDensity = getMaterialDensity(tl_orig);
       float bottomDensity = getMaterialDensity(bl_orig);
+
+      bool shouldSwap = false;
       if (topDensity > bottomDensity) {
+        shouldSwap = true;
+      } else if (abs(topDensity - bottomDensity) < 1.0) {
+        // Same density - check temperature from particle texture
+        if (bl_temp > tl_temp + 10.0) {
+          shouldSwap = true;
+        }
+      }
+
+      if (shouldSwap) {
         tl_new = bl; bl_new = tl;
         tl_new_orig = bl_orig; bl_new_orig = tl_orig;
+        tl_new_temp = bl_temp; bl_new_temp = tl_temp;
         transitionApplied = true;
       }
     }
 
     // Right column: denser liquid above lighter liquid: [?, L1, ?, L2] -> [?, L2, ?, L1]
+    // OR same density but bottom is hotter (hot rises)
     if (!transitionApplied && isLiquid(tr) && isLiquid(br)) {
       float topDensity = getMaterialDensity(tr_orig);
       float bottomDensity = getMaterialDensity(br_orig);
+
+      bool shouldSwap = false;
       if (topDensity > bottomDensity) {
+        shouldSwap = true;
+      } else if (abs(topDensity - bottomDensity) < 1.0) {
+        // Same density - check temperature from particle texture
+        if (br_temp > tr_temp + 10.0) {
+          shouldSwap = true;
+        }
+      }
+
+      if (shouldSwap) {
         tr_new = br; br_new = tr;
         tr_new_orig = br_orig; br_new_orig = tr_orig;
+        tr_new_temp = br_temp; br_new_temp = tr_temp;
         transitionApplied = true;
       }
     }
@@ -77,6 +122,7 @@ const archimedesTransitions = `
       if (rand < toppleProbability) {
         tl_new = isLiquid(tr) ? tr : bl; tr_new = tl; bl_new = bl; br_new = br;
         tl_new_orig = isLiquid(tr) ? tr_orig : bl_orig; tr_new_orig = tl_orig; bl_new_orig = bl_orig; br_new_orig = br_orig;
+        tl_new_temp = isLiquid(tr) ? tr_temp : bl_temp; tr_new_temp = tl_temp; bl_new_temp = bl_temp; br_new_temp = br_temp;
         transitionApplied = true;
       }
     }
@@ -91,6 +137,7 @@ const archimedesTransitions = `
       if (rand < toppleProbability) {
         tl_new = tr; tr_new = isLiquid(tl) ? tl : br; bl_new = bl; br_new = br;
         tl_new_orig = tr_orig; tr_new_orig = isLiquid(tl) ? tl_orig : br_orig; bl_new_orig = bl_orig; br_new_orig = br_orig;
+        tl_new_temp = tr_temp; tr_new_temp = isLiquid(tl) ? tl_temp : br_temp; bl_new_temp = bl_temp; br_new_temp = br_temp;
         transitionApplied = true;
       }
     }
@@ -111,6 +158,7 @@ const archimedesTransitions = `
       if (canMoveLeft) {
         tl_new = tr; tr_new = tl; bl_new = bl; br_new = br;
         tl_new_orig = tr_orig; tr_new_orig = tl_orig; bl_new_orig = bl_orig; br_new_orig = br_orig;
+        tl_new_temp = tr_temp; tr_new_temp = tl_temp; bl_new_temp = bl_temp; br_new_temp = br_temp;
         transitionApplied = true;
       }
     }
@@ -131,6 +179,7 @@ const archimedesTransitions = `
       if (canMoveRight) {
         tl_new = tr; tr_new = tl; bl_new = bl; br_new = br;
         tl_new_orig = tr_orig; tr_new_orig = tl_orig; bl_new_orig = bl_orig; br_new_orig = br_orig;
+        tl_new_temp = tr_temp; tr_new_temp = tl_temp; bl_new_temp = bl_temp; br_new_temp = br_temp;
         transitionApplied = true;
       }
     }
@@ -142,6 +191,7 @@ const archimedesTransitions = `
     if (!transitionApplied && isSolid(tl) && isSolid(tr) && isGas(bl) && isGas(br)) {
       tl_new = bl; tr_new = br; bl_new = tl; br_new = tr;
       tl_new_orig = bl_orig; tr_new_orig = br_orig; bl_new_orig = tl_orig; br_new_orig = tr_orig;
+      tl_new_temp = bl_temp; tr_new_temp = br_temp; bl_new_temp = tl_temp; br_new_temp = tr_temp;
       transitionApplied = true;
     }
 
@@ -149,6 +199,7 @@ const archimedesTransitions = `
     if (!transitionApplied && isSolid(tl) && isGas(bl)) {
       tl_new = bl; bl_new = tl;
       tl_new_orig = bl_orig; bl_new_orig = tl_orig;
+      tl_new_temp = bl_temp; bl_new_temp = tl_temp;
       transitionApplied = true;
     }
 
@@ -156,6 +207,7 @@ const archimedesTransitions = `
     if (!transitionApplied && isSolid(tr) && isGas(br)) {
       tr_new = br; br_new = tr;
       tr_new_orig = br_orig; br_new_orig = tr_orig;
+      tr_new_temp = br_temp; br_new_temp = tr_temp;
       transitionApplied = true;
     }
 
@@ -163,6 +215,7 @@ const archimedesTransitions = `
     if (!transitionApplied && isLiquid(tl) && isLiquid(tr) && isGas(bl) && isGas(br)) {
       tl_new = bl; tr_new = br; bl_new = tl; br_new = tr;
       tl_new_orig = bl_orig; tr_new_orig = br_orig; bl_new_orig = tl_orig; br_new_orig = tr_orig;
+      tl_new_temp = bl_temp; tr_new_temp = br_temp; bl_new_temp = tl_temp; br_new_temp = tr_temp;
       transitionApplied = true;
     }
 
@@ -170,6 +223,7 @@ const archimedesTransitions = `
     if (!transitionApplied && isLiquid(tl) && isGas(bl)) {
       tl_new = bl; bl_new = tl;
       tl_new_orig = bl_orig; bl_new_orig = tl_orig;
+      tl_new_temp = bl_temp; bl_new_temp = tl_temp;
       transitionApplied = true;
     }
 
@@ -177,39 +231,82 @@ const archimedesTransitions = `
     if (!transitionApplied && isLiquid(tr) && isGas(br)) {
       tr_new = br; br_new = tr;
       tr_new_orig = br_orig; br_new_orig = tr_orig;
+      tr_new_temp = br_temp; br_new_temp = tr_temp;
       transitionApplied = true;
     }
 
     // Gas density ordering: denser gas above lighter gas swaps
     // Both columns: [G1, G1, G2, G2] -> [G2, G2, G1, G1] where density(G1) > density(G2)
+    // OR same density but bottom is hotter (hot rises)
     if (!transitionApplied && isGas(tl) && isGas(tr) && isGas(bl) && isGas(br)) {
       float topDensity = (getMaterialDensity(tl_orig) + getMaterialDensity(tr_orig)) * 0.5;
       float bottomDensity = (getMaterialDensity(bl_orig) + getMaterialDensity(br_orig)) * 0.5;
+
+      bool shouldSwap = false;
       if (topDensity > bottomDensity) {
+        shouldSwap = true;
+      } else if (abs(topDensity - bottomDensity) < 0.1) {
+        // Same density - check temperature from particle texture (hot gas rises)
+        float topTemp = (tl_temp + tr_temp) * 0.5;
+        float bottomTemp = (bl_temp + br_temp) * 0.5;
+
+        if (bottomTemp > topTemp + 10.0) {
+          shouldSwap = true;
+        }
+      }
+
+      if (shouldSwap) {
         tl_new = bl; tr_new = br; bl_new = tl; br_new = tr;
         tl_new_orig = bl_orig; tr_new_orig = br_orig; bl_new_orig = tl_orig; br_new_orig = tr_orig;
+        tl_new_temp = bl_temp; tr_new_temp = br_temp; bl_new_temp = tl_temp; br_new_temp = tr_temp;
         transitionApplied = true;
       }
     }
 
     // Left column: denser gas above lighter gas: [G1, ?, G2, ?] -> [G2, ?, G1, ?]
+    // OR same density but bottom is hotter
     if (!transitionApplied && isGas(tl) && isGas(bl)) {
       float topDensity = getMaterialDensity(tl_orig);
       float bottomDensity = getMaterialDensity(bl_orig);
+
+      bool shouldSwap = false;
       if (topDensity > bottomDensity) {
+        shouldSwap = true;
+      } else if (abs(topDensity - bottomDensity) < 0.1) {
+        // Check temperature from particle texture
+        if (bl_temp > tl_temp + 10.0) {
+          shouldSwap = true;
+        }
+      }
+
+      if (shouldSwap) {
         tl_new = bl; bl_new = tl;
         tl_new_orig = bl_orig; bl_new_orig = tl_orig;
+        tl_new_temp = bl_temp; bl_new_temp = tl_temp;
         transitionApplied = true;
       }
     }
 
     // Right column: denser gas above lighter gas: [?, G1, ?, G2] -> [?, G2, ?, G1]
+    // OR same density but bottom is hotter
     if (!transitionApplied && isGas(tr) && isGas(br)) {
       float topDensity = getMaterialDensity(tr_orig);
       float bottomDensity = getMaterialDensity(br_orig);
+
+      bool shouldSwap = false;
       if (topDensity > bottomDensity) {
+        shouldSwap = true;
+      } else if (abs(topDensity - bottomDensity) < 0.1) {
+        // Check temperature from particle texture
+        if (br_temp > tr_temp + 10.0) {
+          shouldSwap = true;
+        }
+      }
+
+      if (shouldSwap) {
         tr_new = br; br_new = tr;
         tr_new_orig = br_orig; br_new_orig = tr_orig;
+        tr_new_temp = br_temp; br_new_temp = tr_temp;
         transitionApplied = true;
       }
     }

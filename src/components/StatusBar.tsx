@@ -5,12 +5,21 @@ interface StatusBarProps {
   center: { x: number; y: number };
   selectedParticle: ParticleType;
   fps: number;
+  averageTemperature: number | null;
+  averageParticleTemperature: number | null;
 }
 
-export function StatusBar({ pixelSize, center, selectedParticle, fps }: StatusBarProps) {
+export function StatusBar({ pixelSize, center, selectedParticle, fps, averageTemperature, averageParticleTemperature }: StatusBarProps) {
+  const heatTempDisplay = averageTemperature !== null
+    ? `${averageTemperature.toFixed(1)}°C`
+    : '--';
+  const particleTempDisplay = averageParticleTemperature !== null
+    ? `${averageParticleTemperature.toFixed(1)}°C`
+    : '--';
+
   return (
     <div className="status-bar">
-      Sand Simulation | FPS: {fps} | Pixel Size: {pixelSize} | Center: ({center.x.toFixed(1)}, {center.y.toFixed(1)}) | Selected: {ParticleType[selectedParticle]}
+      FPS: {fps} | Zoom: {pixelSize} | Center: ({center.x.toFixed(0)}, {center.y.toFixed(0)}) | {ParticleType[selectedParticle]} | Heat: {heatTempDisplay} | Particle: {particleTempDisplay}
     </div>
   );
 }
