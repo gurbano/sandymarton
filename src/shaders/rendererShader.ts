@@ -1,5 +1,6 @@
 import { ParticleColors } from '../world/ParticleTypes';
 import { WORLD_SIZE } from '../constants/worldConstants';
+import { generateShaderConstants } from '../world/ParticleTypeConstants';
 
 /**
  * Generate GLSL code for particle color mapping
@@ -64,6 +65,8 @@ export const fragmentShader = `
   uniform bool uIsColorTexture; // true if texture already contains colors, false if it contains state data
   uniform float uTime;        // Time in seconds for liquid animation
   varying vec2 vUv;
+
+  ${generateShaderConstants()}
 
   // Simple 2D noise function
   float noise(vec2 p) {
@@ -135,8 +138,8 @@ ${generateParticleColorCode()}
       color = getParticleColor(particleType);
     }
 
-    // Apply animated wave effect to liquids (types 64-111)
-    if (particleType >= 64.0 && particleType < 112.0) {
+    // Apply animated wave effect to liquids
+    if (particleType >= LIQUID_MIN && particleType <= LIQUID_MAX) {
       // Traveling wave effect - multiple sine waves at different angles and speeds
       float waveSpeed1 = uTime * 2.0;
       float waveSpeed2 = uTime * 1.5;
@@ -167,8 +170,8 @@ ${generateParticleColorCode()}
       color.b += brightness * 1.0;
     }
 
-    // Apply chaotic animated effect to gases (types 112-159)
-    if (particleType >= 112.0 && particleType < 160.0) {
+    // Apply chaotic animated effect to gases
+    if (particleType >= GAS_MIN && particleType <= GAS_MAX) {
       // Faster, more chaotic animation than liquids
       float gasTime = uTime * 4.0; // Much faster than liquid
 
