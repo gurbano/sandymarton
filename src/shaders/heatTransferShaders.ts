@@ -104,10 +104,11 @@ export const heatTransferFragmentShader = `
         // Vary block size between 2x2 and 3x3
         int blockSize = randBlock > 0.5 ? 3 : 2;
 
-        // Variable offset (0 or 1 pixel in each direction)
+        // Variable offset (-0.5 to +0.5 pixel in each direction for symmetry)
+        // This prevents directional bias in heat diffusion
         vec2 offset = vec2(
-          randOffset > 0.5 ? pixelSize.x : 0.0,
-          fract(randOffset * 7.0) > 0.5 ? pixelSize.y : 0.0
+          (randOffset - 0.5) * pixelSize.x,
+          (fract(randOffset * 7.0) - 0.5) * pixelSize.y
         );
 
         // Sample neighbors and calculate average (only non-empty cells)
