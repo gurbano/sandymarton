@@ -68,8 +68,8 @@ function App() {
   // Simulation configuration
   const [simulationConfig, setSimulationConfig] = useState<SimulationConfig>(DEFAULT_SIMULATION_CONFIG);
 
-  // Render configuration (post-processing effects)
-  const [renderConfig] = useState<RenderConfig>(DEFAULT_RENDER_CONFIG);
+  // Render configuration (post-processing effects and overlays)
+  const [renderConfig, setRenderConfig] = useState<RenderConfig>(DEFAULT_RENDER_CONFIG);
 
   // FPS tracking
   const [fps, setFps] = useState<number>(0);
@@ -166,6 +166,8 @@ function App() {
         onResetWorld={handleResetWorld}
         simulationConfig={simulationConfig}
         onSimulationConfigChange={setSimulationConfig}
+        renderConfig={renderConfig}
+        onRenderConfigChange={setRenderConfig}
         worldInitType={worldInitType}
         onWorldInitTypeChange={setWorldInitType}
         onLoadLevel={handleLoadLevel}

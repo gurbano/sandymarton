@@ -23,6 +23,7 @@ import { WorldInitType } from '../world/WorldGeneration';
 import { useState, useRef, useEffect } from 'react';
 import { SimulationControls } from './SimulationControls';
 import type { SimulationConfig } from '../types/SimulationConfig';
+import type { RenderConfig } from '../types/RenderConfig';
 import { loadLevelIndex } from '../utils/LevelLoader';
 import type { Level } from '../types/Level';
 
@@ -35,6 +36,8 @@ interface SideControlsProps {
   onResetWorld: () => void;
   simulationConfig: SimulationConfig;
   onSimulationConfigChange: (config: SimulationConfig) => void;
+  renderConfig: RenderConfig;
+  onRenderConfigChange: (config: RenderConfig) => void;
   worldInitType?: WorldInitType;
   onWorldInitTypeChange?: (initType: WorldInitType) => void;
   onLoadLevel: (levelId: string) => Promise<void>;
@@ -65,6 +68,8 @@ export function SideControls({
   onResetWorld,
   simulationConfig,
   onSimulationConfigChange,
+  renderConfig,
+  onRenderConfigChange,
   worldInitType = WorldInitType.HOURGLASS,
   onWorldInitTypeChange,
   onLoadLevel,
@@ -114,6 +119,12 @@ export function SideControls({
       setSaveLevelName('');
       setSaveLevelDescription('');
     }
+  };
+
+  const handleOverlayToggle = (index: number) => {
+    const newOverlays = [...renderConfig.overlays];
+    newOverlays[index] = { ...newOverlays[index], enabled: !newOverlays[index].enabled };
+    onRenderConfigChange({ ...renderConfig, overlays: newOverlays });
   };
 
   const getToolIcon = () => {
@@ -367,6 +378,23 @@ export function SideControls({
         config={simulationConfig}
         onConfigChange={onSimulationConfigChange}
       />
+
+      <div className="divider"></div>
+
+      {/* Overlay Controls */}
+      <div className="simulation-controls">
+        <span className="control-label">Overlays:</span>
+        {renderConfig.overlays.map((overlay, index) => (
+          <button
+            key={overlay.type}
+            className={`icon-button ${overlay.enabled ? 'active' : ''}`}
+            onClick={() => handleOverlayToggle(index)}
+            title={overlay.name}
+          >
+            <FontAwesomeIcon icon={overlay.type === 'heat' ? faFire : faCloud} />
+          </button>
+        ))}
+      </div>
 
       <div className="divider"></div>
 

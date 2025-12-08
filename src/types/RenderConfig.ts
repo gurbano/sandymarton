@@ -9,7 +9,18 @@ export enum RenderEffectType {
   // Future effects:
   // BLOOM = 'bloom',
   // BACKGROUND = 'background',
-  // PARTICLE_OVERLAY = 'particle-overlay',
+}
+
+export enum OverlayType {
+  HEAT = 'heat',
+  FORCE = 'force',
+}
+
+export interface Overlay {
+  type: OverlayType;
+  enabled: boolean;
+  name: string;
+  description: string;
 }
 
 export interface RenderEffect {
@@ -30,6 +41,7 @@ export interface MaterialVariationSettings {
 
 export interface RenderConfig {
   effects: RenderEffect[];
+  overlays: Overlay[];
   edgeBlending: EdgeBlendingSettings;
   materialVariation: MaterialVariationSettings;
 }
@@ -47,6 +59,20 @@ export const DEFAULT_RENDER_CONFIG: RenderConfig = {
       enabled: true,
       name: 'Material Variation',
       description: 'Adds natural texture variation to materials using noise',
+    },
+  ],
+  overlays: [
+    {
+      type: OverlayType.HEAT,
+      enabled: false,
+      name: 'Heat Overlay',
+      description: 'Visualize temperature distribution',
+    },
+    {
+      type: OverlayType.FORCE,
+      enabled: false,
+      name: 'Force Overlay',
+      description: 'Visualize force vectors',
     },
   ],
   edgeBlending: {

@@ -16,6 +16,14 @@ import {
 import { margolusFragmentShader, margolusVertexShader } from '../shaders/margolusShaders';
 import { liquidSpreadFragmentShader, liquidSpreadVertexShader } from '../shaders/liquidSpreadShaders';
 import { archimedesFragmentShader, archimedesVertexShader } from '../shaders/archimedesShaders';
+import {
+  heatTransferFragmentShader,
+  heatTransferVertexShader,
+} from '../shaders/heatTransferShaders';
+import {
+  forceTransferFragmentShader,
+  forceTransferVertexShader,
+} from '../shaders/forceTransferShaders';
 import { useFrame, useThree } from '@react-three/fiber';
 import type { SimulationConfig } from '../types/SimulationConfig';
 import { SimulationStepType } from '../types/SimulationConfig';
@@ -109,10 +117,17 @@ function MainSimulation({
   const margolusSceneRef = useRef<SimulationResources | null>(null);
   const liquidSpreadSceneRef = useRef<SimulationResources | null>(null);
   const archimedesSceneRef = useRef<SimulationResources | null>(null);
+  const heatTransferSceneRef = useRef<SimulationResources | null>(null);
+  const forceTransferSceneRef = useRef<SimulationResources | null>(null);
   const margolusIterationRef = useRef(0);
   const liquidSpreadIterationRef = useRef(0);
   const archimedesIterationRef = useRef(0);
+  const heatTransferIterationRef = useRef(0);
+  const forceTransferIterationRef = useRef(0);
   const initializedRef = useRef(false);
+
+  // Heat/Force layer texture - stores temperature (R), forceX (G), forceY (B)
+  const heatForceLayerRef = useRef<DataTexture | null>(null);
 
   // FPS tracking with circular buffer to prevent memory leak
   const FPS_BUFFER_SIZE = 60; // Store last 60 frame times
@@ -123,6 +138,27 @@ function MainSimulation({
 
   // Create simulation resources
   useEffect(() => {
+    // Create heat/force layer texture (R=temperature, G=forceX, B=forceY, A=unused)
+    const heatForceData = new Uint8Array(textureSize * textureSize * 4);
+    // Initialize with neutral values: temp=128 (room temp), force=128,128 (no force)
+    for (let i = 0; i < textureSize * textureSize; i++) {
+      heatForceData[i * 4] = 128; // Temperature (neutral)
+      heatForceData[i * 4 + 1] = 128; // Force X (neutral = no force)
+      heatForceData[i * 4 + 2] = 128; // Force Y (neutral = no force)
+      heatForceData[i * 4 + 3] = 255; // Unused
+    }
+    const heatForceTexture = new DataTexture(
+      heatForceData,
+      textureSize,
+      textureSize,
+      RGBAFormat,
+      UnsignedByteType
+    );
+    heatForceTexture.minFilter = NearestFilter;
+    heatForceTexture.magFilter = NearestFilter;
+    heatForceTexture.needsUpdate = true;
+    heatForceLayerRef.current = heatForceTexture;
+
     const margolusResources = createSimulationResources(textureSize, worldTexture, {
       vertexShader: margolusVertexShader,
       fragmentShader: margolusFragmentShader,
@@ -136,9 +172,24 @@ function MainSimulation({
       fragmentShader: archimedesFragmentShader,
     });
 
+    // Create heat/force transfer resources with additional uniform for layer texture
+    const heatTransferResources = createSimulationResources(textureSize, worldTexture, {
+      vertexShader: heatTransferVertexShader,
+      fragmentShader: heatTransferFragmentShader,
+    });
+    heatTransferResources.material.uniforms.uHeatForceLayer = { value: heatForceTexture };
+
+    const forceTransferResources = createSimulationResources(textureSize, worldTexture, {
+      vertexShader: forceTransferVertexShader,
+      fragmentShader: forceTransferFragmentShader,
+    });
+    forceTransferResources.material.uniforms.uHeatForceLayer = { value: heatForceTexture };
+
     margolusSceneRef.current = margolusResources;
     liquidSpreadSceneRef.current = liquidSpreadResources;
     archimedesSceneRef.current = archimedesResources;
+    heatTransferSceneRef.current = heatTransferResources;
+    forceTransferSceneRef.current = forceTransferResources;
 
     // Initialize render targets
     renderTargets.forEach((rt) => {
@@ -151,15 +202,24 @@ function MainSimulation({
     margolusIterationRef.current = 0;
     liquidSpreadIterationRef.current = 0;
     archimedesIterationRef.current = 0;
+    heatTransferIterationRef.current = 0;
+    forceTransferIterationRef.current = 0;
     initializedRef.current = true;
 
     return () => {
-      [margolusResources, liquidSpreadResources, archimedesResources].forEach((resources) => {
+      [
+        margolusResources,
+        liquidSpreadResources,
+        archimedesResources,
+        heatTransferResources,
+        forceTransferResources,
+      ].forEach((resources) => {
         resources.scene.remove(resources.mesh);
         resources.geometry.dispose();
         resources.material.dispose();
       });
       renderTargets.forEach((rt) => rt.dispose());
+      heatForceTexture.dispose();
     };
   }, [textureSize, worldTexture, resetCount, gl, renderTargets]);
 
@@ -216,6 +276,12 @@ function MainSimulation({
         case SimulationStepType.ARCHIMEDES:
           resources = archimedesSceneRef.current;
           break;
+        case SimulationStepType.HEAT_TRANSFER:
+          resources = heatTransferSceneRef.current;
+          break;
+        case SimulationStepType.FORCE_TRANSFER:
+          resources = forceTransferSceneRef.current;
+          break;
       }
 
       if (!resources) continue;
@@ -247,6 +313,22 @@ function MainSimulation({
           // Use iteration as deterministic seed (same iteration + position = same random value)
           resources.material.uniforms.uRandomSeed.value = archimedesIterationRef.current;
           archimedesIterationRef.current++;
+        } else if (step.type === SimulationStepType.HEAT_TRANSFER) {
+          resources.material.uniforms.uIteration.value = heatTransferIterationRef.current;
+          resources.material.uniforms.uRandomSeed.value = heatTransferIterationRef.current;
+          // Update the heat/force layer texture reference
+          if (heatForceLayerRef.current) {
+            resources.material.uniforms.uHeatForceLayer.value = heatForceLayerRef.current;
+          }
+          heatTransferIterationRef.current++;
+        } else if (step.type === SimulationStepType.FORCE_TRANSFER) {
+          resources.material.uniforms.uIteration.value = forceTransferIterationRef.current;
+          resources.material.uniforms.uRandomSeed.value = forceTransferIterationRef.current;
+          // Update the heat/force layer texture reference
+          if (heatForceLayerRef.current) {
+            resources.material.uniforms.uHeatForceLayer.value = heatForceLayerRef.current;
+          }
+          forceTransferIterationRef.current++;
         }
 
         // Render to target
