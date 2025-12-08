@@ -235,6 +235,7 @@
   cursor: pointer;
   font-size: 0.9rem;
   pointer-events: auto;
+  width: 100%;
 }
 
 .brush-size-select:hover {
@@ -253,6 +254,13 @@
   color: #fff;
   font-size: 0.9rem;
   pointer-events: none;
+}
+
+.brush-size-indicator {
+  color: #aaa;
+  font-size: 0.8rem;
+  padding-left: 0.5rem;
+  border-left: 1px solid rgba(255, 255, 255, 0.2);
 }
 
 /* Simulation Controls */
@@ -439,4 +447,15 @@
   border-top: 1px solid rgba(255, 255, 255, 0.1);
   z-index: 100;
   pointer-events: none;
+}
+
+/* Brush Cursor */
+.brush-cursor {
+  position: fixed;
+  border: 2px solid rgba(255, 255, 255, 0.8);
+  border-radius: 50%;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  z-index: 1000;
+  box-shadow: 0 0 4px rgba(0, 0, 0, 0.5);
 }

@@ -14,11 +14,19 @@ export function saveTextureAsPNG(texture: DataTexture, filename: string): void {
   const canvas = document.createElement('canvas');
   canvas.width = WORLD_SIZE;
   canvas.height = WORLD_SIZE;
-  const ctx = canvas.getContext('2d');
+
+  // Use same color space settings as loader to prevent Firefox color management issues
+  const ctx = canvas.getContext('2d', {
+    willReadFrequently: true,
+    colorSpace: 'srgb',
+  });
 
   if (!ctx) {
     throw new Error('Failed to get canvas context');
   }
+
+  // Disable any image processing
+  ctx.imageSmoothingEnabled = false;
 
   // Get texture data
   const data = texture.image.data as Uint8Array;

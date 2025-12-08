@@ -59,6 +59,12 @@ function App() {
   // State for selected particle type
   const [selectedParticle, setSelectedParticle] = useState<ParticleType>(ParticleType.SAND);
 
+  // Tool mode state (add, remove, fill)
+  const [toolMode, setToolMode] = useState<'add' | 'remove' | 'fill'>('add');
+
+  // Brush size state
+  const [brushSize, setBrushSize] = useState<number>(3);
+
   // Simulation configuration
   const [simulationConfig, setSimulationConfig] = useState<SimulationConfig>(DEFAULT_SIMULATION_CONFIG);
 
@@ -74,6 +80,9 @@ function App() {
     texture.needsUpdate = true;
   }, []);
 
+  // Mouse position for brush cursor
+  const [mousePos, setMousePos] = useState<{ x: number; y: number } | null>(null);
+
   // Use particle drawing hook
   useParticleDrawing({
     worldGen,
@@ -82,6 +91,9 @@ function App() {
     center,
     onDraw: handleDraw,
     worldTexture: worldTexture,
+    toolMode,
+    brushSize,
+    onMouseMove: setMousePos,
   });
 
   // Reset world handler
@@ -158,7 +170,24 @@ function App() {
         onWorldInitTypeChange={setWorldInitType}
         onLoadLevel={handleLoadLevel}
         onSaveLevel={handleSaveLevel}
+        toolMode={toolMode}
+        onToolModeChange={setToolMode}
+        brushSize={brushSize}
+        onBrushSizeChange={setBrushSize}
       />
+
+      {/* Brush Cursor */}
+      {mousePos && (
+        <div
+          className="brush-cursor"
+          style={{
+            left: mousePos.x,
+            top: mousePos.y,
+            width: brushSize * pixelSize * 2,
+            height: brushSize * pixelSize * 2,
+          }}
+        />
+      )}
 
       {/* Overlay Status Bar */}
       <StatusBar pixelSize={pixelSize} center={center} selectedParticle={selectedParticle} fps={fps} />

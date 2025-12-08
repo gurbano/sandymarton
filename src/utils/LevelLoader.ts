@@ -6,6 +6,85 @@
 import type { Level, LevelIndex } from '../types/Level';
 import { DataTexture, RGBAFormat, UnsignedByteType, NearestFilter } from 'three';
 import { WORLD_SIZE } from '../constants/worldConstants';
+import { ParticleTypeRanges, ParticleTypeConstants } from '../world/ParticleTypeConstants';
+
+/**
+ * Normalize a particle type value to its canonical form
+ * PNG save/load through canvas can cause slight value changes due to color space conversion
+ * This maps any value to the nearest known particle type within its category
+ */
+function normalizeParticleType(value: number): number {
+  // Empty range (0-15) -> EMPTY
+  if (value <= ParticleTypeRanges.EMPTY_MAX) {
+    return ParticleTypeConstants.EMPTY;
+  }
+
+  // Static range (16-32) -> STONE
+  if (value >= ParticleTypeRanges.STATIC_MIN && value <= ParticleTypeRanges.STATIC_MAX) {
+    return ParticleTypeConstants.STONE;
+  }
+
+  // Solid range (33-63) -> find closest: SAND(35), DIRT(37), GRAVEL(39)
+  if (value >= ParticleTypeRanges.SOLID_MIN && value <= ParticleTypeRanges.SOLID_MAX) {
+    const solidTypes = [
+      ParticleTypeConstants.SAND,
+      ParticleTypeConstants.DIRT,
+      ParticleTypeConstants.GRAVEL,
+    ];
+    return findClosest(value, solidTypes);
+  }
+
+  // Liquid range (64-111) -> find closest: WATER(65), LAVA(80), SLIME(96), ACID(97)
+  if (value >= ParticleTypeRanges.LIQUID_MIN && value <= ParticleTypeRanges.LIQUID_MAX) {
+    const liquidTypes = [
+      ParticleTypeConstants.WATER,
+      ParticleTypeConstants.LAVA,
+      ParticleTypeConstants.SLIME,
+      ParticleTypeConstants.ACID,
+    ];
+    return findClosest(value, liquidTypes);
+  }
+
+  // Gas range (112-159) -> find closest: STEAM(113), SMOKE(128), AIR(144)
+  if (value >= ParticleTypeRanges.GAS_MIN && value <= ParticleTypeRanges.GAS_MAX) {
+    const gasTypes = [
+      ParticleTypeConstants.STEAM,
+      ParticleTypeConstants.SMOKE,
+      ParticleTypeConstants.AIR,
+    ];
+    return findClosest(value, gasTypes);
+  }
+
+  // Unknown range (160-255) -> treat as empty
+  return ParticleTypeConstants.EMPTY;
+}
+
+/**
+ * Find the closest value in an array to the target
+ */
+function findClosest(target: number, values: number[]): number {
+  let closest = values[0];
+  let minDiff = Math.abs(target - closest);
+
+  for (const v of values) {
+    const diff = Math.abs(target - v);
+    if (diff < minDiff) {
+      minDiff = diff;
+      closest = v;
+    }
+  }
+
+  return closest;
+}
+
+/**
+ * Normalize all particle types in a pixel data array
+ */
+function normalizePixelData(data: Uint8Array): void {
+  for (let i = 0; i < data.length; i += 4) {
+    data[i] = normalizeParticleType(data[i]);
+  }
+}
 
 /**
  * Load the level index file
@@ -60,7 +139,12 @@ async function loadPNGTexture(url: string): Promise<Uint8Array> {
 
       // Get pixel data
       const imageData = ctx.getImageData(0, 0, WORLD_SIZE, WORLD_SIZE);
-      resolve(new Uint8Array(imageData.data));
+      const pixelData = new Uint8Array(imageData.data);
+
+      // Normalize particle types to handle color space conversion artifacts
+      normalizePixelData(pixelData);
+
+      resolve(pixelData);
     };
 
     img.onerror = () => {

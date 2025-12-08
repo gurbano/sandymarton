@@ -135,25 +135,36 @@ ${generateParticleColorCode()}
       color = getParticleColor(particleType);
     }
 
-    // Apply slushing effect to liquids (types 64-111)
+    // Apply animated wave effect to liquids (types 64-111)
     if (particleType >= 64.0 && particleType < 112.0) {
-      // DEBUG: Make effect very obvious with strong pulsing
-      float debugPulse = sin(uTime / 16.0) * 0.5 + 0.5;
+      // Traveling wave effect - multiple sine waves at different angles and speeds
+      float waveSpeed1 = uTime * 2.0;
+      float waveSpeed2 = uTime * 1.5;
+      float waveSpeed3 = uTime * 2.5;
 
-      // Create animated noise using world coordinates and time
-      vec2 noiseCoord = worldParticleCoord * 0.05 + vec2(uTime * 0.3, uTime * 0.2);
+      // Wave 1: travels diagonally (down-right)
+      float wave1 = sin((worldParticleCoord.x + worldParticleCoord.y) * 0.15 + waveSpeed1);
+
+      // Wave 2: travels horizontally (left)
+      float wave2 = sin(worldParticleCoord.x * 0.2 - waveSpeed2) * 0.7;
+
+      // Wave 3: travels vertically (up) with higher frequency
+      float wave3 = sin(worldParticleCoord.y * 0.25 + waveSpeed3) * 0.5;
+
+      // Combine waves for organic movement
+      float combinedWave = (wave1 + wave2 + wave3) / 3.0;
+
+      // Add subtle noise variation on top of waves
+      vec2 noiseCoord = worldParticleCoord * 0.08 + vec2(uTime * 0.5, uTime * 0.3);
       float n = smoothNoise(noiseCoord);
 
-      // Create a second layer of noise moving in different direction
-      vec2 noiseCoord2 = worldParticleCoord * 0.08 - vec2(uTime * 0.2, uTime * 0.25);
-      float n2 = smoothNoise(noiseCoord2);
+      // Final effect: waves control brightness, noise adds texture
+      float brightness = combinedWave * 0.12 + (n - 0.5) * 0.08;
 
-      // Combine noise layers
-      float combinedNoise = (n + n2) * 0.5;
-
-      // DEBUG: Strong color shift to make it very obvious
-      float colorShift = (combinedNoise - 0.5) * 0.2 + debugPulse * 0.1;
-      color.rgb += vec3(colorShift);
+      // Apply to color - slightly stronger on blue channel for water-like feel
+      color.r += brightness * 0.8;
+      color.g += brightness * 0.9;
+      color.b += brightness * 1.0;
     }
 
     gl_FragColor = color;

@@ -48,27 +48,20 @@ type SimulationResources = {
   mesh: Mesh;
 };
 
-const createMargolusResources = (size: number, initialTexture: Texture): SimulationResources => {
-  const scene = new Scene();
-  const camera = new OrthographicCamera(-1, 1, 1, -1, 0, 1);
-  const geometry = new PlaneGeometry(2, 2);
-  const material = new ShaderMaterial({
-    uniforms: {
-      uTextureSize: { value: new Vector2(size, size) },
-      uCurrentState: { value: initialTexture },
-      uIteration: { value: 0 },
-      uRandomSeed: { value: Math.random() * 1000 },
-      uFrictionAmplifier: { value: 1.0 },
-    },
-    vertexShader: margolusVertexShader,
-    fragmentShader: margolusFragmentShader,
-  });
-  const mesh = new Mesh(geometry, material);
-  scene.add(mesh);
-  return { scene, camera, material, geometry, mesh };
+type ShaderConfig = {
+  vertexShader: string;
+  fragmentShader: string;
 };
 
-const createLiquidSpreadResources = (size: number, initialTexture: Texture): SimulationResources => {
+/**
+ * Generic factory for creating simulation resources
+ * Eliminates duplication across Margolus, LiquidSpread, and Archimedes
+ */
+const createSimulationResources = (
+  size: number,
+  initialTexture: Texture,
+  shaderConfig: ShaderConfig
+): SimulationResources => {
   const scene = new Scene();
   const camera = new OrthographicCamera(-1, 1, 1, -1, 0, 1);
   const geometry = new PlaneGeometry(2, 2);
@@ -80,28 +73,8 @@ const createLiquidSpreadResources = (size: number, initialTexture: Texture): Sim
       uRandomSeed: { value: Math.random() * 1000 },
       uFrictionAmplifier: { value: 1.0 },
     },
-    vertexShader: liquidSpreadVertexShader,
-    fragmentShader: liquidSpreadFragmentShader,
-  });
-  const mesh = new Mesh(geometry, material);
-  scene.add(mesh);
-  return { scene, camera, material, geometry, mesh };
-};
-
-const createArchimedesResources = (size: number, initialTexture: Texture): SimulationResources => {
-  const scene = new Scene();
-  const camera = new OrthographicCamera(-1, 1, 1, -1, 0, 1);
-  const geometry = new PlaneGeometry(2, 2);
-  const material = new ShaderMaterial({
-    uniforms: {
-      uTextureSize: { value: new Vector2(size, size) },
-      uCurrentState: { value: initialTexture },
-      uIteration: { value: 0 },
-      uRandomSeed: { value: Math.random() * 1000 },
-      uFrictionAmplifier: { value: 1.0 },
-    },
-    vertexShader: archimedesVertexShader,
-    fragmentShader: archimedesFragmentShader,
+    vertexShader: shaderConfig.vertexShader,
+    fragmentShader: shaderConfig.fragmentShader,
   });
   const mesh = new Mesh(geometry, material);
   scene.add(mesh);
@@ -141,15 +114,27 @@ function MainSimulation({
   const archimedesIterationRef = useRef(0);
   const initializedRef = useRef(false);
 
-  // FPS tracking
-  const frameTimesRef = useRef<number[]>([]);
+  // FPS tracking with circular buffer to prevent memory leak
+  const FPS_BUFFER_SIZE = 60; // Store last 60 frame times
+  const frameTimesRef = useRef<Float32Array>(new Float32Array(FPS_BUFFER_SIZE));
+  const frameTimeIndexRef = useRef(0);
+  const frameTimeCountRef = useRef(0);
   const lastFpsUpdateRef = useRef(0);
 
   // Create simulation resources
   useEffect(() => {
-    const margolusResources = createMargolusResources(textureSize, worldTexture);
-    const liquidSpreadResources = createLiquidSpreadResources(textureSize, worldTexture);
-    const archimedesResources = createArchimedesResources(textureSize, worldTexture);
+    const margolusResources = createSimulationResources(textureSize, worldTexture, {
+      vertexShader: margolusVertexShader,
+      fragmentShader: margolusFragmentShader,
+    });
+    const liquidSpreadResources = createSimulationResources(textureSize, worldTexture, {
+      vertexShader: liquidSpreadVertexShader,
+      fragmentShader: liquidSpreadFragmentShader,
+    });
+    const archimedesResources = createSimulationResources(textureSize, worldTexture, {
+      vertexShader: archimedesVertexShader,
+      fragmentShader: archimedesFragmentShader,
+    });
 
     margolusSceneRef.current = margolusResources;
     liquidSpreadSceneRef.current = liquidSpreadResources;
@@ -184,19 +169,30 @@ function MainSimulation({
       return;
     }
 
-    // Track FPS
+    // Track FPS using circular buffer
     if (onFpsUpdate) {
       const now = state.clock.elapsedTime;
-      frameTimesRef.current.push(delta);
+
+      // Add delta to circular buffer
+      frameTimesRef.current[frameTimeIndexRef.current] = delta;
+      frameTimeIndexRef.current = (frameTimeIndexRef.current + 1) % FPS_BUFFER_SIZE;
+      frameTimeCountRef.current = Math.min(frameTimeCountRef.current + 1, FPS_BUFFER_SIZE);
 
       // Update FPS every 0.5 seconds
       if (now - lastFpsUpdateRef.current > 0.5) {
-        if (frameTimesRef.current.length > 0) {
-          const avgDelta = frameTimesRef.current.reduce((a, b) => a + b, 0) / frameTimesRef.current.length;
+        const count = frameTimeCountRef.current;
+        if (count > 0) {
+          let sum = 0;
+          for (let i = 0; i < count; i++) {
+            sum += frameTimesRef.current[i];
+          }
+          const avgDelta = sum / count;
           const fps = Math.round(1 / avgDelta);
           onFpsUpdate(fps);
         }
-        frameTimesRef.current = [];
+        // Reset counters (but reuse the same buffer)
+        frameTimeIndexRef.current = 0;
+        frameTimeCountRef.current = 0;
         lastFpsUpdateRef.current = now;
       }
     }

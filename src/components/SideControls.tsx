@@ -26,6 +26,8 @@ import type { SimulationConfig } from '../types/SimulationConfig';
 import { loadLevelIndex } from '../utils/LevelLoader';
 import type { Level } from '../types/Level';
 
+export type ToolMode = 'add' | 'remove' | 'fill';
+
 interface SideControlsProps {
   particleTypes: { name: string; value: number }[];
   selectedParticle: ParticleType;
@@ -37,6 +39,10 @@ interface SideControlsProps {
   onWorldInitTypeChange?: (initType: WorldInitType) => void;
   onLoadLevel: (levelId: string) => Promise<void>;
   onSaveLevel: (levelName: string, description?: string) => void;
+  toolMode: ToolMode;
+  onToolModeChange: (mode: ToolMode) => void;
+  brushSize: number;
+  onBrushSizeChange: (size: number) => void;
 }
 
 const particleIcons: Record<string, any> = {
@@ -52,8 +58,6 @@ const particleIcons: Record<string, any> = {
   SMOKE: faSmog,
 };
 
-type ToolMode = 'add' | 'remove' | 'fill';
-
 export function SideControls({
   particleTypes,
   selectedParticle,
@@ -65,8 +69,11 @@ export function SideControls({
   onWorldInitTypeChange,
   onLoadLevel,
   onSaveLevel,
+  toolMode,
+  onToolModeChange,
+  brushSize,
+  onBrushSizeChange,
 }: SideControlsProps) {
-  const [toolMode, setToolMode] = useState<ToolMode>('add');
   const [showDropdown, setShowDropdown] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [availableLevels, setAvailableLevels] = useState<Level[]>([]);
@@ -153,8 +160,13 @@ export function SideControls({
 
   const particleCategories = categorizeParticles();
 
+  // Prevent clicks on UI from propagating to canvas
+  const handleMouseDown = (e: React.MouseEvent) => {
+    e.stopPropagation();
+  };
+
   return (
-    <div className="top-bar">
+    <div className="top-bar" onMouseDown={handleMouseDown}>
       <button onClick={onResetWorld} className="icon-button" title="Reset World">
         <FontAwesomeIcon icon={faRotateRight} />
       </button>
@@ -269,20 +281,6 @@ export function SideControls({
                 </div>
               )}
 
-              {toolMode === 'remove' && (
-                <div className="brush-size-options">
-                  <div className="option-row">
-                    <span>Brush Size:</span>
-                    <select className="brush-size-select">
-                      <option value="1">Small (1px)</option>
-                      <option value="3">Medium (3px)</option>
-                      <option value="5">Large (5px)</option>
-                      <option value="10">XLarge (10px)</option>
-                    </select>
-                  </div>
-                </div>
-              )}
-
               {toolMode === 'fill' && (
                 <div className="particle-grid">
                   {particleTypes.map(({ name, value }) => (
@@ -309,25 +307,43 @@ export function SideControls({
               <div className="dropdown-title">Tool Mode</div>
               <button
                 className={`mode-button ${toolMode === 'add' ? 'active' : ''}`}
-                onClick={() => { setToolMode('add'); }}
+                onClick={() => { onToolModeChange('add'); }}
               >
                 <FontAwesomeIcon icon={faPlus} />
                 <span>Add Material</span>
               </button>
               <button
                 className={`mode-button ${toolMode === 'remove' ? 'active' : ''}`}
-                onClick={() => { setToolMode('remove'); }}
+                onClick={() => { onToolModeChange('remove'); }}
               >
                 <FontAwesomeIcon icon={faEraser} />
                 <span>Remove/Erase</span>
               </button>
               <button
                 className={`mode-button ${toolMode === 'fill' ? 'active' : ''}`}
-                onClick={() => { setToolMode('fill'); }}
+                onClick={() => { onToolModeChange('fill'); }}
               >
                 <FontAwesomeIcon icon={faFillDrip} />
                 <span>Fill Area</span>
               </button>
+            </div>
+
+            <div className="dropdown-divider"></div>
+
+            <div className="dropdown-section">
+              <div className="dropdown-title">Brush Size</div>
+              <div className="brush-size-options">
+                <select
+                  className="brush-size-select"
+                  value={brushSize}
+                  onChange={(e) => onBrushSizeChange(Number(e.target.value))}
+                >
+                  <option value="1">Small (1px)</option>
+                  <option value="3">Medium (3px)</option>
+                  <option value="5">Large (5px)</option>
+                  <option value="10">XLarge (10px)</option>
+                </select>
+              </div>
             </div>
           </div>
         )}
@@ -335,8 +351,13 @@ export function SideControls({
 
       {/* Current Selection Display */}
       <div className="current-selection">
-        <FontAwesomeIcon icon={particleIcons[selectedParticleName] || faCubes} />
-        <span>{selectedParticleName}</span>
+        {toolMode === 'remove' ? (
+          <FontAwesomeIcon icon={faEraser} />
+        ) : (
+          <FontAwesomeIcon icon={particleIcons[selectedParticleName] || faCubes} />
+        )}
+        <span>{toolMode === 'remove' ? 'Erase' : selectedParticleName}</span>
+        <span className="brush-size-indicator">{brushSize}px</span>
       </div>
 
       <div className="divider"></div>

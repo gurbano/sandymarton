@@ -4,6 +4,8 @@ import { ParticleType } from '../world/ParticleTypes';
 import type { DataTexture } from 'three';
 import { WORLD_SIZE } from '../constants/worldConstants';
 
+type ToolMode = 'add' | 'remove' | 'fill';
+
 interface UseParticleDrawingProps {
   worldGen: WorldGeneration;
   selectedParticle: ParticleType;
@@ -11,6 +13,9 @@ interface UseParticleDrawingProps {
   center: { x: number; y: number };
   onDraw: (newTexture: DataTexture) => void;
   worldTexture: DataTexture;
+  toolMode?: ToolMode;
+  brushSize?: number;
+  onMouseMove?: (pos: { x: number; y: number } | null) => void;
 }
 
 export function useParticleDrawing({
@@ -20,6 +25,9 @@ export function useParticleDrawing({
   center,
   onDraw,
   worldTexture,
+  toolMode = 'add',
+  brushSize = 3,
+  onMouseMove,
 }: UseParticleDrawingProps) {
   const isDrawingRef = useRef(false);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -80,20 +88,21 @@ export function useParticleDrawing({
     const worldPos = screenToWorld(screenX, screenY);
     if (!worldPos) return;
 
-    // Draw particles in a small radius around the cursor
-    const brushRadius = 3; // Brush radius in pixels
+    // Determine particle type based on tool mode
+    const particleType = toolMode === 'remove' ? ParticleType.EMPTY : selectedParticle;
 
-    for (let dy = -brushRadius; dy <= brushRadius; dy++) {
-      for (let dx = -brushRadius; dx <= brushRadius; dx++) {
+    // Draw particles in a small radius around the cursor
+    for (let dy = -brushSize; dy <= brushSize; dy++) {
+      for (let dx = -brushSize; dx <= brushSize; dx++) {
         // Use circular brush
         const distSq = dx * dx + dy * dy;
-        if (distSq <= brushRadius * brushRadius) {
+        if (distSq <= brushSize * brushSize) {
           const drawX = worldPos.x + dx;
           const drawY = worldPos.y + dy;
 
           // Draw the particle directly on the texture
           worldGen.setParticleOnTexture(worldTexture, drawX, drawY, {
-            type: selectedParticle,
+            type: particleType,
             velocityX: 0,
             velocityY: 0,
           });
@@ -103,7 +112,7 @@ export function useParticleDrawing({
 
     // Trigger redraw (texture is already updated in-place)
     onDraw(worldTexture);
-  }, [worldTexture, worldGen, selectedParticle, screenToWorld, onDraw]);
+  }, [worldTexture, worldGen, selectedParticle, screenToWorld, onDraw, toolMode, brushSize]);
 
   useEffect(() => {
     // Store canvas element reference
@@ -151,22 +160,32 @@ export function useParticleDrawing({
     };
 
     const handleMouseMove = (e: MouseEvent) => {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+
+      // Check if mouse is within canvas bounds
+      const rect = canvas.getBoundingClientRect();
+      const x = e.clientX;
+      const y = e.clientY;
+
+      if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) {
+        // Mouse is outside canvas - hide cursor
+        onMouseMove?.(null);
+        return;
+      }
+
+      // Update cursor position
+      onMouseMove?.({ x: e.clientX, y: e.clientY });
+
+      // Draw if left mouse button is held
       if (isDrawingRef.current) {
-        const canvas = canvasRef.current;
-        if (!canvas) return;
-
-        // Check if mouse is within canvas bounds
-        const rect = canvas.getBoundingClientRect();
-        const x = e.clientX;
-        const y = e.clientY;
-
-        if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) {
-          return; // Mouse is outside canvas
-        }
-
         lastMousePosRef.current = { x: e.clientX, y: e.clientY };
         drawParticle(e.clientX, e.clientY);
       }
+    };
+
+    const handleMouseLeave = () => {
+      onMouseMove?.(null);
     };
 
     const handleMouseUp = (e: MouseEvent) => {
@@ -185,11 +204,13 @@ export function useParticleDrawing({
     window.addEventListener('mousedown', handleMouseDown);
     window.addEventListener('mousemove', handleMouseMove);
     window.addEventListener('mouseup', handleMouseUp);
+    window.addEventListener('mouseleave', handleMouseLeave);
 
     return () => {
       window.removeEventListener('mousedown', handleMouseDown);
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
+      window.removeEventListener('mouseleave', handleMouseLeave);
 
       // Clean up interval on unmount
       if (drawIntervalRef.current !== null) {
@@ -197,5 +218,5 @@ export function useParticleDrawing({
         drawIntervalRef.current = null;
       }
     };
-  }, [drawParticle]);
+  }, [drawParticle, onMouseMove]);
 }
