@@ -27,11 +27,14 @@ import {
 import { useFrame, useThree } from '@react-three/fiber';
 import type { SimulationConfig } from '../types/SimulationConfig';
 import { SimulationStepType } from '../types/SimulationConfig';
+import { MaterialDefinitions, getDefaultBaseAttributes } from '../world/MaterialDefinitions';
+import { ParticleType } from '../world/ParticleTypes';
 
 interface MainSimulationProps {
   worldTexture: DataTexture;
   textureSize: number;
   onTextureUpdate: (texture: DataTexture) => void;
+  onHeatTextureReady?: (texture: DataTexture) => void;
   enabled?: boolean;
   config: SimulationConfig;
   resetCount?: number;
@@ -97,6 +100,7 @@ function MainSimulation({
   worldTexture,
   textureSize,
   onTextureUpdate,
+  onHeatTextureReady,
   enabled = true,
   config,
   resetCount = 0,
@@ -138,14 +142,28 @@ function MainSimulation({
 
   // Create simulation resources
   useEffect(() => {
-    // Create heat/force layer texture (R=temperature, G=forceX, B=forceY, A=unused)
+    // Create heat/force layer texture
+    // Format: R=temp_low, G=temp_high (16-bit Kelvin), B=forceX, A=forceY
     const heatForceData = new Uint8Array(textureSize * textureSize * 4);
-    // Initialize with neutral values: temp=128 (room temp), force=128,128 (no force)
+    const worldData = worldTexture.image.data as Uint8Array;
+
+    // Initialize temperatures based on particle types from world texture
     for (let i = 0; i < textureSize * textureSize; i++) {
-      heatForceData[i * 4] = 128; // Temperature (neutral)
-      heatForceData[i * 4 + 1] = 128; // Force X (neutral = no force)
-      heatForceData[i * 4 + 2] = 128; // Force Y (neutral = no force)
-      heatForceData[i * 4 + 3] = 255; // Unused
+      const particleType = worldData[i * 4]; // R channel = particle type
+
+      // Get default temperature for this particle type
+      const material = MaterialDefinitions[particleType as ParticleType];
+      const defaultAttrs = getDefaultBaseAttributes(particleType);
+      const temperature = material?.defaultTemperature ?? defaultAttrs.defaultTemperature;
+
+      // Encode 16-bit temperature into two bytes
+      const tempLow = temperature & 0xFF;
+      const tempHigh = (temperature >> 8) & 0xFF;
+
+      heatForceData[i * 4] = tempLow;      // Temperature low byte
+      heatForceData[i * 4 + 1] = tempHigh; // Temperature high byte
+      heatForceData[i * 4 + 2] = 128;      // Force X (128 = neutral, no force)
+      heatForceData[i * 4 + 3] = 128;      // Force Y (128 = neutral, no force)
     }
     const heatForceTexture = new DataTexture(
       heatForceData,
@@ -158,6 +176,9 @@ function MainSimulation({
     heatForceTexture.magFilter = NearestFilter;
     heatForceTexture.needsUpdate = true;
     heatForceLayerRef.current = heatForceTexture;
+
+    // Notify parent that heat texture is ready
+    onHeatTextureReady?.(heatForceTexture);
 
     const margolusResources = createSimulationResources(textureSize, worldTexture, {
       vertexShader: margolusVertexShader,

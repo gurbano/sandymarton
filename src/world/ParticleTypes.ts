@@ -34,6 +34,35 @@ export enum ParticleType {
   AIR = 144,
 
 }
+
+// Temperature constants
+export const KELVIN_OFFSET = 273; // 0°C = 273K
+export const MAX_TEMPERATURE = 65535; // Max temperature in Kelvin (2 bytes)
+export const ROOM_TEMPERATURE_K = 298; // 25°C in Kelvin
+
+// Helper to convert Celsius to Kelvin
+export function celsiusToKelvin(celsius: number): number {
+  return Math.round(celsius + KELVIN_OFFSET);
+}
+
+// Helper to convert Kelvin to Celsius
+export function kelvinToCelsius(kelvin: number): number {
+  return kelvin - KELVIN_OFFSET;
+}
+
+// Encode 16-bit temperature into two bytes (low, high)
+export function encodeTemperature(kelvin: number): [number, number] {
+  const clamped = Math.max(0, Math.min(MAX_TEMPERATURE, Math.round(kelvin)));
+  const low = clamped & 0xFF;
+  const high = (clamped >> 8) & 0xFF;
+  return [low, high];
+}
+
+// Decode two bytes back to 16-bit temperature
+export function decodeTemperature(low: number, high: number): number {
+  return low | (high << 8);
+}
+
 export type MaterialAttributes = {
   density: number;
   viscosity: number;
@@ -42,6 +71,7 @@ export type MaterialAttributes = {
   color: [number, number, number, number]; // RGBA
   hardness: number;
   friction: number; // For Margolus CA topple probability (0.0 - 1.0)
+  defaultTemperature: number; // Default temperature in Kelvin when particle is created
 }
 
 /**

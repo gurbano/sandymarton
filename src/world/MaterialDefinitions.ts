@@ -7,6 +7,8 @@ import { ParticleType } from './ParticleTypes';
 import type { MaterialAttributes } from './ParticleTypes';
 import { ParticleTypeRanges } from './ParticleTypeConstants';
 
+import { celsiusToKelvin } from './ParticleTypes';
+
 // Base material attributes for each category
 const BaseEmptyAttributes: MaterialAttributes = {
   density: 0,
@@ -16,6 +18,7 @@ const BaseEmptyAttributes: MaterialAttributes = {
   color: [0, 0, 0, 0],
   hardness: 0,
   friction: 0,
+  defaultTemperature: celsiusToKelvin(25), // Room temperature
 };
 
 const BaseStaticAttributes: MaterialAttributes = {
@@ -26,6 +29,7 @@ const BaseStaticAttributes: MaterialAttributes = {
   color: [128, 128, 128, 255],
   hardness: 9,
   friction: 1.0, // Static particles don't move
+  defaultTemperature: celsiusToKelvin(25), // 25°C = 298K
 };
 
 const BaseSolidAttributes: MaterialAttributes = {
@@ -36,6 +40,7 @@ const BaseSolidAttributes: MaterialAttributes = {
   color: [128, 128, 128, 255],
   hardness: 8,
   friction: 0.75, // Default friction for solids
+  defaultTemperature: celsiusToKelvin(25), // 25°C = 298K
 };
 
 const BaseLiquidAttributes: MaterialAttributes = {
@@ -46,6 +51,7 @@ const BaseLiquidAttributes: MaterialAttributes = {
   color: [64, 164, 223, 180],
   hardness: 2,
   friction: 0.1, // Low friction for liquids
+  defaultTemperature: celsiusToKelvin(20), // 20°C = 293K
 };
 
 const BaseGasAttributes: MaterialAttributes = {
@@ -56,6 +62,7 @@ const BaseGasAttributes: MaterialAttributes = {
   color: [200, 200, 255, 100],
   hardness: 0,
   friction: 0.05, // Very low friction for gases
+  defaultTemperature: celsiusToKelvin(100), // 100°C = 373K (hot gas)
 };
 
 export const MaterialDefinitions: Partial<Record<ParticleType, MaterialAttributes>> = {
@@ -114,6 +121,7 @@ export const MaterialDefinitions: Partial<Record<ParticleType, MaterialAttribute
   color: [255, 0, 0, 255],
   hardness: 1,
   friction: 0.2,             // Slow flowing but still liquid
+  defaultTemperature: celsiusToKelvin(1000), // 1000°C = 1273K (molten rock)
 },
 
 [ParticleType.SLIME]: {
@@ -168,7 +176,7 @@ export const MaterialDefinitions: Partial<Record<ParticleType, MaterialAttribute
 /**
  * Get default base attributes for a particle type based on its category
  */
-function getDefaultBaseAttributes(particleType: number): MaterialAttributes {
+export function getDefaultBaseAttributes(particleType: number): MaterialAttributes {
   if (particleType >= ParticleTypeRanges.EMPTY_MIN && particleType <= ParticleTypeRanges.EMPTY_MAX) {
     return BaseEmptyAttributes;
   } else if (particleType >= ParticleTypeRanges.STATIC_MIN && particleType <= ParticleTypeRanges.STATIC_MAX) {
@@ -192,6 +200,7 @@ export function generateMaterialShaderConstants(): string {
   // Create arrays for each attribute
   const frictions: number[] = [];
   const densities: number[] = [];
+  const defaultTemperatures: number[] = [];
 
   // Fill arrays with material properties (indexed by particle type)
   for (let i = 0; i < 256; i++) {
@@ -200,6 +209,7 @@ export function generateMaterialShaderConstants(): string {
 
     frictions[i] = material?.friction ?? defaultMaterial.friction;
     densities[i] = material?.density ?? defaultMaterial.density;
+    defaultTemperatures[i] = material?.defaultTemperature ?? defaultMaterial.defaultTemperature;
   }
 
   return `
@@ -211,6 +221,11 @@ const float MATERIAL_FRICTIONS[256] = float[256](
 // Material density values (indexed by particle type)
 const float MATERIAL_DENSITIES[256] = float[256](
   ${densities.map(d => d.toFixed(1)).join(', ')}
+);
+
+// Material default temperatures in Kelvin (indexed by particle type)
+const float MATERIAL_DEFAULT_TEMPS[256] = float[256](
+  ${defaultTemperatures.map(t => t.toFixed(0) + '.0').join(', ')}
 );
 
 // Helper to get material friction
@@ -229,6 +244,15 @@ float getMaterialDensity(float particleType) {
     return MATERIAL_DENSITIES[index];
   }
   return 1000.0; // Default density
+}
+
+// Helper to get material default temperature in Kelvin
+float getMaterialDefaultTemperature(float particleType) {
+  int index = int(particleType);
+  if (index >= 0 && index < 256) {
+    return MATERIAL_DEFAULT_TEMPS[index];
+  }
+  return 298.0; // Default room temperature (25°C)
 }
 `;
 }

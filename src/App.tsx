@@ -21,16 +21,26 @@ import { saveLevel } from './utils/LevelSaver';
 
 function Scene({
   texture,
+  heatTexture,
   pixelSize,
   center,
   renderConfig,
 }: {
   texture: Texture;
+  heatTexture: DataTexture | null;
   pixelSize: number;
   center: { x: number; y: number };
   renderConfig: RenderConfig;
 }) {
-  return <TextureRenderer texture={texture} pixelSize={pixelSize} center={center} renderConfig={renderConfig} />;
+  return (
+    <TextureRenderer
+      texture={texture}
+      heatTexture={heatTexture}
+      pixelSize={pixelSize}
+      center={center}
+      renderConfig={renderConfig}
+    />
+  );
 }
 
 // Get all particle types except EMPTY and AIR
@@ -73,6 +83,9 @@ function App() {
 
   // FPS tracking
   const [fps, setFps] = useState<number>(0);
+
+  // Heat texture from simulation
+  const [heatTexture, setHeatTexture] = useState<DataTexture | null>(null);
 
   // Handle drawing particles and updating texture
   const handleDraw = useCallback((texture: DataTexture) => {
@@ -150,12 +163,13 @@ function App() {
           onTextureUpdate={(newTexture) => {
             setWorldTexture(newTexture);
           }}
+          onHeatTextureReady={setHeatTexture}
           enabled={simulationEnabled}
           config={simulationConfig}
           resetCount={resetCount}
           onFpsUpdate={setFps}
         />
-        <Scene texture={worldTexture} pixelSize={pixelSize} center={center} renderConfig={renderConfig} />
+        <Scene texture={worldTexture} heatTexture={heatTexture} pixelSize={pixelSize} center={center} renderConfig={renderConfig} />
       </Canvas>
 
       {/* Overlay Controls */}
