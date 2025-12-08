@@ -80,7 +80,7 @@ export const heatTransferFragmentShader = `
       float defaultTemp = getMaterialDefaultTemperature(particleType);
 
       // Transfer rate: 1K per tick toward equilibrium
-      float transferRate = 1.0;
+      float transferRate = 2.0;
 
       if (currentTemp > defaultTemp) {
         newTemp = max(defaultTemp, currentTemp - transferRate);
@@ -91,45 +91,61 @@ export const heatTransferFragmentShader = `
       // Phase 2: Diffusion with neighboring cells
       // Use variable block size and offset for less blocky appearance
 
-      // Random values based on position and iteration
-      float randBlock = hash(floor(vUv * uTextureSize / 3.0) + vec2(uRandomSeed));
-      float randOffset = hash(floor(vUv * uTextureSize / 2.0) + vec2(uRandomSeed * 1.5));
+      // Skip diffusion for empty cells (type 0-15) - don't lose heat to the void
+      bool isCurrentEmpty = particleType < 16.0;
+      if (isCurrentEmpty) {
+        // Empty cells just keep their default temperature, no diffusion
+        newTemp = currentTemp;
+      } else {
+        // Random values based on position and iteration
+        float randBlock = hash(floor(vUv * uTextureSize / 3.0) + vec2(uRandomSeed));
+        float randOffset = hash(floor(vUv * uTextureSize / 2.0) + vec2(uRandomSeed * 1.5));
 
-      // Vary block size between 2x2 and 3x3
-      int blockSize = randBlock > 0.5 ? 3 : 2;
+        // Vary block size between 2x2 and 3x3
+        int blockSize = randBlock > 0.5 ? 3 : 2;
 
-      // Variable offset (0 or 1 pixel in each direction)
-      vec2 offset = vec2(
-        randOffset > 0.5 ? pixelSize.x : 0.0,
-        fract(randOffset * 7.0) > 0.5 ? pixelSize.y : 0.0
-      );
+        // Variable offset (0 or 1 pixel in each direction)
+        vec2 offset = vec2(
+          randOffset > 0.5 ? pixelSize.x : 0.0,
+          fract(randOffset * 7.0) > 0.5 ? pixelSize.y : 0.0
+        );
 
-      // Sample neighbors and calculate average
-      float totalTemp = 0.0;
-      float count = 0.0;
+        // Sample neighbors and calculate average (only non-empty cells)
+        float totalTemp = 0.0;
+        float count = 0.0;
 
-      for (int dy = -1; dy <= 1; dy++) {
-        for (int dx = -1; dx <= 1; dx++) {
-          // Skip corners for 2x2 effective sampling
-          if (blockSize == 2 && abs(dx) + abs(dy) > 1) continue;
+        for (int dy = -1; dy <= 1; dy++) {
+          for (int dx = -1; dx <= 1; dx++) {
+            // Skip corners for 2x2 effective sampling
+            if (blockSize == 2 && abs(dx) + abs(dy) > 1) continue;
 
-          vec2 neighborUv = vUv + vec2(float(dx), float(dy)) * pixelSize + offset;
+            vec2 neighborUv = vUv + vec2(float(dx), float(dy)) * pixelSize + offset;
 
-          // Clamp to texture bounds
-          neighborUv = clamp(neighborUv, vec2(0.0), vec2(1.0));
+            // Clamp to texture bounds
+            neighborUv = clamp(neighborUv, vec2(0.0), vec2(1.0));
 
-          vec4 neighborHeat = texture2D(uHeatForceLayer, neighborUv);
-          float neighborTemp = decodeTemperature(neighborHeat);
+            // Check if neighbor is empty - skip if so (don't diffuse to/from void)
+            vec4 neighborState = texture2D(uCurrentState, neighborUv);
+            float neighborType = neighborState.r * 255.0;
+            bool isNeighborEmpty = neighborType < 16.0;
 
-          totalTemp += neighborTemp;
-          count += 1.0;
+            if (!isNeighborEmpty) {
+              vec4 neighborHeat = texture2D(uHeatForceLayer, neighborUv);
+              float neighborTemp = decodeTemperature(neighborHeat);
+
+              totalTemp += neighborTemp;
+              count += 1.0;
+            }
+          }
+        }
+
+        // Only diffuse if we found non-empty neighbors
+        if (count > 0.0) {
+          float avgTemp = totalTemp / count;
+          float diffusionRate = 0.3; // How much to blend toward average
+          newTemp = mix(currentTemp, avgTemp, diffusionRate);
         }
       }
-
-      // Blend current temperature with neighbors (partial diffusion)
-      float avgTemp = totalTemp / count;
-      float diffusionRate = 0.3; // How much to blend toward average
-      newTemp = mix(currentTemp, avgTemp, diffusionRate);
     }
 
     // Encode the new temperature

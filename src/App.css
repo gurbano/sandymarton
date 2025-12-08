@@ -11,7 +11,7 @@
 
 #main-canvas {
   display: block;
-  background-color: lightgrey;
+  background-color: #111;
 }
 
 /* Top bar - compact overlay */
@@ -316,12 +316,6 @@
 .mode-select:focus {
   outline: none;
   border-color: rgba(99, 102, 241, 0.5);
-}
-
-.mode-select option {
-  background: #1a1a1e;
-  color: rgba(255, 255, 255, 0.9);
-  padding: 0.5rem;
 }
 
 /* Sliders */
