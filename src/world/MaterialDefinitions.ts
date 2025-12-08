@@ -127,7 +127,7 @@ export const MaterialDefinitions: Partial<Record<ParticleType, MaterialAttribute
   ...BaseLiquidAttributes,
   density: 3100,             // Basaltic lava ~3000 kg/m3
   viscosity: 2000,           // Lava is extremely viscous
-  meltingPoint: -273,
+  meltingPoint: 700,         // Solidifies below 700°C (becomes stone)
   boilingPoint: 2000,
   color: [255, 0, 0, 255],
   hardness: 1,
@@ -395,6 +395,154 @@ float getMaterialThermalConductivity(float particleType) {
     return MATERIAL_THERMAL_CONDUCTIVITIES[index];
   }
   return 0.5; // Default medium conductivity
+}
+`;
+}
+
+/**
+ * Phase transition mappings
+ * Defines what particle type transforms to what when boiling/melting
+ * -1 means no transition occurs
+ */
+export const PhaseTransitions: Record<number, { boilsTo: number; meltsTo: number; condensesTo: number; freezesTo: number }> = {
+  // Water boils to steam, steam condenses to water
+  [ParticleType.WATER]: { boilsTo: ParticleType.STEAM, meltsTo: -1, condensesTo: -1, freezesTo: -1 },
+  [ParticleType.STEAM]: { boilsTo: -1, meltsTo: -1, condensesTo: ParticleType.WATER, freezesTo: -1 },
+
+  // Lava solidifies to stone when cooled below ~700°C
+  [ParticleType.LAVA]: { boilsTo: ParticleType.SMOKE, meltsTo: -1, condensesTo: -1, freezesTo: ParticleType.STONE },
+
+  // Oil boils to smoke
+  [ParticleType.OIL]: { boilsTo: ParticleType.SMOKE, meltsTo: -1, condensesTo: -1, freezesTo: -1 },
+
+  // Slime boils to steam (it's water-based)
+  [ParticleType.SLIME]: { boilsTo: ParticleType.STEAM, meltsTo: -1, condensesTo: -1, freezesTo: -1 },
+};
+
+/**
+ * Generate shader constants for phase transitions
+ * Creates GLSL arrays for melting/boiling points and transition targets
+ */
+export function generatePhaseTransitionShaderConstants(): string {
+  // Create arrays for phase transition data
+  const meltingPoints: number[] = [];
+  const boilingPoints: number[] = [];
+  const boilsTo: number[] = [];
+  const condensesTo: number[] = [];
+  const freezesTo: number[] = [];
+  const condensationTemps: number[] = []; // Temperature below which gas condenses
+
+  // Fill arrays with material properties (indexed by particle type)
+  for (let i = 0; i < 256; i++) {
+    const material = MaterialDefinitions[i as ParticleType];
+    const defaultMaterial = getDefaultBaseAttributes(i);
+    const transitions = PhaseTransitions[i];
+
+    // Get melting/boiling points in Kelvin
+    const meltingC = material?.meltingPoint ?? defaultMaterial.meltingPoint;
+    const boilingC = material?.boilingPoint ?? defaultMaterial.boilingPoint;
+    meltingPoints[i] = celsiusToKelvin(meltingC);
+    boilingPoints[i] = celsiusToKelvin(boilingC);
+
+    // Phase transition targets (-1 = no transition)
+    boilsTo[i] = transitions?.boilsTo ?? -1;
+    condensesTo[i] = transitions?.condensesTo ?? -1;
+    freezesTo[i] = transitions?.freezesTo ?? -1;
+
+    // For gases, the condensation temperature is the boiling point of what they condense to
+    if (transitions?.condensesTo !== undefined && transitions.condensesTo >= 0) {
+      const targetMaterial = MaterialDefinitions[transitions.condensesTo as ParticleType];
+      const targetDefault = getDefaultBaseAttributes(transitions.condensesTo);
+      const targetBoilingC = targetMaterial?.boilingPoint ?? targetDefault.boilingPoint;
+      condensationTemps[i] = celsiusToKelvin(targetBoilingC);
+    } else {
+      condensationTemps[i] = 0; // Won't condense
+    }
+  }
+
+  return `
+// Material melting points in Kelvin (indexed by particle type)
+const float MATERIAL_MELTING_POINTS[256] = float[256](
+  ${meltingPoints.map(t => t.toFixed(0) + '.0').join(', ')}
+);
+
+// Material boiling points in Kelvin (indexed by particle type)
+const float MATERIAL_BOILING_POINTS[256] = float[256](
+  ${boilingPoints.map(t => t.toFixed(0) + '.0').join(', ')}
+);
+
+// What particle type this boils/vaporizes to (-1 = no transition)
+const int MATERIAL_BOILS_TO[256] = int[256](
+  ${boilsTo.join(', ')}
+);
+
+// What particle type this condenses to (-1 = no transition)
+const int MATERIAL_CONDENSES_TO[256] = int[256](
+  ${condensesTo.join(', ')}
+);
+
+// What particle type this freezes/solidifies to (-1 = no transition)
+const int MATERIAL_FREEZES_TO[256] = int[256](
+  ${freezesTo.join(', ')}
+);
+
+// Temperature below which gas condenses (for gases only)
+const float MATERIAL_CONDENSATION_TEMPS[256] = float[256](
+  ${condensationTemps.map(t => t.toFixed(0) + '.0').join(', ')}
+);
+
+// Helper to get melting point
+float getMaterialMeltingPoint(float particleType) {
+  int index = int(particleType);
+  if (index >= 0 && index < 256) {
+    return MATERIAL_MELTING_POINTS[index];
+  }
+  return 1500.0; // Default high melting point
+}
+
+// Helper to get boiling point
+float getMaterialBoilingPoint(float particleType) {
+  int index = int(particleType);
+  if (index >= 0 && index < 256) {
+    return MATERIAL_BOILING_POINTS[index];
+  }
+  return 3000.0; // Default high boiling point
+}
+
+// Helper to get what this particle boils to (-1 if no transition)
+int getMaterialBoilsTo(float particleType) {
+  int index = int(particleType);
+  if (index >= 0 && index < 256) {
+    return MATERIAL_BOILS_TO[index];
+  }
+  return -1;
+}
+
+// Helper to get what this particle condenses to (-1 if no transition)
+int getMaterialCondensesTo(float particleType) {
+  int index = int(particleType);
+  if (index >= 0 && index < 256) {
+    return MATERIAL_CONDENSES_TO[index];
+  }
+  return -1;
+}
+
+// Helper to get what this particle freezes to (-1 if no transition)
+int getMaterialFreezesTo(float particleType) {
+  int index = int(particleType);
+  if (index >= 0 && index < 256) {
+    return MATERIAL_FREEZES_TO[index];
+  }
+  return -1;
+}
+
+// Helper to get condensation temperature (for gases)
+float getMaterialCondensationTemp(float particleType) {
+  int index = int(particleType);
+  if (index >= 0 && index < 256) {
+    return MATERIAL_CONDENSATION_TEMPS[index];
+  }
+  return 0.0;
 }
 `;
 }

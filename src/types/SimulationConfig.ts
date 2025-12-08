@@ -9,6 +9,7 @@ export enum SimulationStepType {
   ARCHIMEDES = 'archimedes',
   HEAT_TRANSFER = 'heat-transfer',
   PARTICLE_ONLY_HEAT = 'particle-only-heat',
+  PHASE_TRANSITION = 'phase-transition',
   FORCE_TRANSFER = 'force-transfer',
 }
 
@@ -62,6 +63,13 @@ export const DEFAULT_SIMULATION_CONFIG: SimulationConfig = {
       passes: 2,
       name: 'Particle Heat',
       description: 'Direct particle-to-particle heat diffusion (faster)',
+    },
+    {
+      type: SimulationStepType.PHASE_TRANSITION,
+      enabled: true,
+      passes: 1,
+      name: 'Phase Transition',
+      description: 'Transform particles based on temperature (boiling, melting)',
     },
     {
       type: SimulationStepType.FORCE_TRANSFER,

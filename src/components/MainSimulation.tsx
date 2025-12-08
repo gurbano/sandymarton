@@ -29,6 +29,10 @@ import {
   forceTransferFragmentShader,
   forceTransferVertexShader,
 } from '../shaders/forceTransferShaders';
+import {
+  phaseTransitionFragmentShader,
+  phaseTransitionVertexShader,
+} from '../shaders/phaseTransitionShaders';
 import { useFrame, useThree } from '@react-three/fiber';
 import type { SimulationConfig } from '../types/SimulationConfig';
 import { SimulationStepType } from '../types/SimulationConfig';
@@ -136,6 +140,7 @@ function MainSimulation({
   const archimedesSceneRef = useRef<SimulationResources | null>(null);
   const heatTransferSceneRef = useRef<SimulationResources | null>(null);
   const particleOnlyHeatSceneRef = useRef<SimulationResources | null>(null);
+  const phaseTransitionSceneRef = useRef<SimulationResources | null>(null);
   const forceTransferSceneRef = useRef<SimulationResources | null>(null);
   const margolusIterationRef = useRef(0);
   const liquidSpreadIterationRef = useRef(0);
@@ -229,6 +234,12 @@ function MainSimulation({
       fragmentShader: particleOnlyHeatFragmentShader,
     });
 
+    // Create phase transition resources (transforms particles based on temperature)
+    const phaseTransitionResources = createSimulationResources(textureSize, worldTexture, {
+      vertexShader: phaseTransitionVertexShader,
+      fragmentShader: phaseTransitionFragmentShader,
+    });
+
     const forceTransferResources = createSimulationResources(textureSize, worldTexture, {
       vertexShader: forceTransferVertexShader,
       fragmentShader: forceTransferFragmentShader,
@@ -240,6 +251,7 @@ function MainSimulation({
     archimedesSceneRef.current = archimedesResources;
     heatTransferSceneRef.current = heatTransferResources;
     particleOnlyHeatSceneRef.current = particleOnlyHeatResources;
+    phaseTransitionSceneRef.current = phaseTransitionResources;
     forceTransferSceneRef.current = forceTransferResources;
 
     // Initialize render targets
@@ -270,6 +282,7 @@ function MainSimulation({
         archimedesResources,
         heatTransferResources,
         particleOnlyHeatResources,
+        phaseTransitionResources,
         forceTransferResources,
       ].forEach((resources) => {
         resources.scene.remove(resources.mesh);
@@ -415,7 +428,36 @@ function MainSimulation({
       }
     }
 
-    // Single GPU read-back at the end of all processing (particle sim + heat transfer)
+    // Execute phase transitions (transforms particles based on temperature)
+    // Runs after heat transfer so particles have updated temperatures
+    const phaseTransitionStep = config.steps.find(
+      (s) => s.type === SimulationStepType.PHASE_TRANSITION
+    );
+    if (phaseTransitionStep?.enabled && phaseTransitionStep.passes > 0) {
+      const phaseResources = phaseTransitionSceneRef.current;
+      if (phaseResources) {
+        for (let i = 0; i < phaseTransitionStep.passes; i++) {
+          const targetRT = renderTargets[rtIndex % renderTargets.length];
+
+          // Update uniforms - only needs particle state texture
+          phaseResources.material.uniforms.uCurrentState.value = currentSource;
+          phaseResources.material.uniforms.uTextureSize.value.set(textureSize, textureSize);
+          phaseResources.camera.position.z = 1;
+          phaseResources.camera.updateProjectionMatrix();
+
+          // Render phase transition to target
+          gl.setRenderTarget(targetRT);
+          gl.render(phaseResources.scene, phaseResources.camera);
+          gl.setRenderTarget(null);
+
+          // Update source for next pass
+          currentSource = targetRT.texture;
+          rtIndex++;
+        }
+      }
+    }
+
+    // Single GPU read-back at the end of all processing (particle sim + heat transfer + phase transition)
     if (rtIndex > 0) {
       const finalRT = renderTargets[(rtIndex - 1) % renderTargets.length];
       const pixels = new Uint8Array(textureSize * textureSize * 4);
