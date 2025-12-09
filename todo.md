@@ -5,6 +5,7 @@ done
 - solid/liquid materials interaction (float and sink)
 - ui fps/particle count
 - temperature, force, etc overlays
+- state change (evaporation, sublimation)
 
 to improve:
 
@@ -18,11 +19,12 @@ bugs:
 
 todo:
 
-- state change (evaporation, sublimation)
-- materials interaction (mix)
-
+- draw heater/cooler
+- heat/cool sources
 - dynamic particles
+- materials interaction (mix)
+  - background
+
 - new renderer
   - bloom
   - texture
-  - background

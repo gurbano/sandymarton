@@ -50,6 +50,7 @@ interface MainSimulationProps {
   config: SimulationConfig;
   resetCount?: number;
   onFpsUpdate?: (fps: number) => void;
+  shouldCaptureHeatLayer?: boolean;
 }
 
 const generateRenderTarget = (size: number) =>
@@ -117,6 +118,7 @@ function MainSimulation({
   config,
   resetCount = 0,
   onFpsUpdate,
+  shouldCaptureHeatLayer = false,
 }: MainSimulationProps) {
   const { gl } = useThree();
 
@@ -147,6 +149,11 @@ function MainSimulation({
   const archimedesIterationRef = useRef(0);
   const heatTransferIterationRef = useRef(0);
   const forceTransferIterationRef = useRef(0);
+  const shouldCaptureHeatLayerRef = useRef(shouldCaptureHeatLayer);
+
+  useEffect(() => {
+    shouldCaptureHeatLayerRef.current = shouldCaptureHeatLayer;
+  }, [shouldCaptureHeatLayer]);
   const initializedRef = useRef(false);
 
   // Heat/Force layer texture - stores tempLow (R), tempHigh (G), forceX (B), forceY (A)
@@ -227,8 +234,12 @@ function MainSimulation({
       fragmentShader: ambientHeatTransferFragmentShader,
     });
     heatTransferResources.material.uniforms.uHeatForceLayer = { value: heatForceTexture };
-    heatTransferResources.material.uniforms.uEmissionMultiplier = { value: DEFAULT_AMBIENT_HEAT_SETTINGS.emissionMultiplier };
-    heatTransferResources.material.uniforms.uDiffusionMultiplier = { value: DEFAULT_AMBIENT_HEAT_SETTINGS.diffusionMultiplier };
+  heatTransferResources.material.uniforms.uEmissionMultiplier = { value: DEFAULT_AMBIENT_HEAT_SETTINGS.emissionMultiplier };
+  heatTransferResources.material.uniforms.uDiffusionMultiplier = { value: DEFAULT_AMBIENT_HEAT_SETTINGS.diffusionMultiplier };
+  heatTransferResources.material.uniforms.uEquilibriumStrength = { value: DEFAULT_AMBIENT_HEAT_SETTINGS.equilibriumStrength };
+  heatTransferResources.material.uniforms.uEquilibriumTemperature = { value: DEFAULT_AMBIENT_HEAT_SETTINGS.equilibriumTemperature };
+  heatTransferResources.material.uniforms.uEquilibriumMaxDelta = { value: DEFAULT_AMBIENT_HEAT_SETTINGS.equilibriumMaxDelta };
+  heatTransferResources.material.uniforms.uEquilibriumEnabled = { value: 1 };
 
     // Create particle-only heat transfer resources (direct particle-to-particle heat diffusion, no heat layer)
     const particleOnlyHeatResources = createSimulationResources(textureSize, worldTexture, {
@@ -485,10 +496,18 @@ function MainSimulation({
         let heatRtIndex = currentHeatRTIndexRef.current;
 
   const ambientSettings = config.ambientHeatSettings ?? DEFAULT_AMBIENT_HEAT_SETTINGS;
+  heatTransferIterationRef.current += 1;
+  const interval = Math.max(1, Math.floor(ambientSettings.equilibriumInterval ?? 1));
+  const applyEquilibrium = ambientSettings.equilibriumStrength > 0 && (interval <= 1 || (heatTransferIterationRef.current % interval === 0));
+
   heatResources.material.uniforms.uEmissionMultiplier.value = ambientSettings.emissionMultiplier;
   heatResources.material.uniforms.uDiffusionMultiplier.value = ambientSettings.diffusionMultiplier;
+  heatResources.material.uniforms.uEquilibriumStrength.value = ambientSettings.equilibriumStrength;
+  heatResources.material.uniforms.uEquilibriumTemperature.value = ambientSettings.equilibriumTemperature;
+  heatResources.material.uniforms.uEquilibriumMaxDelta.value = ambientSettings.equilibriumMaxDelta;
+  heatResources.material.uniforms.uEquilibriumEnabled.value = applyEquilibrium ? 1 : 0;
 
-  for (let i = 0; i < ambientHeatStep.passes; i++) {
+        for (let i = 0; i < ambientHeatStep.passes; i++) {
           const targetRT = heatRenderTargets[heatRtIndex % heatRenderTargets.length];
 
           // Update uniforms
@@ -514,13 +533,15 @@ function MainSimulation({
         if (heatRtIndex > 0) {
           const finalHeatRT = heatRenderTargets[(heatRtIndex - 1) % heatRenderTargets.length];
 
-          // Refresh CPU-side ambient heat texture for tooling/inspection
-          const ambientTexture = heatForceLayerRef.current;
-          const ambientImage = ambientTexture.image as { data?: Uint8Array } | undefined;
-          const ambientPixels = ambientImage?.data;
-          if (ambientPixels instanceof Uint8Array) {
-            gl.readRenderTargetPixels(finalHeatRT, 0, 0, textureSize, textureSize, ambientPixels);
-            ambientTexture.needsUpdate = true;
+          if (shouldCaptureHeatLayerRef.current) {
+            // Refresh CPU-side ambient heat texture for tooling/inspection when requested
+            const ambientTexture = heatForceLayerRef.current;
+            const ambientImage = ambientTexture.image as { data?: Uint8Array } | undefined;
+            const ambientPixels = ambientImage?.data;
+            if (ambientPixels instanceof Uint8Array) {
+              gl.readRenderTargetPixels(finalHeatRT, 0, 0, textureSize, textureSize, ambientPixels);
+              ambientTexture.needsUpdate = true;
+            }
           }
 
           if (heatRTRef) {

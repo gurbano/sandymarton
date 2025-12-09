@@ -1,4 +1,6 @@
 import { useState, useCallback } from 'react';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faChevronDown, faChevronRight } from '@fortawesome/free-solid-svg-icons';
 import type { WheelEvent as ReactWheelEvent } from 'react';
 import type { DataTexture } from 'three';
 import { ParticleType } from '../world/ParticleTypes';
@@ -26,6 +28,10 @@ export function StatusBar({
   onSimulationConfigChange,
 }: StatusBarProps) {
   const [showSimSettings, setShowSimSettings] = useState(false);
+  const [showAmbientSettings, setShowAmbientSettings] = useState(true);
+  const [showEmissionSettings, setShowEmissionSettings] = useState(true);
+  const [showDiffusionSettings, setShowDiffusionSettings] = useState(true);
+  const [showDecaySettings, setShowDecaySettings] = useState(true);
   const handleSettingsWheel = useCallback((event: ReactWheelEvent<HTMLDivElement>) => {
     event.stopPropagation();
     const container = event.currentTarget;
@@ -60,8 +66,21 @@ export function StatusBar({
     });
   };
 
+  const handleEquilibriumTemperatureChange = (celsiusValue: number) => {
+    const kelvinValue = celsiusValue + 273.15;
+    handleAmbientHeatChange('equilibriumTemperature', kelvinValue);
+  };
+
+  const handleEquilibriumIntervalChange = (value: number) => {
+    const interval = Math.max(1, Math.round(value));
+    handleAmbientHeatChange('equilibriumInterval', interval);
+  };
+
   const enabledStepsCount = simulationConfig.steps.filter(s => s.enabled).length;
   const ambientSettings = simulationConfig.ambientHeatSettings ?? DEFAULT_AMBIENT_HEAT_SETTINGS;
+  const equilibriumTargetCelsius = ambientSettings.equilibriumTemperature - 273.15;
+  const equilibriumMaxDeltaCelsius = ambientSettings.equilibriumMaxDelta;
+  const equilibriumInterval = Math.max(1, Math.round(ambientSettings.equilibriumInterval));
 
   return (
     <div className="status-bar">
@@ -115,39 +134,174 @@ export function StatusBar({
 
               <div className="tooltip-divider"></div>
 
-              {/* Ambient Heat Controls */}
-              <div className="sim-setting-group">
-                <div className="sim-setting-row">
-                  <span className="sim-setting-label">Ambient Coupling</span>
-                  <span className="sim-setting-value">{ambientSettings.emissionMultiplier.toFixed(1)}x</span>
-                </div>
-                <input
-                  type="range"
-                  min="0"
-                  max="5"
-                  step="0.1"
-                  value={ambientSettings.emissionMultiplier}
-                  onChange={(e) => handleAmbientHeatChange('emissionMultiplier', parseFloat(e.target.value))}
-                  className="sim-slider"
-                  onClick={(e) => e.stopPropagation()}
-                />
-              </div>
+              <div className="settings-group collapsible">
+                <button
+                  type="button"
+                  className={`settings-group-toggle ${showAmbientSettings ? 'expanded' : ''}`}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setShowAmbientSettings(prev => !prev);
+                  }}
+                >
+                  <FontAwesomeIcon icon={showAmbientSettings ? faChevronDown : faChevronRight} />
+                  <span>Ambient Heat Transfer</span>
+                </button>
+                {showAmbientSettings && (
+                  <div className="settings-group-content">
+                    <div className="settings-group collapsible">
+                      <button
+                        type="button"
+                        className={`settings-group-toggle ${showEmissionSettings ? 'expanded' : ''}`}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setShowEmissionSettings(prev => !prev);
+                        }}
+                      >
+                        <FontAwesomeIcon icon={showEmissionSettings ? faChevronDown : faChevronRight} />
+                        <span>Emission</span>
+                      </button>
+                      {showEmissionSettings && (
+                        <div className="settings-group-content">
+                          <div className="sim-setting-group">
+                            <div className="sim-setting-row">
+                              <span className="sim-setting-label">Emission Strength</span>
+                              <span className="sim-setting-value">{ambientSettings.emissionMultiplier.toFixed(1)}x</span>
+                            </div>
+                            <input
+                              type="range"
+                              min="0"
+                              max="5"
+                              step="0.1"
+                              value={ambientSettings.emissionMultiplier}
+                              onChange={(e) => handleAmbientHeatChange('emissionMultiplier', parseFloat(e.target.value))}
+                              className="sim-slider"
+                              onClick={(e) => e.stopPropagation()}
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
 
-              <div className="sim-setting-group">
-                <div className="sim-setting-row">
-                  <span className="sim-setting-label">Ambient Diffusion</span>
-                  <span className="sim-setting-value">{ambientSettings.diffusionMultiplier.toFixed(2)}x</span>
-                </div>
-                <input
-                  type="range"
-                  min="0"
-                  max="2"
-                  step="0.05"
-                  value={ambientSettings.diffusionMultiplier}
-                  onChange={(e) => handleAmbientHeatChange('diffusionMultiplier', parseFloat(e.target.value))}
-                  className="sim-slider"
-                  onClick={(e) => e.stopPropagation()}
-                />
+                    <div className="settings-group collapsible">
+                      <button
+                        type="button"
+                        className={`settings-group-toggle ${showDiffusionSettings ? 'expanded' : ''}`}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setShowDiffusionSettings(prev => !prev);
+                        }}
+                      >
+                        <FontAwesomeIcon icon={showDiffusionSettings ? faChevronDown : faChevronRight} />
+                        <span>Diffusion</span>
+                      </button>
+                      {showDiffusionSettings && (
+                        <div className="settings-group-content">
+                          <div className="sim-setting-group">
+                            <div className="sim-setting-row">
+                              <span className="sim-setting-label">Diffusion Strength</span>
+                              <span className="sim-setting-value">{ambientSettings.diffusionMultiplier.toFixed(2)}x</span>
+                            </div>
+                            <input
+                              type="range"
+                              min="0"
+                              max="2"
+                              step="0.05"
+                              value={ambientSettings.diffusionMultiplier}
+                              onChange={(e) => handleAmbientHeatChange('diffusionMultiplier', parseFloat(e.target.value))}
+                              className="sim-slider"
+                              onClick={(e) => e.stopPropagation()}
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="settings-group collapsible">
+                      <button
+                        type="button"
+                        className={`settings-group-toggle ${showDecaySettings ? 'expanded' : ''}`}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setShowDecaySettings(prev => !prev);
+                        }}
+                      >
+                        <FontAwesomeIcon icon={showDecaySettings ? faChevronDown : faChevronRight} />
+                        <span>Decay</span>
+                      </button>
+                      {showDecaySettings && (
+                        <div className="settings-group-content">
+                          <div className="sim-setting-group">
+                            <div className="sim-setting-row">
+                              <span className="sim-setting-label">Decay Blend</span>
+                              <span className="sim-setting-value">{ambientSettings.equilibriumStrength.toFixed(2)}</span>
+                            </div>
+                            <input
+                              type="range"
+                              min="0"
+                              max="1"
+                              step="0.01"
+                              value={ambientSettings.equilibriumStrength}
+                              onChange={(e) => handleAmbientHeatChange('equilibriumStrength', parseFloat(e.target.value))}
+                              className="sim-slider"
+                              onClick={(e) => e.stopPropagation()}
+                            />
+                          </div>
+
+                          <div className="sim-setting-group">
+                            <div className="sim-setting-row">
+                              <span className="sim-setting-label">Decay Target</span>
+                              <span className="sim-setting-value">{equilibriumTargetCelsius.toFixed(0)}°C</span>
+                            </div>
+                            <input
+                              type="range"
+                              min="-100"
+                              max="500"
+                              step="5"
+                              value={equilibriumTargetCelsius}
+                              onChange={(e) => handleEquilibriumTemperatureChange(parseFloat(e.target.value))}
+                              className="sim-slider"
+                              onClick={(e) => e.stopPropagation()}
+                            />
+                          </div>
+
+                          <div className="sim-setting-group">
+                            <div className="sim-setting-row">
+                              <span className="sim-setting-label">Max Decay Δ</span>
+                              <span className="sim-setting-value">{equilibriumMaxDeltaCelsius.toFixed(1)}°C</span>
+                            </div>
+                            <input
+                              type="range"
+                              min="0"
+                              max="200"
+                              step="0.5"
+                              value={equilibriumMaxDeltaCelsius}
+                              onChange={(e) => handleAmbientHeatChange('equilibriumMaxDelta', parseFloat(e.target.value))}
+                              className="sim-slider"
+                              onClick={(e) => e.stopPropagation()}
+                            />
+                          </div>
+
+                          <div className="sim-setting-group">
+                            <div className="sim-setting-row">
+                              <span className="sim-setting-label">Decay Interval</span>
+                              <span className="sim-setting-value">{equilibriumInterval}f</span>
+                            </div>
+                            <input
+                              type="range"
+                              min="1"
+                              max="120"
+                              step="1"
+                              value={equilibriumInterval}
+                              onChange={(e) => handleEquilibriumIntervalChange(parseFloat(e.target.value))}
+                              className="sim-slider"
+                              onClick={(e) => e.stopPropagation()}
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="tooltip-divider"></div>

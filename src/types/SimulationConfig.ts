@@ -24,6 +24,10 @@ export interface SimulationStep {
 export interface AmbientHeatSettings {
   emissionMultiplier: number;
   diffusionMultiplier: number;
+  equilibriumStrength: number;
+  equilibriumTemperature: number;
+  equilibriumMaxDelta: number;
+  equilibriumInterval: number;
 }
 
 export interface SimulationConfig {
@@ -33,8 +37,12 @@ export interface SimulationConfig {
 }
 
 export const DEFAULT_AMBIENT_HEAT_SETTINGS: AmbientHeatSettings = {
-  emissionMultiplier: 2.5,
-  diffusionMultiplier: 1.0,
+  emissionMultiplier: 1,
+  diffusionMultiplier: 0.1,
+  equilibriumStrength: 0.01,
+  equilibriumTemperature: 298.0,
+  equilibriumMaxDelta: 1,
+  equilibriumInterval: 1,
 };
 
 export const DEFAULT_SIMULATION_CONFIG: SimulationConfig = {

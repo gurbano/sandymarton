@@ -33,6 +33,10 @@ export const ambientHeatTransferFragmentShader = `
   uniform float uRandomSeed;
   uniform float uEmissionMultiplier;
   uniform float uDiffusionMultiplier;
+  uniform float uEquilibriumStrength;
+  uniform float uEquilibriumTemperature;
+  uniform float uEquilibriumMaxDelta;
+  uniform float uEquilibriumEnabled;
 
   varying vec2 vUv;
 
@@ -89,29 +93,22 @@ export const ambientHeatTransferFragmentShader = `
     // Get thermal properties for this material
     float thermalConductivity = getMaterialThermalConductivity(particleType);
 
-    // === STEP 1: Particle heat emission to environment ===
-    // Non-empty particles exchange heat with the environment
-    // Heat flows from particle to environment based on temperature difference
+  // === Step 1: Emission (particle heat feeds the environment) ===
+  // Non-empty particles exchange heat with the environment
     if (!isCurrentEmpty) {
-      // Heat flows based on difference between particle and environment (not room temp)
-      // This prevents unbounded accumulation
-      float tempDiff = particleTemp - envTemp;
+      // Emission strength depends on material conductivity and user multiplier
+      float emissionMultiplier = max(uEmissionMultiplier, 0.0);
+      float conductivityFactor = clamp(thermalConductivity, 0.0, 1.0);
+      float emissionStrength = clamp(emissionMultiplier * conductivityFactor, 0.0, 1.0);
 
-      // Emission rate depends on thermal conductivity
-      // High conductivity = transfers heat quickly (conductors)
-      // Low conductivity = transfers heat slowly (insulators)
-  float emissionMultiplier = max(uEmissionMultiplier, 0.0);
-  float emissionRate = 0.02 * thermalConductivity * emissionMultiplier;
-  emissionRate = clamp(emissionRate, 0.0, 1.0);
-
-      // Transfer heat from particle to environment
-      newEnvTemp = newEnvTemp + tempDiff * emissionRate;
+      // Blend toward particle temperature for stability
+      newEnvTemp = mix(newEnvTemp, particleTemp, emissionStrength);
 
       // Clamp to valid 16-bit range (same as particle temperature)
       newEnvTemp = clamp(newEnvTemp, 0.0, 65535.0);
     }
 
-    // === STEP 2: Diffusion (environmental heat spreads between cells) ===
+  // === Step 2: Diffusion (environmental heat spreads between cells) ===
     // Random offset for symmetry (prevents directional bias)
     float randOffset = hash(floor(vUv * uTextureSize / 2.0) + vec2(uRandomSeed * 1.5));
     vec2 offset = vec2(
@@ -157,19 +154,20 @@ export const ambientHeatTransferFragmentShader = `
       newEnvTemp = clamp(newEnvTemp, 0.0, 65535.0);
     }
 
-    // === STEP 3: Equilibrium (environment trends toward room temperature) ===
-    float roomTemp = 298.0; // Room temperature in Kelvin
-    float tempDiff = abs(newEnvTemp - roomTemp);
+  // === Step 3: Decay (environment trends toward configurable temperature) ===
+    float equilibriumStrength = clamp(uEquilibriumStrength, 0.0, 1.0);
+    if (equilibriumStrength > 0.0 && uEquilibriumEnabled > 0.5) {
+      float targetTemp = max(uEquilibriumTemperature, 0.0);
+      float blendedTemp = mix(newEnvTemp, targetTemp, equilibriumStrength);
 
-    // Slow decay toward room temperature
-    float baseRate = 0.01;
-    float maxRate = 2.0;
-    float decayRate = min(tempDiff * baseRate, maxRate);
-
-    if (newEnvTemp > roomTemp) {
-      newEnvTemp = max(roomTemp, newEnvTemp - decayRate);
-    } else if (newEnvTemp < roomTemp) {
-      newEnvTemp = min(roomTemp, newEnvTemp + decayRate);
+      float maxDelta = max(uEquilibriumMaxDelta, 0.0);
+      if (maxDelta > 0.0) {
+        float delta = blendedTemp - newEnvTemp;
+        delta = clamp(delta, -maxDelta, maxDelta);
+        newEnvTemp = newEnvTemp + delta;
+      } else {
+        newEnvTemp = blendedTemp;
+      }
     }
 
     // Encode the new environmental temperature

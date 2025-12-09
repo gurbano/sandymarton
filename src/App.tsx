@@ -1,5 +1,5 @@
 import { Canvas } from '@react-three/fiber';
-import { useState, useMemo, useCallback, useRef } from 'react';
+import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import type { RefObject } from 'react';
 import { DataTexture, Texture } from 'three';
 import './App.css';
@@ -72,9 +72,17 @@ function App() {
 
   // Tool mode state (inspect, add, remove, fill)
   const [toolMode, setToolMode] = useState<'inspect' | 'add' | 'remove' | 'fill'>('add');
+  const [userToolMode, setUserToolMode] = useState<'inspect' | 'add' | 'remove' | 'fill'>('add');
+  const shiftPressedRef = useRef(false);
+  const userToolModeRef = useRef<'inspect' | 'add' | 'remove' | 'fill'>('add');
 
   // Brush size state
   const [brushSize, setBrushSize] = useState<number>(3);
+
+  useEffect(() => {
+    userToolModeRef.current = userToolMode;
+  }, [userToolMode]);
+
 
   // Simulation configuration
   const [simulationConfig, setSimulationConfig] = useState<SimulationConfig>(DEFAULT_SIMULATION_CONFIG);
@@ -100,6 +108,61 @@ function App() {
 
   // Inspect tooltip ref - direct DOM manipulation for performance
   const inspectTooltipRef = useRef<HTMLDivElement>(null);
+
+  const hideInspectTooltip = useCallback(() => {
+    const tooltip = inspectTooltipRef.current;
+    if (tooltip) {
+      tooltip.style.display = 'none';
+    }
+  }, []);
+
+  const handleToolModeChange = useCallback((mode: 'inspect' | 'add' | 'remove' | 'fill') => {
+    setUserToolMode(mode);
+    userToolModeRef.current = mode;
+
+    if (!shiftPressedRef.current || mode === 'inspect') {
+      setToolMode(mode);
+      if (mode !== 'inspect') {
+        hideInspectTooltip();
+      }
+    } else {
+      setToolMode('inspect');
+    }
+  }, [hideInspectTooltip]);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.code === 'ShiftLeft' && !event.repeat && !shiftPressedRef.current) {
+        shiftPressedRef.current = true;
+        setToolMode(prev => (prev === 'inspect' ? prev : 'inspect'));
+      }
+    };
+
+    const handleKeyUp = (event: KeyboardEvent) => {
+      if (event.code === 'ShiftLeft') {
+        shiftPressedRef.current = false;
+        const targetMode = userToolModeRef.current;
+        setToolMode(targetMode);
+        if (targetMode !== 'inspect') {
+          hideInspectTooltip();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
+  }, [hideInspectTooltip]);
+
+  useEffect(() => {
+    if (toolMode !== 'inspect') {
+      hideInspectTooltip();
+    }
+  }, [toolMode, hideInspectTooltip]);
 
   // Update brush cursor directly via DOM (bypasses React rendering)
   const handleMouseMove = useCallback((pos: { x: number; y: number } | null) => {
@@ -256,6 +319,7 @@ function App() {
           config={simulationConfig}
           resetCount={resetCount}
           onFpsUpdate={setFps}
+          shouldCaptureHeatLayer={toolMode === 'inspect'}
         />
         <Scene texture={worldTexture} heatTextureRef={heatRTRef} pixelSize={pixelSize} center={center} renderConfig={renderConfig} />
       </Canvas>
@@ -272,8 +336,8 @@ function App() {
         onWorldInitTypeChange={setWorldInitType}
         onLoadLevel={handleLoadLevel}
         onSaveLevel={handleSaveLevel}
-        toolMode={toolMode}
-        onToolModeChange={setToolMode}
+  toolMode={toolMode}
+  onToolModeChange={handleToolModeChange}
         brushSize={brushSize}
         onBrushSizeChange={setBrushSize}
       />
