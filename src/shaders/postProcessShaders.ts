@@ -95,81 +95,119 @@ ${generateParticleGlowCode()}
 
     float selfGlow = getParticleGlow(particleType);
     vec3 baseRgb = baseColor.rgb;
-    vec3 glowAccum = vec3(0.0);
-    float totalWeight = 0.0;
 
-    float baseSelfWeight = selfGlow * 0.35;
-    glowAccum += baseRgb * baseSelfWeight;
-    totalWeight += baseSelfWeight;
+    float glowFactor = clamp(selfGlow, 0.0, 1.5);
+    float luminance = dot(baseRgb, vec3(0.299, 0.587, 0.114));
+    vec3 vividBase = mix(vec3(luminance), baseRgb, clamp(0.35 + glowFactor * 0.5, 0.0, 1.0));
+    vec3 emissiveBase = clamp(vividBase * (1.05 + glowFactor * 0.75), 0.0, 1.5);
+
+    float radiusBase = max(uGlowRadius, 0.5);
+    float radiusMultiplier = radiusBase * (0.85 + glowFactor * 0.95);
 
     vec2 texelSize = 1.0 / uTextureSize;
-    vec2 offsets[8];
-    offsets[0] = vec2(1.0, 0.0);
-    offsets[1] = vec2(-1.0, 0.0);
-    offsets[2] = vec2(0.0, 1.0);
-    offsets[3] = vec2(0.0, -1.0);
-    offsets[4] = vec2(1.0, 1.0);
-    offsets[5] = vec2(-1.0, 1.0);
-    offsets[6] = vec2(1.0, -1.0);
-    offsets[7] = vec2(-1.0, -1.0);
 
-    float weights[8];
-    weights[0] = 1.0;
-    weights[1] = 1.0;
-    weights[2] = 1.0;
-    weights[3] = 1.0;
-    weights[4] = 0.7;
-    weights[5] = 0.7;
-    weights[6] = 0.7;
-    weights[7] = 0.7;
+    vec2 sampleOffsets[16];
+    float sampleDistance[16];
+    float sampleWeights[16];
 
+    sampleOffsets[0] = vec2(1.0, 0.0); sampleDistance[0] = 1.0; sampleWeights[0] = 1.05;
+    sampleOffsets[1] = vec2(-1.0, 0.0); sampleDistance[1] = 1.0; sampleWeights[1] = 1.05;
+    sampleOffsets[2] = vec2(0.0, 1.0); sampleDistance[2] = 1.0; sampleWeights[2] = 1.05;
+    sampleOffsets[3] = vec2(0.0, -1.0); sampleDistance[3] = 1.0; sampleWeights[3] = 1.05;
+
+    sampleOffsets[4] = vec2(1.0, 1.0); sampleDistance[4] = 1.4; sampleWeights[4] = 0.85;
+    sampleOffsets[5] = vec2(-1.0, 1.0); sampleDistance[5] = 1.4; sampleWeights[5] = 0.85;
+    sampleOffsets[6] = vec2(1.0, -1.0); sampleDistance[6] = 1.4; sampleWeights[6] = 0.85;
+    sampleOffsets[7] = vec2(-1.0, -1.0); sampleDistance[7] = 1.4; sampleWeights[7] = 0.85;
+
+    sampleOffsets[8] = vec2(2.0, 0.0); sampleDistance[8] = 2.0; sampleWeights[8] = 0.68;
+    sampleOffsets[9] = vec2(-2.0, 0.0); sampleDistance[9] = 2.0; sampleWeights[9] = 0.68;
+    sampleOffsets[10] = vec2(0.0, 2.0); sampleDistance[10] = 2.0; sampleWeights[10] = 0.68;
+    sampleOffsets[11] = vec2(0.0, -2.0); sampleDistance[11] = 2.0; sampleWeights[11] = 0.68;
+
+    sampleOffsets[12] = vec2(2.0, 1.0); sampleDistance[12] = 2.24; sampleWeights[12] = 0.55;
+    sampleOffsets[13] = vec2(-2.0, 1.0); sampleDistance[13] = 2.24; sampleWeights[13] = 0.55;
+    sampleOffsets[14] = vec2(2.0, -1.0); sampleDistance[14] = 2.24; sampleWeights[14] = 0.55;
+    sampleOffsets[15] = vec2(-2.0, -1.0); sampleDistance[15] = 2.24; sampleWeights[15] = 0.55;
+
+  vec3 emissiveAccum = emissiveBase * (glowFactor * 0.6 + 0.08);
+  float emissiveWeight = glowFactor * 0.6 + 0.08;
     float borderSum = 0.0;
     float emptySum = 0.0;
-    float sameSum = 0.0;
+    float sampleWeightSum = 0.0;
+  float highGlowSum = 0.0;
+  vec3 highGlowColor = vec3(0.0);
 
-    for (int i = 0; i < 8; i++) {
-      vec2 scaledOffset = offsets[i] * texelSize * max(uGlowRadius, 0.5);
+    for (int i = 0; i < 16; i++) {
+      float ringScale = sampleDistance[i];
+      float relationWeight = sampleWeights[i];
+      sampleWeightSum += relationWeight;
+
+      vec2 scaledOffset = sampleOffsets[i] * texelSize * radiusMultiplier * ringScale;
       vec2 neighborUV = clamp(vUv + scaledOffset, 0.0, 1.0);
-      vec4 neighborColor = texture2D(uColorTexture, neighborUV);
+
       vec4 neighborState = texture2D(uStateTexture, neighborUV);
       float neighborType = neighborState.r * 255.0;
       float neighborGlow = getParticleGlow(neighborType);
-      float relationWeight = weights[i];
 
       bool isEmptyNeighbor = neighborType < EMPTY_MAX;
       bool isSameMaterial = abs(neighborType - particleType) < 0.5;
-
       if (isEmptyNeighbor) {
         emptySum += relationWeight;
       } else if (!isSameMaterial) {
         borderSum += relationWeight;
-      } else {
-        sameSum += relationWeight;
       }
 
       float weight = neighborGlow * relationWeight;
 
       if (isEmptyNeighbor) {
-        weight *= 1.6;
+        weight *= 2.6;
       } else if (isSameMaterial) {
         weight *= 0.35;
       } else {
-        weight *= 1.2;
+        weight *= 1.65;
       }
 
-      glowAccum += neighborColor.rgb * weight;
-      totalWeight += weight;
+      float distanceAtten = mix(1.0, 0.55, clamp((ringScale - 1.0) * 0.6, 0.0, 1.0));
+      weight *= distanceAtten;
+      weight *= (0.82 + glowFactor * 0.45);
+
+      vec4 neighborColor = texture2D(uColorTexture, neighborUV);
+      vec3 neighborRgb = neighborColor.rgb;
+      float neighborLuma = dot(neighborRgb, vec3(0.299, 0.587, 0.114));
+      vec3 neighborVivid = mix(vec3(neighborLuma), neighborRgb, clamp(0.35 + neighborGlow * 0.5, 0.0, 1.0));
+      vec3 neighborEmissive = clamp(neighborVivid * (1.0 + neighborGlow * 0.8), 0.0, 1.5);
+
+      emissiveAccum += neighborEmissive * weight;
+      emissiveWeight += weight;
+
+      float highGlow = smoothstep(0.4, 1.0, neighborGlow);
+      if (highGlow > 0.0) {
+        float highContribution = highGlow * relationWeight;
+        highGlowSum += highContribution;
+        highGlowColor += neighborEmissive * highContribution;
+      }
     }
 
-    float borderIntensity = clamp(borderSum / 6.0, 0.0, 1.0);
-    float emptyIntensity = clamp(emptySum / 4.0, 0.0, 1.0);
+    float borderIntensity = sampleWeightSum > 0.0 ? clamp(borderSum / sampleWeightSum, 0.0, 1.0) : 0.0;
+    float emptyIntensity = sampleWeightSum > 0.0 ? clamp(emptySum / sampleWeightSum, 0.0, 1.0) : 0.0;
+    vec3 haloColor = emissiveWeight > 0.0 ? emissiveAccum / emissiveWeight : emissiveBase;
+    vec3 haloDiff = max(vec3(0.0), haloColor - baseRgb * 0.85);
 
-    vec3 glowColor = totalWeight > 0.0 ? glowAccum / totalWeight : baseRgb;
-    vec3 edgeGlow = max(vec3(0.0), glowColor - baseRgb);
-    vec3 highlight = baseRgb * selfGlow * (0.04 + 0.5 * borderIntensity + 0.45 * emptyIntensity);
+    float highGlowIntensity = sampleWeightSum > 0.0 ? clamp(highGlowSum / sampleWeightSum, 0.0, 1.0) : 0.0;
+    vec3 highGlowAverage = highGlowSum > 0.0 ? highGlowColor / max(highGlowSum, 0.0001) : haloColor;
+    vec3 vividHalo = mix(haloDiff, max(highGlowAverage - baseRgb * 0.65, vec3(0.0)), clamp(highGlowIntensity * 0.9, 0.0, 1.0));
 
-    float glowStrength = uGlowIntensity * (0.35 + 0.45 * borderIntensity + 0.4 * emptyIntensity);
-    vec3 finalColor = baseRgb + (edgeGlow + highlight) * glowStrength;
+    float envInfluence = clamp(borderIntensity * 0.7 + emptyIntensity * 0.5, 0.0, 1.5);
+    float haloStrength = uGlowIntensity * (0.4 + glowFactor * 0.55 + envInfluence * 0.35 + highGlowIntensity * 0.4);
+
+    vec3 rimContribution = vividHalo * haloStrength * (0.78 + envInfluence * 0.55 + highGlowIntensity * 0.35);
+    vec3 innerHighlight = emissiveBase * glowFactor * (0.12 + 0.42 * borderIntensity + 0.24 * emptyIntensity + 0.2 * highGlowIntensity);
+    vec3 heatBloom = emissiveBase * pow(glowFactor, 1.15) * (0.26 + highGlowIntensity * 0.55);
+
+    vec3 finalColor = baseRgb + rimContribution + innerHighlight + heatBloom;
+    finalColor = mix(finalColor, haloColor, clamp(glowFactor * 0.15 + highGlowIntensity * 0.25, 0.0, 0.45));
+
     gl_FragColor = vec4(clamp(finalColor, 0.0, 1.0), baseColor.a);
   }
 `;

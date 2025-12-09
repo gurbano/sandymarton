@@ -23,6 +23,8 @@ const PARTICLE_COLORS: Record<string, [number, number, number]> = {
   DIRT: [139, 90, 43],
   STONE: [128, 128, 128],
   GRAVEL: [160, 160, 160],
+  BASALT: [72, 60, 58],
+  OBSIDIAN: [46, 24, 69],
   WATER: [64, 164, 223],
   LAVA: [255, 80, 20],
   SLIME: [0, 255, 100],

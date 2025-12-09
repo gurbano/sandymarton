@@ -5,10 +5,11 @@
  * Handles:
  * - Boiling: liquid → gas when temp >= boiling point (e.g., water → steam)
  * - Condensation: gas → liquid when temp < condensation point (e.g., steam → water)
- * - Freezing/Solidification: liquid → solid when temp < melting point (e.g., lava → stone)
+ * - Freezing/Solidification: liquid → solid when temp < melting point (e.g., lava → volcanic rock mix)
  */
 
 import { generatePhaseTransitionShaderConstants } from '../world/MaterialDefinitions';
+import { generateShaderConstants } from '../world/ParticleTypeConstants';
 
 export const phaseTransitionVertexShader = `
   varying vec2 vUv;
@@ -26,6 +27,12 @@ export const phaseTransitionFragmentShader = `
   varying vec2 vUv;
 
   ${generatePhaseTransitionShaderConstants()}
+  ${generateShaderConstants()}
+
+  // Simple hash for pseudo random selection
+  float hash(vec2 p) {
+    return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+  }
 
   // Decode particle temperature from G,B channels
   float decodeParticleTemperature(vec4 particleData) {
@@ -88,7 +95,24 @@ export const phaseTransitionFragmentShader = `
     // Check for freezing/solidification (liquid → solid)
     // Only trigger if there's a valid target and temp drops below melting point
     else if (freezesTo >= 0 && particleTemp < meltingPoint) {
-      newParticleType = float(freezesTo);
+      if (int(particleType) == int(LAVA_TYPE)) {
+        vec2 pixelCoord = floor(vUv * uTextureSize);
+        float rand = hash(pixelCoord + vec2(particleTemp * 0.001));
+
+        if (rand < 0.55) {
+          newParticleType = BASALT_TYPE;
+        } else if (rand < 0.80) {
+          newParticleType = OBSIDIAN_TYPE;
+        } else if (rand < 0.90) {
+          newParticleType = float(GRAVEL_TYPE);
+        } else if (rand < 0.97) {
+          newParticleType = float(DIRT_TYPE);
+        } else {
+          newParticleType = float(COPPER_TYPE);
+        }
+      } else {
+        newParticleType = float(freezesTo);
+      }
     }
 
     // Encode temperature (unchanged)

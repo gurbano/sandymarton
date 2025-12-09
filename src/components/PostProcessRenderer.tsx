@@ -306,8 +306,21 @@ function PostProcessRenderer({
     let currentSource: Texture = colorTexture;
     let rtIndex = 0;
 
-    // Execute each enabled effect in order
+    // Execute each enabled effect in order, ensuring glow runs last
+  const glowEffects: RenderConfig['effects'] = [];
+  const otherEffects: RenderConfig['effects'] = [];
+
     for (const effect of config.effects) {
+      if (effect.type === RenderEffectType.GLOW) {
+        glowEffects.push(effect);
+      } else {
+        otherEffects.push(effect);
+      }
+    }
+
+    const orderedEffects = [...otherEffects, ...glowEffects];
+
+    for (const effect of orderedEffects) {
       if (!effect.enabled) continue;
 
       let resources: EffectResources | null = null;

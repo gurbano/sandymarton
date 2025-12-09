@@ -29,6 +29,8 @@ export enum ParticleType {
   ACID_CRYSTAL = 45,  // Crystallized acid salts
   COOLANT_ICE = 46,   // Frozen coolant pellets
   NITROGEN_ICE = 47,  // Frozen nitrogen (dry ice equivalent)
+  BASALT = 48,        // Solidified lava rock
+  OBSIDIAN = 49,      // Volcanic glass
 
   // Liquid particles (64-111)
   // LIQUID = 64,
@@ -116,6 +118,8 @@ export const ParticleColors: Record<number, [number, number, number, number]> = 
   [ParticleType.ACID_CRYSTAL]: [200, 255, 120, 255],  // Neon yellow crystal
   [ParticleType.COOLANT_ICE]: [150, 220, 255, 255],   // Pale cyan ice
   [ParticleType.NITROGEN_ICE]: [200, 230, 255, 255],  // Nearly white ice
+  [ParticleType.BASALT]: [72, 60, 58, 255],           // Dark brown-black basalt
+  [ParticleType.OBSIDIAN]: [46, 24, 69, 255],         // Deep purple-black volcanic glass
   [ParticleType.WATER]: [50, 150, 255, 220],    // Bright cyan-blue, less transparent
   [ParticleType.LAVA]: [255, 0, 0, 255],        // Opaque orange-red
   [ParticleType.SLIME]: [100, 255, 100, 200],   // Semi-transparent green

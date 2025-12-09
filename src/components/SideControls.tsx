@@ -29,6 +29,7 @@ import {
   faWandMagicSparkles,
   faBrush,
   faSun,
+  faGem,
 } from '@fortawesome/free-solid-svg-icons';
 import { ParticleType } from '../world/ParticleTypes';
 import { ParticleTypeRanges } from '../world/ParticleTypeConstants';
@@ -68,6 +69,8 @@ const particleIcons: Record<string, IconDefinition> = {
   SAND: faMountain,
   DIRT: faSeedling,
   GRAVEL: faCubes,
+  BASALT: faMountain,
+  OBSIDIAN: faGem,
   COPPER: faCubes,
   ITE: faSeedling,
   ICE: faSnowflake,

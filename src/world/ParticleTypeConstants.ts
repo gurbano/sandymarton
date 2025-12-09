@@ -49,6 +49,8 @@ export const ParticleTypeConstants = {
   ACID_CRYSTAL: 45,
   COOLANT_ICE: 46,
   NITROGEN_ICE: 47,
+  BASALT: 48,
+  OBSIDIAN: 49,
   // Liquid
   WATER: 65,
   LAVA: 80,
@@ -98,6 +100,8 @@ const float COPPER_TYPE = ${ParticleTypeConstants.COPPER}.0;
 const float ICE_TYPE = ${ParticleTypeConstants.ICE}.0;
 const float WATER_TYPE = ${ParticleTypeConstants.WATER}.0;
 const float LAVA_TYPE = ${ParticleTypeConstants.LAVA}.0;
+const float BASALT_TYPE = ${ParticleTypeConstants.BASALT}.0;
+const float OBSIDIAN_TYPE = ${ParticleTypeConstants.OBSIDIAN}.0;
 const float SLIME_TYPE = ${ParticleTypeConstants.SLIME}.0;
 const float ACID_TYPE = ${ParticleTypeConstants.ACID}.0;
 const float OIL_TYPE = ${ParticleTypeConstants.OIL}.0;

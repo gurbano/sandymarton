@@ -200,6 +200,34 @@ export const MaterialDefinitions: Partial<Record<ParticleType, MaterialAttribute
   glowStrength: 0.16,
 },
 
+[ParticleType.BASALT]: {
+  ...BaseSolidAttributes,
+  density: 3000,
+  meltingPoint: 1100,
+  boilingPoint: 1600,
+  color: [72, 60, 58, 255],
+  hardness: 7,
+  friction: 0.85,
+  defaultTemperature: celsiusToKelvin(400),
+  thermalCapacity: 0.65,
+  thermalConductivity: 0.35,
+  glowStrength: 0.1,
+},
+
+[ParticleType.OBSIDIAN]: {
+  ...BaseSolidAttributes,
+  density: 2600,
+  meltingPoint: 1200,
+  boilingPoint: 2000,
+  color: [46, 24, 69, 255],
+  hardness: 8.5,
+  friction: 0.55,
+  defaultTemperature: celsiusToKelvin(380),
+  thermalCapacity: 0.5,
+  thermalConductivity: 0.18,
+  glowStrength: 0.25,
+},
+
 // Liquid particles
 [ParticleType.WATER]: {
   ...BaseLiquidAttributes,
@@ -219,7 +247,7 @@ export const MaterialDefinitions: Partial<Record<ParticleType, MaterialAttribute
   color: [255, 0, 0, 255],
   hardness: 1,
   friction: 0.2,             // Slow flowing but still liquid
-  defaultTemperature: celsiusToKelvin(1000), // 1000°C = 1273K (molten rock)
+  defaultTemperature: celsiusToKelvin(1500), // 1000°C = 1273K (molten rock)
   thermalCapacity: 0.90,     // Very high capacity - lava loses only 5% of emitted heat
   thermalConductivity: 0.2,  // Moderate conductivity - transfers heat but not too fast
   glowStrength: 0.85,
@@ -572,8 +600,10 @@ export const PhaseTransitions: Record<number, { boilsTo: number; meltsTo: number
   [ParticleType.WATER]: { boilsTo: ParticleType.STEAM, meltsTo: -1, condensesTo: -1, freezesTo: ParticleType.ICE },
   [ParticleType.STEAM]: { boilsTo: -1, meltsTo: -1, condensesTo: ParticleType.WATER, freezesTo: -1 },
 
-  // Lava phases (liquid ➜ stone solid ➜ smoke gas)
-  [ParticleType.LAVA]: { boilsTo: ParticleType.SMOKE, meltsTo: -1, condensesTo: -1, freezesTo: ParticleType.STONE },
+  // Lava phases (liquid ➜ volcanic solids ➜ smoke gas)
+  [ParticleType.LAVA]: { boilsTo: ParticleType.SMOKE, meltsTo: -1, condensesTo: -1, freezesTo: ParticleType.BASALT },
+  [ParticleType.BASALT]: { boilsTo: -1, meltsTo: ParticleType.LAVA, condensesTo: -1, freezesTo: -1 },
+  [ParticleType.OBSIDIAN]: { boilsTo: -1, meltsTo: ParticleType.LAVA, condensesTo: -1, freezesTo: -1 },
 
   // Oil phases
   [ParticleType.OIL_SLUDGE]: { boilsTo: -1, meltsTo: ParticleType.OIL, condensesTo: -1, freezesTo: -1 },
