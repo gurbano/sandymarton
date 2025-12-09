@@ -16,6 +16,7 @@ export function SimulationControls({ config, onConfigChange }: SimulationControl
   const [showEmissionSettings, setShowEmissionSettings] = useState(true);
   const [showDiffusionSettings, setShowDiffusionSettings] = useState(true);
   const [showDecaySettings, setShowDecaySettings] = useState(true);
+  const [showParticleHeatSettings, setShowParticleHeatSettings] = useState(true);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -60,6 +61,7 @@ export function SimulationControls({ config, onConfigChange }: SimulationControl
   const equilibriumTargetCelsius = ambientSettings.equilibriumTemperature - 273.15;
   const equilibriumMaxDeltaCelsius = ambientSettings.equilibriumMaxDelta;
   const equilibriumInterval = Math.max(1, Math.round(ambientSettings.equilibriumInterval));
+  const heatmapCoupling = ambientSettings.heatmapCouplingMultiplier;
 
   const handleAmbientHeatSettingChange = (key: keyof AmbientHeatSettings, value: number) => {
     const current = config.ambientHeatSettings ?? { ...DEFAULT_AMBIENT_HEAT_SETTINGS };
@@ -311,6 +313,45 @@ export function SimulationControls({ config, onConfigChange }: SimulationControl
                                     </div>
                                   </div>
                                 )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {step.type === SimulationStepType.PARTICLE_ONLY_HEAT && (
+                      <div className="ambient-step-settings">
+                        <div className="settings-group collapsible">
+                          <button
+                            type="button"
+                            className={`settings-group-toggle ${showParticleHeatSettings ? 'expanded' : ''}`}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              setShowParticleHeatSettings(prev => !prev);
+                            }}
+                          >
+                            <FontAwesomeIcon icon={showParticleHeatSettings ? faChevronDown : faChevronRight} />
+                            <span>Ambient Coupling</span>
+                          </button>
+                          {showParticleHeatSettings && (
+                            <div className="settings-group-content">
+                              <div className="global-parameter">
+                                <label className="parameter-control">
+                                  Coupling Strength: {heatmapCoupling.toFixed(2)}x
+                                  <input
+                                    type="range"
+                                    min="0"
+                                    max="3"
+                                    step="0.05"
+                                    value={heatmapCoupling}
+                                    onChange={(e) => handleAmbientHeatSettingChange('heatmapCouplingMultiplier', parseFloat(e.target.value))}
+                                    className="passes-slider"
+                                  />
+                                </label>
+                                <div className="parameter-description">
+                                  Controls how strongly particles absorb or release heat from the ambient heat map
+                                </div>
                               </div>
                             </div>
                           )}

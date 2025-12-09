@@ -246,6 +246,13 @@ function MainSimulation({
       vertexShader: particleOnlyHeatVertexShader,
       fragmentShader: particleOnlyHeatFragmentShader,
     });
+    particleOnlyHeatResources.material.uniforms.uHeatForceLayer = { value: heatForceTexture };
+    particleOnlyHeatResources.material.uniforms.uEmissionMultiplier = {
+      value: DEFAULT_AMBIENT_HEAT_SETTINGS.emissionMultiplier,
+    };
+    particleOnlyHeatResources.material.uniforms.uHeatmapCouplingMultiplier = {
+      value: DEFAULT_AMBIENT_HEAT_SETTINGS.heatmapCouplingMultiplier,
+    };
 
     // Create phase transition resources (transforms particles based on temperature)
     const phaseTransitionResources = createSimulationResources(textureSize, worldTexture, {
@@ -424,8 +431,19 @@ function MainSimulation({
           const targetRT = renderTargets[rtIndex % renderTargets.length];
 
           // Update uniforms - only needs particle state texture
+          const ambientSettings = config.ambientHeatSettings ?? DEFAULT_AMBIENT_HEAT_SETTINGS;
+          const latestHeatTexture = currentHeatRTIndexRef.current > 0
+            ? heatRenderTargets[(currentHeatRTIndexRef.current - 1) % heatRenderTargets.length].texture
+            : heatForceLayerRef.current;
+
           heatResources.material.uniforms.uCurrentState.value = currentSource;
           heatResources.material.uniforms.uTextureSize.value.set(textureSize, textureSize);
+          if (latestHeatTexture) {
+            heatResources.material.uniforms.uHeatForceLayer.value = latestHeatTexture;
+          }
+          heatResources.material.uniforms.uEmissionMultiplier.value = ambientSettings.emissionMultiplier;
+          heatResources.material.uniforms.uHeatmapCouplingMultiplier.value =
+            ambientSettings.heatmapCouplingMultiplier;
           heatResources.camera.position.z = 1;
           heatResources.camera.updateProjectionMatrix();
 

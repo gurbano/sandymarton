@@ -28,6 +28,7 @@ export interface AmbientHeatSettings {
   equilibriumTemperature: number;
   equilibriumMaxDelta: number;
   equilibriumInterval: number;
+  heatmapCouplingMultiplier: number;
 }
 
 export interface SimulationConfig {
@@ -43,6 +44,7 @@ export const DEFAULT_AMBIENT_HEAT_SETTINGS: AmbientHeatSettings = {
   equilibriumTemperature: 298.0,
   equilibriumMaxDelta: 1,
   equilibriumInterval: 1,
+  heatmapCouplingMultiplier: 1,
 };
 
 export const DEFAULT_SIMULATION_CONFIG: SimulationConfig = {

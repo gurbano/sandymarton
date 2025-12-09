@@ -9,6 +9,7 @@
  */
 
 import { generateMaterialShaderConstants } from '../world/MaterialDefinitions';
+import { temperatureShaderUtils } from './temperatureShaderUtils';
 
 export const particleOnlyHeatVertexShader = `
   varying vec2 vUv;
@@ -21,26 +22,15 @@ export const particleOnlyHeatVertexShader = `
 
 export const particleOnlyHeatFragmentShader = `
   uniform sampler2D uCurrentState;    // Particle state texture (R=type, G=temp_low, B=temp_high, A=unused)
+  uniform sampler2D uHeatForceLayer;  // Heat/Force layer (R=env_temp_low, G=env_temp_high, B=forceX, A=forceY)
   uniform vec2 uTextureSize;
+  uniform float uEmissionMultiplier;
+  uniform float uHeatmapCouplingMultiplier;
 
   varying vec2 vUv;
 
   ${generateMaterialShaderConstants()}
-
-  // Decode particle temperature from G,B channels
-  float decodeParticleTemperature(vec4 particleData) {
-    float tempLow = particleData.g * 255.0;
-    float tempHigh = particleData.b * 255.0;
-    return tempLow + tempHigh * 256.0;
-  }
-
-  // Encode 16-bit temperature to two bytes
-  vec2 encodeTemperature(float temp) {
-    float clamped = clamp(temp, 0.0, 65535.0);
-    float tempLow = mod(clamped, 256.0);
-    float tempHigh = floor(clamped / 256.0);
-    return vec2(tempLow / 255.0, tempHigh / 255.0);
-  }
+  ${temperatureShaderUtils}
 
   void main() {
     vec2 pixelSize = 1.0 / uTextureSize;
@@ -63,6 +53,15 @@ export const particleOnlyHeatFragmentShader = `
     float thermalConductivity = getMaterialThermalConductivity(particleType);
 
     float newParticleTemp = particleTemp;
+
+    // Heat exchange with ambient heat map from previous frame
+    vec4 heatData = texture2D(uHeatForceLayer, vUv);
+    float ambientTemp = decodeHeatLayerTemperature(heatData);
+    float couplingMultiplier = uEmissionMultiplier * uHeatmapCouplingMultiplier;
+    if (couplingMultiplier > 0.0) {
+      float ambientDelta = 0.01 *computeHeatExchangeDelta(ambientTemp, newParticleTemp, thermalConductivity, couplingMultiplier);
+      newParticleTemp = newParticleTemp + ambientDelta;
+    }
 
     // === Heat diffusion with neighbors ===
     // Sample only 4 cardinal neighbors (Von Neumann neighborhood) for performance
@@ -122,8 +121,8 @@ export const particleOnlyHeatFragmentShader = `
       newParticleTemp = mix(newParticleTemp, avgNeighborTemp, diffusionRate);
     }
 
-    // Clamp to valid range
-    newParticleTemp = clamp(newParticleTemp, 0.0, 65535.0);
+  // Clamp to valid range
+  newParticleTemp = clamp(newParticleTemp, 0.0, 65535.0);
 
     // Encode new temperature
     vec2 encodedTemp = encodeTemperature(newParticleTemp);

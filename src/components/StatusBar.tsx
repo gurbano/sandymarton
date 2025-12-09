@@ -32,6 +32,7 @@ export function StatusBar({
   const [showEmissionSettings, setShowEmissionSettings] = useState(true);
   const [showDiffusionSettings, setShowDiffusionSettings] = useState(true);
   const [showDecaySettings, setShowDecaySettings] = useState(true);
+  const [showParticleHeatSettings, setShowParticleHeatSettings] = useState(true);
   const handleSettingsWheel = useCallback((event: ReactWheelEvent<HTMLDivElement>) => {
     event.stopPropagation();
     const container = event.currentTarget;
@@ -81,6 +82,7 @@ export function StatusBar({
   const equilibriumTargetCelsius = ambientSettings.equilibriumTemperature - 273.15;
   const equilibriumMaxDeltaCelsius = ambientSettings.equilibriumMaxDelta;
   const equilibriumInterval = Math.max(1, Math.round(ambientSettings.equilibriumInterval));
+  const heatmapCoupling = ambientSettings.heatmapCouplingMultiplier;
 
   return (
     <div className="status-bar">
@@ -130,6 +132,40 @@ export function StatusBar({
                   className="sim-slider"
                   onClick={(e) => e.stopPropagation()}
                 />
+              </div>
+
+              <div className="settings-group collapsible">
+                <button
+                  type="button"
+                  className={`settings-group-toggle ${showParticleHeatSettings ? 'expanded' : ''}`}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setShowParticleHeatSettings(prev => !prev);
+                  }}
+                >
+                  <FontAwesomeIcon icon={showParticleHeatSettings ? faChevronDown : faChevronRight} />
+                  <span>Particle Heat Coupling</span>
+                </button>
+                {showParticleHeatSettings && (
+                  <div className="settings-group-content">
+                    <div className="sim-setting-group">
+                      <div className="sim-setting-row">
+                        <span className="sim-setting-label">Coupling Strength</span>
+                        <span className="sim-setting-value">{heatmapCoupling.toFixed(2)}x</span>
+                      </div>
+                      <input
+                        type="range"
+                        min="0"
+                        max="3"
+                        step="0.05"
+                        value={heatmapCoupling}
+                        onChange={(e) => handleAmbientHeatChange('heatmapCouplingMultiplier', parseFloat(e.target.value))}
+                        className="sim-slider"
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="tooltip-divider"></div>

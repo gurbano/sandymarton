@@ -15,6 +15,7 @@
  */
 
 import { generateMaterialShaderConstants } from '../world/MaterialDefinitions';
+import { temperatureShaderUtils } from './temperatureShaderUtils';
 
 export const ambientHeatTransferVertexShader = `
   varying vec2 vUv;
@@ -41,28 +42,7 @@ export const ambientHeatTransferFragmentShader = `
   varying vec2 vUv;
 
   ${generateMaterialShaderConstants()}
-
-  // Decode 16-bit temperature from two bytes
-  float decodeHeatLayerTemperature(vec4 heatData) {
-    float tempLow = heatData.r * 255.0;
-    float tempHigh = heatData.g * 255.0;
-    return tempLow + tempHigh * 256.0;
-  }
-
-  // Decode particle temperature from G,B channels
-  float decodeParticleTemperature(vec4 particleData) {
-    float tempLow = particleData.g * 255.0;
-    float tempHigh = particleData.b * 255.0;
-    return tempLow + tempHigh * 256.0;
-  }
-
-  // Encode 16-bit temperature to two bytes
-  vec2 encodeTemperature(float temp) {
-    float clamped = clamp(temp, 0.0, 65535.0);
-    float tempLow = mod(clamped, 256.0);
-    float tempHigh = floor(clamped / 256.0);
-    return vec2(tempLow / 255.0, tempHigh / 255.0);
-  }
+  ${temperatureShaderUtils}
 
   // Simple hash for randomization
   float hash(vec2 p) {
@@ -96,16 +76,8 @@ export const ambientHeatTransferFragmentShader = `
   // === Step 1: Emission (particle heat feeds the environment) ===
   // Non-empty particles exchange heat with the environment
     if (!isCurrentEmpty) {
-      // Emission strength depends on material conductivity and user multiplier
-      float emissionMultiplier = max(uEmissionMultiplier, 0.0);
-      float conductivityFactor = clamp(thermalConductivity, 0.0, 1.0);
-      float emissionStrength = clamp(emissionMultiplier * conductivityFactor, 0.0, 1.0);
-
-      // Blend toward particle temperature for stability
-      newEnvTemp = mix(newEnvTemp, particleTemp, emissionStrength);
-
-      // Clamp to valid 16-bit range (same as particle temperature)
-      newEnvTemp = clamp(newEnvTemp, 0.0, 65535.0);
+      float heatDelta = computeHeatExchangeDelta(particleTemp, newEnvTemp, thermalConductivity, uEmissionMultiplier);
+      newEnvTemp = clamp(newEnvTemp + heatDelta, 0.0, 65535.0);
     }
 
   // === Step 2: Diffusion (environmental heat spreads between cells) ===
