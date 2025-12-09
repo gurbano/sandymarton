@@ -1,8 +1,10 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
+import type { WheelEvent as ReactWheelEvent } from 'react';
 import type { DataTexture } from 'three';
 import { ParticleType } from '../world/ParticleTypes';
 import { ParticleCounter } from './ParticleCounter';
-import type { SimulationConfig, SimulationStep } from '../types/SimulationConfig';
+import type { SimulationConfig, SimulationStep, AmbientHeatSettings } from '../types/SimulationConfig';
+import { DEFAULT_AMBIENT_HEAT_SETTINGS } from '../types/SimulationConfig';
 
 interface StatusBarProps {
   pixelSize: number;
@@ -24,6 +26,12 @@ export function StatusBar({
   onSimulationConfigChange,
 }: StatusBarProps) {
   const [showSimSettings, setShowSimSettings] = useState(false);
+  const handleSettingsWheel = useCallback((event: ReactWheelEvent<HTMLDivElement>) => {
+    event.stopPropagation();
+    const container = event.currentTarget;
+    container.scrollTop += event.deltaY;
+    event.preventDefault();
+  }, []);
 
   const handleStepToggle = (index: number) => {
     const newSteps = [...simulationConfig.steps];
@@ -41,7 +49,19 @@ export function StatusBar({
     onSimulationConfigChange({ ...simulationConfig, frictionAmplifier: value });
   };
 
+  const handleAmbientHeatChange = (key: keyof AmbientHeatSettings, value: number) => {
+    const current = simulationConfig.ambientHeatSettings ?? { ...DEFAULT_AMBIENT_HEAT_SETTINGS };
+    onSimulationConfigChange({
+      ...simulationConfig,
+      ambientHeatSettings: {
+        ...current,
+        [key]: value,
+      },
+    });
+  };
+
   const enabledStepsCount = simulationConfig.steps.filter(s => s.enabled).length;
+  const ambientSettings = simulationConfig.ambientHeatSettings ?? DEFAULT_AMBIENT_HEAT_SETTINGS;
 
   return (
     <div className="status-bar">
@@ -68,7 +88,11 @@ export function StatusBar({
           <span className="status-toggle-label">steps active ▾</span>
 
           {showSimSettings && (
-            <div className="status-tooltip status-tooltip-right">
+            <div
+              className="status-tooltip status-tooltip-right"
+              onWheelCapture={handleSettingsWheel}
+              onWheel={handleSettingsWheel}
+            >
               <div className="tooltip-header">Simulation Settings</div>
 
               {/* Global Parameters */}
@@ -84,6 +108,43 @@ export function StatusBar({
                   step="0.1"
                   value={simulationConfig.frictionAmplifier}
                   onChange={(e) => handleFrictionAmplifierChange(parseFloat(e.target.value))}
+                  className="sim-slider"
+                  onClick={(e) => e.stopPropagation()}
+                />
+              </div>
+
+              <div className="tooltip-divider"></div>
+
+              {/* Ambient Heat Controls */}
+              <div className="sim-setting-group">
+                <div className="sim-setting-row">
+                  <span className="sim-setting-label">Ambient Coupling</span>
+                  <span className="sim-setting-value">{ambientSettings.emissionMultiplier.toFixed(1)}x</span>
+                </div>
+                <input
+                  type="range"
+                  min="0"
+                  max="5"
+                  step="0.1"
+                  value={ambientSettings.emissionMultiplier}
+                  onChange={(e) => handleAmbientHeatChange('emissionMultiplier', parseFloat(e.target.value))}
+                  className="sim-slider"
+                  onClick={(e) => e.stopPropagation()}
+                />
+              </div>
+
+              <div className="sim-setting-group">
+                <div className="sim-setting-row">
+                  <span className="sim-setting-label">Ambient Diffusion</span>
+                  <span className="sim-setting-value">{ambientSettings.diffusionMultiplier.toFixed(2)}x</span>
+                </div>
+                <input
+                  type="range"
+                  min="0"
+                  max="2"
+                  step="0.05"
+                  value={ambientSettings.diffusionMultiplier}
+                  onChange={(e) => handleAmbientHeatChange('diffusionMultiplier', parseFloat(e.target.value))}
                   className="sim-slider"
                   onClick={(e) => e.stopPropagation()}
                 />

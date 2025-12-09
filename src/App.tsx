@@ -87,6 +87,7 @@ function App() {
 
   // Ref to share heat RT texture between MainSimulation and TextureRenderer (avoids GPU read-back)
   const heatRTRef = useRef<Texture | null>(null);
+  const [ambientHeatTexture, setAmbientHeatTexture] = useState<DataTexture | null>(null);
 
   // Handle drawing particles and updating texture
   const handleDraw = useCallback((texture: DataTexture) => {
@@ -135,29 +136,48 @@ function App() {
 
     tooltip.style.display = 'block';
 
-    // Build composition bar HTML
-    const compositionBar = data.composition
+    const compositionSegments = data.composition
       .map(c => `<div class="inspect-bar-segment" style="width: ${c.percentage}%; background: rgb(${c.color.join(',')});" title="${c.type}: ${c.percentage.toFixed(1)}%"></div>`)
       .join('');
 
-    // Build composition list
-    const compositionList = data.composition
-      .map(c => `<div class="inspect-comp-row"><span class="inspect-comp-color" style="background: rgb(${c.color.join(',')});"></span><span class="inspect-comp-name">${c.type}</span><span class="inspect-comp-pct">${c.percentage.toFixed(1)}%</span></div>`)
+    const compositionBar = data.composition.length > 0
+      ? `<div class="inspect-bar">${compositionSegments}</div>`
+      : '';
+
+    const compositionList = data.composition.length > 1
+      ? `<div class="inspect-composition">${data.composition
+        .map(c => `<div class="inspect-comp-row"><span class="inspect-comp-color" style="background: rgb(${c.color.join(',')});"></span><span class="inspect-comp-name">${c.type}</span><span class="inspect-comp-pct">${c.percentage.toFixed(1)}%</span></div>`)
+        .join('')}</div>`
+      : '';
+
+    const infoRows = [
+      { label: 'Brush', value: `${data.brushSize}px`, show: true },
+      { label: 'Particles', value: data.totalParticles.toLocaleString(), show: data.totalParticles > 0 },
+      {
+        label: 'Avg Particle',
+        value: data.avgParticleTemp !== null ? `${data.avgParticleTemp.toFixed(1)}°C` : '',
+        show: data.avgParticleTemp !== null,
+      },
+      {
+        label: 'Avg Ambient',
+        value: data.avgAmbientTemp !== null ? `${data.avgAmbientTemp.toFixed(1)}°C` : '',
+        show: data.avgAmbientTemp !== null,
+      },
+    ];
+
+    const infoRowsHtml = infoRows
+      .filter(row => row.show)
+      .map(row => `<div class="inspect-row"><span>${row.label}:</span><span>${row.value}</span></div>`)
       .join('');
 
-    const tempDisplay = data.avgParticleTemp !== null
-      ? `${data.avgParticleTemp.toFixed(1)}°C`
-      : '--';
+    const detailsSection = infoRowsHtml ? `<div class="inspect-details">${infoRowsHtml}</div>` : '';
+    const headerLabel = data.mainComponent || 'Empty Cell';
 
     tooltip.innerHTML = `
-      <div class="inspect-header">${data.mainComponent}</div>
-      <div class="inspect-bar">${compositionBar}</div>
-      <div class="inspect-details">
-        <div class="inspect-row"><span>Brush:</span><span>${data.brushSize}px</span></div>
-        <div class="inspect-row"><span>Particles:</span><span>${data.totalParticles}</span></div>
-        <div class="inspect-row"><span>Avg Temp:</span><span>${tempDisplay}</span></div>
-      </div>
-      ${data.composition.length > 1 ? `<div class="inspect-composition">${compositionList}</div>` : ''}
+      <div class="inspect-header">${headerLabel}</div>
+      ${compositionBar}
+      ${detailsSection}
+      ${compositionList}
     `;
   }, []);
 
@@ -169,6 +189,7 @@ function App() {
     center,
     onDraw: handleDraw,
     worldTexture: worldTexture,
+    heatTexture: ambientHeatTexture,
     toolMode,
     brushSize,
     onMouseMove: handleMouseMove,
@@ -229,7 +250,7 @@ function App() {
           onTextureUpdate={(newTexture) => {
             setWorldTexture(newTexture);
           }}
-          onHeatTextureReady={() => {}}
+          onHeatTextureReady={setAmbientHeatTexture}
           heatRTRef={heatRTRef}
           enabled={simulationEnabled}
           config={simulationConfig}

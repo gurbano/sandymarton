@@ -21,13 +21,25 @@ export interface SimulationStep {
   description: string;
 }
 
+export interface AmbientHeatSettings {
+  emissionMultiplier: number;
+  diffusionMultiplier: number;
+}
+
 export interface SimulationConfig {
   steps: SimulationStep[];
   frictionAmplifier: number; // Exponential friction power (0-10, default 1.3)
+  ambientHeatSettings: AmbientHeatSettings;
 }
+
+export const DEFAULT_AMBIENT_HEAT_SETTINGS: AmbientHeatSettings = {
+  emissionMultiplier: 2.5,
+  diffusionMultiplier: 1.0,
+};
 
 export const DEFAULT_SIMULATION_CONFIG: SimulationConfig = {
   frictionAmplifier: 1.3,
+  ambientHeatSettings: { ...DEFAULT_AMBIENT_HEAT_SETTINGS },
   steps: [
     {
       type: SimulationStepType.MARGOLUS_CA,

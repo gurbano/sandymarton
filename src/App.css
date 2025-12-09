@@ -845,10 +845,10 @@
 /* Sliders */
 .probability-slider,
 .passes-slider {
-  width: 100px;
-  height: 3px;
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 2px;
+  width: 120px;
+  height: 8px;
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 4px;
   outline: none;
   cursor: pointer;
   pointer-events: auto;
@@ -884,6 +884,46 @@
   border-radius: 50%;
   cursor: pointer;
   transition: all 0.15s ease;
+}
+
+/* Compact slider visibility */
+.parameter-control,
+.passes-control,
+.effect-control,
+.sim-setting-group,
+.sim-step-controls {
+  position: relative;
+  padding: 0.3rem 0;
+}
+
+.parameter-control .passes-slider,
+.passes-control .passes-slider,
+.effect-control .passes-slider,
+.sim-setting-group .sim-slider,
+.sim-step-controls .sim-slider {
+  display: block;
+  opacity: 0;
+  max-height: 0;
+  overflow: hidden;
+  pointer-events: none;
+  margin-top: 0;
+  transition: opacity 0.18s ease, max-height 0.18s ease, margin-top 0.18s ease;
+}
+
+.parameter-control:hover .passes-slider,
+.parameter-control:focus-within .passes-slider,
+.passes-control:hover .passes-slider,
+.passes-control:focus-within .passes-slider,
+.effect-control:hover .passes-slider,
+.effect-control:focus-within .passes-slider,
+.sim-setting-group:hover .sim-slider,
+.sim-setting-group:focus-within .sim-slider,
+.sim-step-controls:hover .sim-slider,
+.sim-step-controls:focus-within .sim-slider {
+  opacity: 1;
+  max-height: 72px;
+  pointer-events: auto;
+  margin-top: 0.35rem;
 }
 
 /* Pipeline Badge */
@@ -1145,9 +1185,9 @@
 
 .sim-slider {
   width: 100%;
-  height: 4px;
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 2px;
+  height: 8px;
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 4px;
   appearance: none;
   -webkit-appearance: none;
   cursor: pointer;
@@ -1202,6 +1242,50 @@
 .sim-step-controls {
   margin-top: 0.25rem;
   padding-left: 1rem;
+}
+
+.settings-group.collapsible {
+  margin-bottom: 0.6rem;
+}
+
+.settings-group-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  cursor: pointer;
+  padding: 0.25rem 0;
+  transition: color 0.15s ease;
+}
+
+.settings-group-toggle:hover,
+.settings-group-toggle:focus-visible {
+  color: rgba(255, 255, 255, 0.85);
+  outline: none;
+}
+
+.settings-group-toggle svg {
+  font-size: 0.65rem;
+}
+
+.settings-group-toggle span {
+  flex: 1;
+  text-align: left;
+}
+
+.settings-group-toggle.expanded {
+  color: rgba(99, 102, 241, 0.85);
+}
+
+.settings-group-content {
+  margin-top: 0.35rem;
 }
 
 /* Brush Cursor */

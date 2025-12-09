@@ -11,6 +11,7 @@ export interface InspectData {
   composition: { type: string; count: number; percentage: number; color: [number, number, number] }[];
   mainComponent: string;
   avgParticleTemp: number | null;
+  avgAmbientTemp: number | null;
   totalParticles: number;
   position: { x: number; y: number };
   brushSize: number;
@@ -38,6 +39,7 @@ interface UseParticleDrawingProps {
   center: { x: number; y: number };
   onDraw: (newTexture: DataTexture) => void;
   worldTexture: DataTexture;
+  heatTexture?: DataTexture | null;
   toolMode?: ToolMode;
   brushSize?: number;
   onMouseMove?: (pos: { x: number; y: number } | null) => void;
@@ -56,6 +58,7 @@ export function useParticleDrawing({
   center,
   onDraw,
   worldTexture,
+  heatTexture = null,
   toolMode = 'add',
   brushSize = 3,
   onMouseMove,
@@ -123,10 +126,17 @@ export function useParticleDrawing({
     const data = worldTexture.image.data as Uint8Array;
     if (!data) return null;
 
+    const heatImage = heatTexture?.image as { data?: Uint8Array; width?: number; height?: number } | undefined;
+    const heatData = heatImage?.data instanceof Uint8Array ? heatImage.data : undefined;
+    const heatWidth = heatImage?.width ?? WORLD_SIZE;
+    const heatHeight = heatImage?.height ?? WORLD_SIZE;
+
     const counts: Record<number, number> = {};
     let totalTemp = 0;
     let tempCount = 0;
     let totalParticles = 0;
+    let totalAmbientTemp = 0;
+    let ambientCount = 0;
 
     // Sample in a radius around the position
     for (let dy = -brushSize; dy <= brushSize; dy++) {
@@ -143,6 +153,17 @@ export function useParticleDrawing({
 
           const idx = (sampleY * WORLD_SIZE + sampleX) * 4;
           const particleType = data[idx]; // R channel = particle type
+
+          if (heatData && sampleX < heatWidth && sampleY < heatHeight) {
+            const heatIdx = (sampleY * heatWidth + sampleX) * 4;
+            const ambientTempLow = heatData[heatIdx];
+            const ambientTempHigh = heatData[heatIdx + 1];
+            const ambientTempKelvin = ambientTempLow + ambientTempHigh * 256;
+            if (ambientTempKelvin > 0) {
+              totalAmbientTemp += ambientTempKelvin;
+              ambientCount++;
+            }
+          }
 
           if (particleType !== ParticleType.EMPTY) {
             counts[particleType] = (counts[particleType] || 0) + 1;
@@ -162,10 +183,6 @@ export function useParticleDrawing({
       }
     }
 
-    if (totalParticles === 0) {
-      return null;
-    }
-
     // Build composition array
     const composition: InspectData['composition'] = [];
     for (const [typeStr, count] of Object.entries(counts)) {
@@ -183,16 +200,19 @@ export function useParticleDrawing({
     composition.sort((a, b) => b.count - a.count);
 
     const avgParticleTemp = tempCount > 0 ? kelvinToCelsius(totalTemp / tempCount) : null;
+    const avgAmbientTemp = ambientCount > 0 ? kelvinToCelsius(totalAmbientTemp / ambientCount) : null;
+    const hasParticles = totalParticles > 0;
 
     return {
       composition,
-      mainComponent: composition[0]?.type || 'EMPTY',
+      mainComponent: hasParticles ? (composition[0]?.type || 'UNKNOWN') : 'Empty Cell',
       avgParticleTemp,
+      avgAmbientTemp,
       totalParticles,
       position: worldPos,
       brushSize,
     };
-  }, [worldTexture, brushSize]);
+  }, [worldTexture, brushSize, heatTexture]);
 
   const drawParticle = useCallback((screenX: number, screenY: number) => {
     // Don't draw in inspect mode

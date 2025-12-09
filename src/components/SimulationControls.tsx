@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faGear, faChevronDown } from '@fortawesome/free-solid-svg-icons';
-import type { SimulationConfig, SimulationStep } from '../types/SimulationConfig';
+import type { SimulationConfig, SimulationStep, AmbientHeatSettings } from '../types/SimulationConfig';
+import { DEFAULT_AMBIENT_HEAT_SETTINGS } from '../types/SimulationConfig';
 
 interface SimulationControlsProps {
   config: SimulationConfig;
@@ -40,6 +41,19 @@ export function SimulationControls({ config, onConfigChange }: SimulationControl
     onConfigChange({ ...config, frictionAmplifier: value });
   };
 
+  const ambientSettings: AmbientHeatSettings = config.ambientHeatSettings ?? DEFAULT_AMBIENT_HEAT_SETTINGS;
+
+  const handleAmbientHeatSettingChange = (key: keyof AmbientHeatSettings, value: number) => {
+    const current = config.ambientHeatSettings ?? { ...DEFAULT_AMBIENT_HEAT_SETTINGS };
+    onConfigChange({
+      ...config,
+      ambientHeatSettings: {
+        ...current,
+        [key]: value,
+      },
+    });
+  };
+
   // Get enabled steps count for display
   const enabledStepsCount = config.steps.filter(s => s.enabled).length;
 
@@ -75,6 +89,42 @@ export function SimulationControls({ config, onConfigChange }: SimulationControl
               </label>
               <div className="parameter-description">
                 Controls friction strength for solids and liquids
+              </div>
+            </div>
+
+            <div className="global-parameter">
+              <label className="parameter-control">
+                Ambient Coupling: {ambientSettings.emissionMultiplier.toFixed(1)}x
+                <input
+                  type="range"
+                  min="0"
+                  max="5"
+                  step="0.1"
+                  value={ambientSettings.emissionMultiplier}
+                  onChange={(e) => handleAmbientHeatSettingChange('emissionMultiplier', parseFloat(e.target.value))}
+                  className="passes-slider"
+                />
+              </label>
+              <div className="parameter-description">
+                Scales how aggressively particles push heat into the ambient layer
+              </div>
+            </div>
+
+            <div className="global-parameter">
+              <label className="parameter-control">
+                Ambient Diffusion: {ambientSettings.diffusionMultiplier.toFixed(2)}x
+                <input
+                  type="range"
+                  min="0"
+                  max="2"
+                  step="0.05"
+                  value={ambientSettings.diffusionMultiplier}
+                  onChange={(e) => handleAmbientHeatSettingChange('diffusionMultiplier', parseFloat(e.target.value))}
+                  className="passes-slider"
+                />
+              </label>
+              <div className="parameter-description">
+                Adjusts how quickly ambient heat spreads through empty space
               </div>
             </div>
           </div>

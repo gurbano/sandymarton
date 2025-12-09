@@ -117,32 +117,32 @@ export const ambientHeatOverlayFragmentShader = `
   varying vec2 vUv;
 
   float normalizeAmbientTemperature(float tempKelvin) {
-    float tempCelsius = tempKelvin - 273.0;
-    return clamp((tempCelsius + 20.0) / 220.0, 0.0, 1.0);
+    float tempCelsius = tempKelvin - 273.15;
+    return clamp((tempCelsius + 40.0) / 120.0, 0.0, 1.0);
   }
 
   vec3 temperatureToColor(float tempKelvin) {
     float n = normalizeAmbientTemperature(tempKelvin);
     vec3 color;
 
-    if (n < 0.1) {
-      float f = n / 0.1;
-      color = mix(vec3(0.05, 0.08, 0.30), vec3(0.08, 0.25, 0.60), f);
-    } else if (n < 0.25) {
-      float f = (n - 0.1) / 0.15;
-      color = mix(vec3(0.08, 0.25, 0.60), vec3(0.00, 0.75, 0.95), f);
-    } else if (n < 0.45) {
-      float f = (n - 0.25) / 0.20;
-      color = mix(vec3(0.00, 0.75, 0.95), vec3(0.50, 0.95, 0.35), f);
-    } else if (n < 0.65) {
-      float f = (n - 0.45) / 0.20;
-      color = mix(vec3(0.50, 0.95, 0.35), vec3(1.00, 0.85, 0.15), f);
-    } else if (n < 0.85) {
-      float f = (n - 0.65) / 0.20;
-      color = mix(vec3(1.00, 0.85, 0.15), vec3(1.00, 0.40, 0.00), f);
+    if (n < 0.15) {
+      float f = n / 0.15;
+      color = mix(vec3(0.03, 0.05, 0.20), vec3(0.05, 0.30, 0.70), f);
+    } else if (n < 0.35) {
+      float f = (n - 0.15) / 0.20;
+      color = mix(vec3(0.05, 0.30, 0.70), vec3(0.00, 0.80, 0.95), f);
+    } else if (n < 0.55) {
+      float f = (n - 0.35) / 0.20;
+      color = mix(vec3(0.00, 0.80, 0.95), vec3(0.45, 0.95, 0.30), f);
+    } else if (n < 0.75) {
+      float f = (n - 0.55) / 0.20;
+      color = mix(vec3(0.45, 0.95, 0.30), vec3(1.00, 0.92, 0.25), f);
+    } else if (n < 0.9) {
+      float f = (n - 0.75) / 0.15;
+      color = mix(vec3(1.00, 0.92, 0.25), vec3(1.00, 0.55, 0.08), f);
     } else {
-      float f = (n - 0.85) / 0.15;
-      color = mix(vec3(1.00, 0.40, 0.00), vec3(1.00, 0.95, 0.90), clamp(f, 0.0, 1.0));
+      float f = (n - 0.9) / 0.1;
+      color = mix(vec3(1.00, 0.55, 0.08), vec3(1.00, 0.88, 0.82), clamp(f, 0.0, 1.0));
     }
 
     return color;
@@ -150,15 +150,15 @@ export const ambientHeatOverlayFragmentShader = `
 
   float computeBlendStrength(float tempKelvin) {
     float n = normalizeAmbientTemperature(tempKelvin);
-    float accent = pow(abs(n - 0.45), 0.75);
-    float contour = smoothstep(0.0, 0.3, n) * 0.12;
-    float blend = 0.28 + accent * 0.55 + contour;
-    return clamp(blend, 0.3, 0.95);
+    float accent = pow(abs(n - 0.5), 1.2);
+    float contour = smoothstep(0.05, 0.25, n) * 0.16;
+    float blend = 0.22 + accent * 0.5 + contour;
+    return clamp(blend, 0.28, 0.82);
   }
 
   float computeEmptyAlpha(float tempKelvin) {
     float n = normalizeAmbientTemperature(tempKelvin);
-    return clamp(0.35 + pow(n, 0.6) * 0.45, 0.35, 0.85);
+    return clamp(0.28 + pow(n, 0.7) * 0.5, 0.28, 0.78);
   }
 
   void main() {
@@ -178,8 +178,8 @@ export const ambientHeatOverlayFragmentShader = `
     float tempHigh = heatData.g * 255.0;
     float temperature = tempLow + tempHigh * 256.0;
 
-    float blendStrength = computeBlendStrength(temperature);
-    vec3 heatColor = temperatureToColor(temperature);
+  float blendStrength = computeBlendStrength(temperature);
+  vec3 heatColor = temperatureToColor(temperature);
 
     // For empty cells, show heat color directly (not mixed with black)
     // For particles, blend heat with base color

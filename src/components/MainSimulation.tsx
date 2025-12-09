@@ -35,7 +35,7 @@ import {
 } from '../shaders/phaseTransitionShaders';
 import { useFrame, useThree } from '@react-three/fiber';
 import type { SimulationConfig } from '../types/SimulationConfig';
-import { SimulationStepType } from '../types/SimulationConfig';
+import { SimulationStepType, DEFAULT_AMBIENT_HEAT_SETTINGS } from '../types/SimulationConfig';
 import { MaterialDefinitions, getDefaultBaseAttributes } from '../world/MaterialDefinitions';
 import { ParticleType } from '../world/ParticleTypes';
 
@@ -227,6 +227,8 @@ function MainSimulation({
       fragmentShader: ambientHeatTransferFragmentShader,
     });
     heatTransferResources.material.uniforms.uHeatForceLayer = { value: heatForceTexture };
+    heatTransferResources.material.uniforms.uEmissionMultiplier = { value: DEFAULT_AMBIENT_HEAT_SETTINGS.emissionMultiplier };
+    heatTransferResources.material.uniforms.uDiffusionMultiplier = { value: DEFAULT_AMBIENT_HEAT_SETTINGS.diffusionMultiplier };
 
     // Create particle-only heat transfer resources (direct particle-to-particle heat diffusion, no heat layer)
     const particleOnlyHeatResources = createSimulationResources(textureSize, worldTexture, {
@@ -482,7 +484,11 @@ function MainSimulation({
           : heatForceLayerRef.current;
         let heatRtIndex = currentHeatRTIndexRef.current;
 
-        for (let i = 0; i < ambientHeatStep.passes; i++) {
+  const ambientSettings = config.ambientHeatSettings ?? DEFAULT_AMBIENT_HEAT_SETTINGS;
+  heatResources.material.uniforms.uEmissionMultiplier.value = ambientSettings.emissionMultiplier;
+  heatResources.material.uniforms.uDiffusionMultiplier.value = ambientSettings.diffusionMultiplier;
+
+  for (let i = 0; i < ambientHeatStep.passes; i++) {
           const targetRT = heatRenderTargets[heatRtIndex % heatRenderTargets.length];
 
           // Update uniforms
@@ -505,11 +511,22 @@ function MainSimulation({
         // Update the current heat RT index for next frame
         currentHeatRTIndexRef.current = heatRtIndex;
 
-        // Share heat RT texture via ref (no GPU read-back needed!)
-        if (heatRTRef && heatRtIndex > 0) {
+        if (heatRtIndex > 0) {
           const finalHeatRT = heatRenderTargets[(heatRtIndex - 1) % heatRenderTargets.length];
-          // Use type assertion to write to ref (RefObject is readonly by design but we need to write)
-          (heatRTRef as { current: Texture | null }).current = finalHeatRT.texture;
+
+          // Refresh CPU-side ambient heat texture for tooling/inspection
+          const ambientTexture = heatForceLayerRef.current;
+          const ambientImage = ambientTexture.image as { data?: Uint8Array } | undefined;
+          const ambientPixels = ambientImage?.data;
+          if (ambientPixels instanceof Uint8Array) {
+            gl.readRenderTargetPixels(finalHeatRT, 0, 0, textureSize, textureSize, ambientPixels);
+            ambientTexture.needsUpdate = true;
+          }
+
+          if (heatRTRef) {
+            // Use type assertion to write to ref (RefObject is readonly by design but we need to write)
+            (heatRTRef as { current: Texture | null }).current = finalHeatRT.texture;
+          }
         }
       }
     } else if (heatRTRef && heatForceLayerRef.current) {

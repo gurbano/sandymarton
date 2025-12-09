@@ -31,6 +31,8 @@ export const ambientHeatTransferFragmentShader = `
   uniform vec2 uTextureSize;
   uniform float uIteration;
   uniform float uRandomSeed;
+  uniform float uEmissionMultiplier;
+  uniform float uDiffusionMultiplier;
 
   varying vec2 vUv;
 
@@ -98,7 +100,9 @@ export const ambientHeatTransferFragmentShader = `
       // Emission rate depends on thermal conductivity
       // High conductivity = transfers heat quickly (conductors)
       // Low conductivity = transfers heat slowly (insulators)
-      float emissionRate = 0.02 * thermalConductivity;
+  float emissionMultiplier = max(uEmissionMultiplier, 0.0);
+  float emissionRate = 0.02 * thermalConductivity * emissionMultiplier;
+  emissionRate = clamp(emissionRate, 0.0, 1.0);
 
       // Transfer heat from particle to environment
       newEnvTemp = newEnvTemp + tempDiff * emissionRate;
@@ -143,7 +147,9 @@ export const ambientHeatTransferFragmentShader = `
       float avgTemp = totalTemp / totalWeight;
 
       // Fast diffusion for empty cells
-      float diffusionRate = isCurrentEmpty ? 0.9 : 0.5;
+  float diffusionBase = isCurrentEmpty ? 0.9 : 0.5;
+  float diffusionMultiplier = clamp(uDiffusionMultiplier, 0.0, 2.0);
+  float diffusionRate = clamp(diffusionBase * diffusionMultiplier, 0.0, 0.99);
 
       newEnvTemp = mix(newEnvTemp, avgTemp, diffusionRate);
 

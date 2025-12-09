@@ -126,6 +126,9 @@ export function SideControls({
   // Collapsible sections - Settings expanded by default, Levels collapsed
   const [showSettings, setShowSettings] = useState(true);
   const [showLevels, setShowLevels] = useState(false);
+  const [showOverlayGroup, setShowOverlayGroup] = useState(true);
+  const [showRendererEffectsGroup, setShowRendererEffectsGroup] = useState(false);
+  const [showWorldTypeGroup, setShowWorldTypeGroup] = useState(false);
 
   // Load available levels on mount
   useEffect(() => {
@@ -413,165 +416,210 @@ export function SideControls({
           {showSettings && (
             <div className="settings-panel">
               {/* Overlay Controls */}
-              <div className="settings-group">
-                <div className="settings-group-label">Overlays</div>
-                <div className="overlay-buttons">
-                  {renderConfig.overlays.map((overlay, index) => (
-                    <button
-                      key={overlay.type}
-                      className={`overlay-btn ${overlay.enabled ? 'active' : ''}`}
-                      onClick={() => handleOverlayToggle(index)}
-                      title={overlay.name}
-                    >
-                      <FontAwesomeIcon icon={overlay.type === 'heat' ? faFire : faCloud} />
-                      <span>{overlay.name}</span>
-                    </button>
-                  ))}
-                </div>
+              {/* Overlay Controls */}
+              <div className="settings-group collapsible">
+                <button
+                  type="button"
+                  className={`settings-group-toggle ${showOverlayGroup ? 'expanded' : ''}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowOverlayGroup(prev => !prev);
+                  }}
+                >
+                  <FontAwesomeIcon icon={showOverlayGroup ? faChevronDown : faChevronRight} />
+                  <span>Overlays</span>
+                </button>
+                {showOverlayGroup && (
+                  <div className="settings-group-content">
+                    <div className="overlay-buttons">
+                      {renderConfig.overlays.map((overlay, index) => (
+                        <button
+                          key={overlay.type}
+                          className={`overlay-btn ${overlay.enabled ? 'active' : ''}`}
+                          onClick={() => handleOverlayToggle(index)}
+                          title={overlay.name}
+                          type="button"
+                        >
+                          <FontAwesomeIcon icon={overlay.type === 'heat' ? faFire : faCloud} />
+                          <span>{overlay.name}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Renderer Effects */}
-              <div className="settings-group">
-                <div className="settings-group-label">Renderer Effects</div>
-                <div className="effect-cards">
-                  {renderConfig.effects.map((effect) => (
-                    <div key={effect.type} className="effect-card">
-                      <button
-                        className={`effect-toggle ${effect.enabled ? 'active' : ''}`}
-                        onClick={() => handleEffectToggle(effect.type)}
-                      >
-                        <FontAwesomeIcon icon={effectIcons[effect.type]} />
-                        <div className="effect-details">
-                          <span className="effect-name">{effect.name}</span>
-                          <span className="effect-description">{effect.description}</span>
-                        </div>
-                        <span className="effect-status">{effect.enabled ? 'On' : 'Off'}</span>
-                      </button>
+              <div className="settings-group collapsible">
+                <button
+                  type="button"
+                  className={`settings-group-toggle ${showRendererEffectsGroup ? 'expanded' : ''}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowRendererEffectsGroup(prev => !prev);
+                  }}
+                >
+                  <FontAwesomeIcon icon={showRendererEffectsGroup ? faChevronDown : faChevronRight} />
+                  <span>Renderer Effects</span>
+                </button>
+                {showRendererEffectsGroup && (
+                  <div className="settings-group-content">
+                    <div className="effect-cards">
+                      {renderConfig.effects.map((effect) => (
+                        <div key={effect.type} className="effect-card">
+                          <button
+                            className={`effect-toggle ${effect.enabled ? 'active' : ''}`}
+                            onClick={() => handleEffectToggle(effect.type)}
+                            type="button"
+                          >
+                            <FontAwesomeIcon icon={effectIcons[effect.type]} />
+                            <div className="effect-details">
+                              <span className="effect-name">{effect.name}</span>
+                              <span className="effect-description">{effect.description}</span>
+                            </div>
+                            <span className="effect-status">{effect.enabled ? 'On' : 'Off'}</span>
+                          </button>
 
-                      {effect.type === RenderEffectType.EDGE_BLENDING && (
-                        <div className="effect-controls">
-                          <label className="effect-control">
-                            <div className="effect-control-header">
-                              <span>Blend Strength</span>
-                              <span className="effect-value">
-                                {renderConfig.edgeBlending.blendStrength.toFixed(2)}
-                              </span>
+                          {effect.type === RenderEffectType.EDGE_BLENDING && (
+                            <div className="effect-controls">
+                              <label className="effect-control">
+                                <div className="effect-control-header">
+                                  <span>Blend Strength</span>
+                                  <span className="effect-value">
+                                    {renderConfig.edgeBlending.blendStrength.toFixed(2)}
+                                  </span>
+                                </div>
+                                <input
+                                  type="range"
+                                  min="0"
+                                  max="1"
+                                  step="0.05"
+                                  value={renderConfig.edgeBlending.blendStrength}
+                                  onChange={(e) => handleEdgeBlendChange(parseFloat(e.target.value))}
+                                  className="passes-slider"
+                                  disabled={!effect.enabled}
+                                />
+                              </label>
                             </div>
-                            <input
-                              type="range"
-                              min="0"
-                              max="1"
-                              step="0.05"
-                              value={renderConfig.edgeBlending.blendStrength}
-                              onChange={(e) => handleEdgeBlendChange(parseFloat(e.target.value))}
-                              className="passes-slider"
-                              disabled={!effect.enabled}
-                            />
-                          </label>
-                        </div>
-                      )}
+                          )}
 
-                      {effect.type === RenderEffectType.MATERIAL_VARIATION && (
-                        <div className="effect-controls">
-                          <label className="effect-control">
-                            <div className="effect-control-header">
-                              <span>Noise Scale</span>
-                              <span className="effect-value">
-                                {renderConfig.materialVariation.noiseScale.toFixed(1)}
-                              </span>
+                          {effect.type === RenderEffectType.MATERIAL_VARIATION && (
+                            <div className="effect-controls">
+                              <label className="effect-control">
+                                <div className="effect-control-header">
+                                  <span>Noise Scale</span>
+                                  <span className="effect-value">
+                                    {renderConfig.materialVariation.noiseScale.toFixed(1)}
+                                  </span>
+                                </div>
+                                <input
+                                  type="range"
+                                  min="1"
+                                  max="10"
+                                  step="0.5"
+                                  value={renderConfig.materialVariation.noiseScale}
+                                  onChange={(e) => handleNoiseScaleChange(parseFloat(e.target.value))}
+                                  className="passes-slider"
+                                  disabled={!effect.enabled}
+                                />
+                              </label>
+                              <label className="effect-control">
+                                <div className="effect-control-header">
+                                  <span>Noise Strength</span>
+                                  <span className="effect-value">
+                                    {renderConfig.materialVariation.noiseStrength.toFixed(2)}
+                                  </span>
+                                </div>
+                                <input
+                                  type="range"
+                                  min="0"
+                                  max="1"
+                                  step="0.05"
+                                  value={renderConfig.materialVariation.noiseStrength}
+                                  onChange={(e) =>
+                                    handleNoiseStrengthChange(parseFloat(e.target.value))
+                                  }
+                                  className="passes-slider"
+                                  disabled={!effect.enabled}
+                                />
+                              </label>
                             </div>
-                            <input
-                              type="range"
-                              min="1"
-                              max="10"
-                              step="0.5"
-                              value={renderConfig.materialVariation.noiseScale}
-                              onChange={(e) => handleNoiseScaleChange(parseFloat(e.target.value))}
-                              className="passes-slider"
-                              disabled={!effect.enabled}
-                            />
-                          </label>
-                          <label className="effect-control">
-                            <div className="effect-control-header">
-                              <span>Noise Strength</span>
-                              <span className="effect-value">
-                                {renderConfig.materialVariation.noiseStrength.toFixed(2)}
-                              </span>
-                            </div>
-                            <input
-                              type="range"
-                              min="0"
-                              max="1"
-                              step="0.05"
-                              value={renderConfig.materialVariation.noiseStrength}
-                              onChange={(e) =>
-                                handleNoiseStrengthChange(parseFloat(e.target.value))
-                              }
-                              className="passes-slider"
-                              disabled={!effect.enabled}
-                            />
-                          </label>
-                        </div>
-                      )}
+                          )}
 
-                      {effect.type === RenderEffectType.GLOW && (
-                        <div className="effect-controls">
-                          <label className="effect-control">
-                            <div className="effect-control-header">
-                              <span>Glow Intensity</span>
-                              <span className="effect-value">
-                                {renderConfig.glow.intensity.toFixed(2)}
-                              </span>
+                          {effect.type === RenderEffectType.GLOW && (
+                            <div className="effect-controls">
+                              <label className="effect-control">
+                                <div className="effect-control-header">
+                                  <span>Glow Intensity</span>
+                                  <span className="effect-value">
+                                    {renderConfig.glow.intensity.toFixed(2)}
+                                  </span>
+                                </div>
+                                <input
+                                  type="range"
+                                  min="0"
+                                  max="2"
+                                  step="0.05"
+                                  value={renderConfig.glow.intensity}
+                                  onChange={(e) => handleGlowIntensityChange(parseFloat(e.target.value))}
+                                  className="passes-slider"
+                                  disabled={!effect.enabled}
+                                />
+                              </label>
+                              <label className="effect-control">
+                                <div className="effect-control-header">
+                                  <span>Glow Radius</span>
+                                  <span className="effect-value">
+                                    {renderConfig.glow.radius.toFixed(1)}
+                                  </span>
+                                </div>
+                                <input
+                                  type="range"
+                                  min="1"
+                                  max="4"
+                                  step="0.1"
+                                  value={renderConfig.glow.radius}
+                                  onChange={(e) => handleGlowRadiusChange(parseFloat(e.target.value))}
+                                  className="passes-slider"
+                                  disabled={!effect.enabled}
+                                />
+                              </label>
                             </div>
-                            <input
-                              type="range"
-                              min="0"
-                              max="2"
-                              step="0.05"
-                              value={renderConfig.glow.intensity}
-                              onChange={(e) => handleGlowIntensityChange(parseFloat(e.target.value))}
-                              className="passes-slider"
-                              disabled={!effect.enabled}
-                            />
-                          </label>
-                          <label className="effect-control">
-                            <div className="effect-control-header">
-                              <span>Glow Radius</span>
-                              <span className="effect-value">
-                                {renderConfig.glow.radius.toFixed(1)}
-                              </span>
-                            </div>
-                            <input
-                              type="range"
-                              min="1"
-                              max="4"
-                              step="0.1"
-                              value={renderConfig.glow.radius}
-                              onChange={(e) => handleGlowRadiusChange(parseFloat(e.target.value))}
-                              className="passes-slider"
-                              disabled={!effect.enabled}
-                            />
-                          </label>
+                          )}
                         </div>
-                      )}
+                      ))}
                     </div>
-                  ))}
-                </div>
+                  </div>
+                )}
               </div>
 
               {/* World Init Type */}
-              <div className="settings-group">
-                <div className="settings-group-label">World Type</div>
-                <select
-                  value={worldInitType}
-                  onChange={(e) => onWorldInitTypeChange?.(e.target.value as WorldInitType)}
-                  className="settings-select"
+              <div className="settings-group collapsible">
+                <button
+                  type="button"
+                  className={`settings-group-toggle ${showWorldTypeGroup ? 'expanded' : ''}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowWorldTypeGroup(prev => !prev);
+                  }}
                 >
-                  <option value={WorldInitType.HOURGLASS}>Hourglass</option>
-                  <option value={WorldInitType.PLATFORMS}>Platforms</option>
-                  <option value={WorldInitType.AXIS}>Axis</option>
-                  <option value={WorldInitType.EMPTY}>Empty</option>
-                </select>
+                  <FontAwesomeIcon icon={showWorldTypeGroup ? faChevronDown : faChevronRight} />
+                  <span>World Type</span>
+                </button>
+                {showWorldTypeGroup && (
+                  <div className="settings-group-content">
+                    <select
+                      value={worldInitType}
+                      onChange={(e) => onWorldInitTypeChange?.(e.target.value as WorldInitType)}
+                      className="settings-select"
+                    >
+                      <option value={WorldInitType.HOURGLASS}>Hourglass</option>
+                      <option value={WorldInitType.PLATFORMS}>Platforms</option>
+                      <option value={WorldInitType.AXIS}>Axis</option>
+                      <option value={WorldInitType.EMPTY}>Empty</option>
+                    </select>
+                  </div>
+                )}
               </div>
 
               {/* Reset Button */}
