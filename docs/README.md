@@ -46,17 +46,20 @@ src/
 ## Tech Stack Details
 
 ### Frontend
+
 - **React 19** - UI framework with concurrent rendering
 - **TypeScript** - Static typing and enhanced IDE support
 - **React Three Fiber** - React reconciler for Three.js
 - **Three.js** - WebGL abstraction and rendering engine
 
 ### Rendering
+
 - **WebGL 2.0** - GPU-accelerated graphics
 - **GLSL ES 3.0** - Fragment shaders for simulation and rendering
 - **DataTexture** - GPU texture storage for particle state
 
 ### Build Tools
+
 - **Vite** - Fast development server and optimized production builds
 - **ESLint** - Code linting
 - **Prettier** - Code formatting
@@ -64,13 +67,16 @@ src/
 ## Data Format
 
 ### Particle State Texture (RGBA)
+
 Each pixel in the state texture represents one particle:
+
 - **R channel**: Particle type ID (0-255)
 - **G channel**: Temperature low byte (Kelvin encoding)
 - **B channel**: Temperature high byte
 - **A channel**: Reserved / auxiliary data (default 255)
 
 ### Material Types
+
 - **Empty** (0): Void space
 - **Static** (16-32): Immovable materials (stone, etc.)
 - **Solid** (33-63): Granular materials (sand, dirt, gravel)

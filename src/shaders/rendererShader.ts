@@ -87,6 +87,10 @@ export const fragmentShader = `
     return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
   }
 
+  bool isParticleType(float typeValue, float targetType) {
+    return typeValue >= targetType && typeValue < targetType + 1.0;
+  }
+
   // Get color based on particle type
   // This code is auto-generated from ParticleColors
   vec4 getParticleColor(float particleType) {
@@ -122,6 +126,10 @@ ${generateParticleColorCode()}
       gl_FragColor = vec4(gridColor, 1.0);
       return;
     }
+
+    vec2 cellUV = fract(pixelCoord / uPixelSize);
+    float edgeDistance = min(min(cellUV.x, 1.0 - cellUV.x), min(cellUV.y, 1.0 - cellUV.y));
+    float centerDistance = distance(cellUV, vec2(0.5));
 
     // Always sample state texture to get particle type
     vec4 stateData = texture2D(uStateTexture, texUV);
@@ -210,6 +218,63 @@ ${generateParticleColorCode()}
       color.a *= (0.75 + alphaVariation); // Range: 0.5 to 1.0 multiplier
       color.a = clamp(color.a, 0.1, 1.0); // Ensure some minimum visibility
     }
+
+    if (isParticleType(particleType, GLASS_TYPE)) {
+      float rim = 1.0 - smoothstep(0.10, 0.28, edgeDistance);
+      float sparkleNoise = smoothNoise(worldParticleCoord * 0.35 + vec2(uTime * 0.4, uTime * 0.23));
+      float sparkle = smoothstep(0.6, 0.9, sparkleNoise);
+      float shimmer = clamp(rim * 0.6 + sparkle * 0.4, 0.0, 1.0);
+      color.rgb += vec3(0.18, 0.22, 0.28) * shimmer;
+      color.a *= 0.55 + rim * 0.35;
+    }
+
+    bool isIceFamily =
+      isParticleType(particleType, ICE_TYPE) ||
+      isParticleType(particleType, COOLANT_ICE_TYPE) ||
+      isParticleType(particleType, NITROGEN_ICE_TYPE);
+
+    if (isIceFamily) {
+      float frostNoise = smoothNoise(worldParticleCoord * 0.18 + vec2(uTime * 0.1, uTime * 0.07));
+      float frostSparkle = smoothstep(0.65, 1.0, frostNoise);
+      float rimSparkle = 1.0 - smoothstep(0.12, 0.30, edgeDistance);
+      float sparkle = clamp(frostSparkle * 0.5 + rimSparkle * 0.5, 0.0, 1.0);
+      color.rgb += vec3(0.12, 0.18, 0.28) * sparkle;
+    }
+
+    bool isMetallic = isParticleType(particleType, COPPER_TYPE) || isParticleType(particleType, HEITE_TYPE);
+    if (isMetallic) {
+      vec2 centeredUV = (cellUV - 0.5) * 2.0;
+      vec2 lightDir = normalize(vec2(0.4, 1.0));
+      float spec = max(0.0, dot(normalize(centeredUV), lightDir));
+      spec = pow(spec, 6.0);
+      float pulse = 0.5 + 0.5 * sin(uTime * 3.0 + worldParticleCoord.x * 0.25 + worldParticleCoord.y * 0.35);
+      float highlight = spec * (0.6 + 0.4 * pulse);
+      color.rgb += vec3(0.22, 0.15, 0.08) * highlight;
+
+      float rimSheen = 1.0 - smoothstep(0.14, 0.32, edgeDistance);
+      color.rgb += vec3(0.08, 0.05, 0.03) * rimSheen * 0.3;
+
+      if (isParticleType(particleType, HEITE_TYPE)) {
+        color.rgb += vec3(0.25, 0.08, 0.02) * rimSheen * 0.4;
+      }
+    }
+
+    if (isParticleType(particleType, OIL_TYPE)) {
+      float centerShadow = 1.0 - smoothstep(0.0, 0.45, centerDistance);
+      float darkness = 0.75 - centerShadow * 0.2;
+      color.rgb *= clamp(darkness, 0.5, 0.85);
+
+      float swirlNoise = smoothNoise(worldParticleCoord * 0.22 + vec2(uTime * 0.45, -uTime * 0.33));
+      float sheenNoise = (swirlNoise - 0.5) * 0.4;
+      float rim = 1.0 - smoothstep(0.10, 0.25, edgeDistance);
+      float sheen = clamp(rim * 0.5 + sheenNoise, 0.0, 1.0);
+      color.rgb += vec3(0.10, 0.07, 0.04) * sheen;
+
+      color.a *= 0.9;
+    }
+
+    color.rgb = clamp(color.rgb, 0.0, 1.0);
+    color.a = clamp(color.a, 0.0, 1.0);
 
     gl_FragColor = color;
   }

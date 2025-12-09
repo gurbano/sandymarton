@@ -20,6 +20,7 @@ import {
   postProcessVertexShader,
   edgeBlendingFragmentShader,
   materialVariationFragmentShader,
+  glowFragmentShader,
 } from '../shaders/postProcessShaders';
 import {
   overlayVertexShader,
@@ -98,6 +99,31 @@ const createMaterialVariationResources = (
     },
     vertexShader: postProcessVertexShader,
     fragmentShader: materialVariationFragmentShader,
+  });
+  const mesh = new Mesh(geometry, material);
+  scene.add(mesh);
+  return { scene, camera, material, geometry, mesh };
+};
+
+const createGlowResources = (
+  size: number,
+  colorTexture: Texture,
+  stateTexture: Texture
+): EffectResources => {
+  const scene = new Scene();
+  const camera = new OrthographicCamera(-1, 1, 1, -1, 0, 1);
+  const geometry = new PlaneGeometry(2, 2);
+  const material = new ShaderMaterial({
+    uniforms: {
+      uColorTexture: { value: colorTexture },
+      uStateTexture: { value: stateTexture },
+      uTextureSize: { value: new Vector2(size, size) },
+      uGlowIntensity: { value: 0.6 },
+      uGlowRadius: { value: 2.0 },
+    },
+    vertexShader: postProcessVertexShader,
+    fragmentShader: glowFragmentShader,
+    transparent: true,
   });
   const mesh = new Mesh(geometry, material);
   scene.add(mesh);
@@ -221,6 +247,7 @@ function PostProcessRenderer({
 
   const edgeBlendingRef = useRef<EffectResources | null>(null);
   const materialVariationRef = useRef<EffectResources | null>(null);
+  const glowRef = useRef<EffectResources | null>(null);
   const heatOverlayRef = useRef<EffectResources | null>(null);
   const ambientHeatOverlayRef = useRef<EffectResources | null>(null);
   const combinedHeatOverlayRef = useRef<EffectResources | null>(null);
@@ -235,6 +262,7 @@ function PostProcessRenderer({
       colorTexture,
       stateTexture
     );
+    const glow = createGlowResources(textureSize, colorTexture, stateTexture);
     const heatOverlay = createHeatOverlayResources(textureSize, colorTexture, stateTexture);
     // Pass null initially - heat texture updated in useFrame from ref
     const ambientHeatOverlay = createAmbientHeatOverlayResources(textureSize, colorTexture, stateTexture, null);
@@ -243,6 +271,7 @@ function PostProcessRenderer({
 
     edgeBlendingRef.current = edgeBlending;
     materialVariationRef.current = materialVariation;
+  glowRef.current = glow;
     heatOverlayRef.current = heatOverlay;
     ambientHeatOverlayRef.current = ambientHeatOverlay;
     combinedHeatOverlayRef.current = combinedHeatOverlay;
@@ -259,7 +288,7 @@ function PostProcessRenderer({
     initializedRef.current = true;
 
     return () => {
-      [edgeBlending, materialVariation, heatOverlay, ambientHeatOverlay, combinedHeatOverlay, forceOverlay].forEach((resources) => {
+      [edgeBlending, materialVariation, glow, heatOverlay, ambientHeatOverlay, combinedHeatOverlay, forceOverlay].forEach((resources) => {
         resources.scene.remove(resources.mesh);
         resources.geometry.dispose();
         resources.material.dispose();
@@ -298,6 +327,13 @@ function PostProcessRenderer({
             resources.material.uniforms.uNoiseScale.value = config.materialVariation.noiseScale;
             resources.material.uniforms.uNoiseStrength.value =
               config.materialVariation.noiseStrength;
+          }
+          break;
+        case RenderEffectType.GLOW:
+          resources = glowRef.current;
+          if (resources) {
+            resources.material.uniforms.uGlowIntensity.value = config.glow.intensity;
+            resources.material.uniforms.uGlowRadius.value = config.glow.radius;
           }
           break;
       }

@@ -6,6 +6,7 @@
 export enum RenderEffectType {
   EDGE_BLENDING = 'edge-blending',
   MATERIAL_VARIATION = 'material-variation',
+  GLOW = 'glow',
   // Future effects:
   // BLOOM = 'bloom',
   // BACKGROUND = 'background',
@@ -45,6 +46,12 @@ export interface RenderConfig {
   overlays: Overlay[];
   edgeBlending: EdgeBlendingSettings;
   materialVariation: MaterialVariationSettings;
+  glow: GlowSettings;
+}
+
+export interface GlowSettings {
+  intensity: number; // Multiplier for glow contribution (0-2, default: 0.6)
+  radius: number; // Radius multiplier for neighbor sampling (1-4, default: 2.0)
 }
 
 export const DEFAULT_RENDER_CONFIG: RenderConfig = {
@@ -60,6 +67,12 @@ export const DEFAULT_RENDER_CONFIG: RenderConfig = {
       enabled: true,
       name: 'Material Variation',
       description: 'Adds natural texture variation to materials using noise',
+    },
+    {
+      type: RenderEffectType.GLOW,
+      enabled: true,
+      name: 'Material Glow',
+      description: 'Adds a glow pass based on material emissive strengths',
     },
   ],
   overlays: [
@@ -88,5 +101,9 @@ export const DEFAULT_RENDER_CONFIG: RenderConfig = {
   materialVariation: {
     noiseScale: 4.0,
     noiseStrength: 0.15,
+  },
+  glow: {
+    intensity: 0.7,
+    radius: 2.6,
   },
 };

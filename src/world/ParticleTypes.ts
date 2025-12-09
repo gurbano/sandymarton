@@ -92,6 +92,7 @@ export type MaterialAttributes = {
   defaultTemperature: number; // Default temperature in Kelvin when particle is created
   thermalCapacity: number; // Thermal capacity (0.0 - 1.0): higher = particle loses LESS temp when emitting heat (lava=0.9 loses 10% of emitted heat)
   thermalConductivity: number; // Thermal conductivity (0.0 - 1.0): rate of heat transfer. Low = insulator, High = conductor
+  glowStrength: number; // Emissive/glow strength (0.0 - 1.0)
 }
 
 /**

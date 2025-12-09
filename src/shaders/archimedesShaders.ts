@@ -39,11 +39,11 @@ const archimedesTransitions = `
     // Both columns: denser liquid above lighter liquid: [L1, L1, L2, L2] -> [L2, L2, L1, L1]
     // where density(L1) > density(L2), OR same density but bottom is hotter (hot rises)
     if (!transitionApplied && isLiquid(tl) && isLiquid(tr) && isLiquid(bl) && isLiquid(br)) {
-      float topDensity = (getMaterialDensity(tl_orig) + getMaterialDensity(tr_orig)) * 0.5;
-      float bottomDensity = (getMaterialDensity(bl_orig) + getMaterialDensity(br_orig)) * 0.5;
+      float topDensity = (computeEffectiveDensity(tl_orig, tl_temp) + computeEffectiveDensity(tr_orig, tr_temp)) * 0.5;
+      float bottomDensity = (computeEffectiveDensity(bl_orig, bl_temp) + computeEffectiveDensity(br_orig, br_temp)) * 0.5;
 
       bool shouldSwap = false;
-      if (topDensity > bottomDensity) {
+      if (topDensity > bottomDensity + 0.25) {
         shouldSwap = true;
       } else if (abs(topDensity - bottomDensity) < 1.0) {
         // Same density - check temperature from particle texture (hot fluid rises)
@@ -51,7 +51,7 @@ const archimedesTransitions = `
         float bottomTemp = (bl_temp + br_temp) * 0.5;
 
         // Hot fluid rises - swap if bottom is significantly hotter
-        if (bottomTemp > topTemp + 10.0) {
+        if (bottomTemp > topTemp + 6.0) {
           shouldSwap = true;
         }
       }
@@ -67,15 +67,15 @@ const archimedesTransitions = `
     // Left column: denser liquid above lighter liquid: [L1, ?, L2, ?] -> [L2, ?, L1, ?]
     // OR same density but bottom is hotter (hot rises)
     if (!transitionApplied && isLiquid(tl) && isLiquid(bl)) {
-      float topDensity = getMaterialDensity(tl_orig);
-      float bottomDensity = getMaterialDensity(bl_orig);
+      float topDensity = computeEffectiveDensity(tl_orig, tl_temp);
+      float bottomDensity = computeEffectiveDensity(bl_orig, bl_temp);
 
       bool shouldSwap = false;
-      if (topDensity > bottomDensity) {
+      if (topDensity > bottomDensity + 0.25) {
         shouldSwap = true;
       } else if (abs(topDensity - bottomDensity) < 1.0) {
         // Same density - check temperature from particle texture
-        if (bl_temp > tl_temp + 10.0) {
+        if (bl_temp > tl_temp + 6.0) {
           shouldSwap = true;
         }
       }
@@ -91,15 +91,15 @@ const archimedesTransitions = `
     // Right column: denser liquid above lighter liquid: [?, L1, ?, L2] -> [?, L2, ?, L1]
     // OR same density but bottom is hotter (hot rises)
     if (!transitionApplied && isLiquid(tr) && isLiquid(br)) {
-      float topDensity = getMaterialDensity(tr_orig);
-      float bottomDensity = getMaterialDensity(br_orig);
+      float topDensity = computeEffectiveDensity(tr_orig, tr_temp);
+      float bottomDensity = computeEffectiveDensity(br_orig, br_temp);
 
       bool shouldSwap = false;
-      if (topDensity > bottomDensity) {
+      if (topDensity > bottomDensity + 0.25) {
         shouldSwap = true;
       } else if (abs(topDensity - bottomDensity) < 1.0) {
         // Same density - check temperature from particle texture
-        if (br_temp > tr_temp + 10.0) {
+        if (br_temp > tr_temp + 6.0) {
           shouldSwap = true;
         }
       }
@@ -149,9 +149,9 @@ const archimedesTransitions = `
       if (tl == INTERNAL_EMPTY) {
         canMoveLeft = true;
       } else if (isLiquid(tl)) {
-        float movingDensity = getMaterialDensity(tr_orig);
-        float destDensity = getMaterialDensity(tl_orig);
-        if (movingDensity >= destDensity) {
+        float movingDensity = computeEffectiveDensity(tr_orig, tr_temp);
+        float destDensity = computeEffectiveDensity(tl_orig, tl_temp);
+        if (movingDensity >= destDensity - 0.35) {
           canMoveLeft = true;
         }
       }
@@ -170,9 +170,9 @@ const archimedesTransitions = `
       if (tr == INTERNAL_EMPTY) {
         canMoveRight = true;
       } else if (isLiquid(tr)) {
-        float movingDensity = getMaterialDensity(tl_orig);
-        float destDensity = getMaterialDensity(tr_orig);
-        if (movingDensity >= destDensity) {
+        float movingDensity = computeEffectiveDensity(tl_orig, tl_temp);
+        float destDensity = computeEffectiveDensity(tr_orig, tr_temp);
+        if (movingDensity >= destDensity - 0.35) {
           canMoveRight = true;
         }
       }
@@ -239,11 +239,11 @@ const archimedesTransitions = `
     // Both columns: [G1, G1, G2, G2] -> [G2, G2, G1, G1] where density(G1) > density(G2)
     // OR same density but bottom is hotter (hot rises)
     if (!transitionApplied && isGas(tl) && isGas(tr) && isGas(bl) && isGas(br)) {
-      float topDensity = (getMaterialDensity(tl_orig) + getMaterialDensity(tr_orig)) * 0.5;
-      float bottomDensity = (getMaterialDensity(bl_orig) + getMaterialDensity(br_orig)) * 0.5;
+      float topDensity = (computeEffectiveDensity(tl_orig, tl_temp) + computeEffectiveDensity(tr_orig, tr_temp)) * 0.5;
+      float bottomDensity = (computeEffectiveDensity(bl_orig, bl_temp) + computeEffectiveDensity(br_orig, br_temp)) * 0.5;
 
       bool shouldSwap = false;
-      if (topDensity > bottomDensity) {
+      if (topDensity > bottomDensity + 0.05) {
         shouldSwap = true;
       } else if (abs(topDensity - bottomDensity) < 0.1) {
         // Same density - check temperature from particle texture (hot gas rises)
@@ -266,11 +266,11 @@ const archimedesTransitions = `
     // Left column: denser gas above lighter gas: [G1, ?, G2, ?] -> [G2, ?, G1, ?]
     // OR same density but bottom is hotter
     if (!transitionApplied && isGas(tl) && isGas(bl)) {
-      float topDensity = getMaterialDensity(tl_orig);
-      float bottomDensity = getMaterialDensity(bl_orig);
+      float topDensity = computeEffectiveDensity(tl_orig, tl_temp);
+      float bottomDensity = computeEffectiveDensity(bl_orig, bl_temp);
 
       bool shouldSwap = false;
-      if (topDensity > bottomDensity) {
+      if (topDensity > bottomDensity + 0.05) {
         shouldSwap = true;
       } else if (abs(topDensity - bottomDensity) < 0.1) {
         // Check temperature from particle texture
@@ -290,11 +290,11 @@ const archimedesTransitions = `
     // Right column: denser gas above lighter gas: [?, G1, ?, G2] -> [?, G2, ?, G1]
     // OR same density but bottom is hotter
     if (!transitionApplied && isGas(tr) && isGas(br)) {
-      float topDensity = getMaterialDensity(tr_orig);
-      float bottomDensity = getMaterialDensity(br_orig);
+      float topDensity = computeEffectiveDensity(tr_orig, tr_temp);
+      float bottomDensity = computeEffectiveDensity(br_orig, br_temp);
 
       bool shouldSwap = false;
-      if (topDensity > bottomDensity) {
+      if (topDensity > bottomDensity + 0.05) {
         shouldSwap = true;
       } else if (abs(topDensity - bottomDensity) < 0.1) {
         // Check temperature from particle texture

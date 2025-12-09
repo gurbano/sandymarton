@@ -5,6 +5,7 @@ Sandy2 includes a level system for loading and saving custom particle worlds usi
 ## Overview
 
 Levels are stored as:
+
 - **JSON metadata**: Level name, description, texture paths
 - **PNG texture**: Particle state data (types, velocities)
 
@@ -68,6 +69,7 @@ Metadata for a specific level.
 ```
 
 **Fields:**
+
 - `id`: Unique identifier (used in folder name)
 - `name`: Display name in UI
 - `description`: Optional description
@@ -78,11 +80,13 @@ Metadata for a specific level.
 PNG image storing particle state data.
 
 **Format:**
+
 - Size: 1024×1024 pixels (matches `WORLD_SIZE`)
 - Color Mode: RGBA (8-bit per channel)
 - Compression: PNG (lossless)
 
 **Channel Mapping:**
+
 - **R**: Particle type (0-255)
 - **G**: Velocity X (0-255, maps to -128 to +127)
 - **B**: Velocity Y (0-255, maps to -128 to +127)
@@ -141,7 +145,7 @@ ctx.imageSmoothingEnabled = false; // Prevent color interpolation
 
 ```typescript
 // Save current world
-saveLevel(worldTexture, "My Level", "A cool custom level");
+saveLevel(worldTexture, 'My Level', 'A cool custom level');
 
 // Downloads:
 // - my-level_level.json
@@ -158,6 +162,7 @@ saveLevel(worldTexture, "My Level", "A cool custom level");
 6. **Trigger downloads** for both files
 
 **Output Files:**
+
 - `{id}_level.json` - Metadata
 - `{id}_particles.png` - Texture
 
@@ -172,6 +177,7 @@ node scripts/generateLevelTextures.mjs
 ```
 
 **Example:**
+
 ```javascript
 // Create canvas
 const canvas = createCanvas(WORLD_SIZE, WORLD_SIZE);
@@ -181,10 +187,10 @@ const imageData = ctx.createImageData(WORLD_SIZE, WORLD_SIZE);
 // Set pixel
 const setPixel = (x, y, type) => {
   const offset = (y * WORLD_SIZE + x) * 4;
-  imageData.data[offset] = type;     // Particle type
-  imageData.data[offset + 1] = 128;  // Velocity X (0)
-  imageData.data[offset + 2] = 128;  // Velocity Y (0)
-  imageData.data[offset + 3] = 255;  // Alpha
+  imageData.data[offset] = type; // Particle type
+  imageData.data[offset + 1] = 128; // Velocity X (0)
+  imageData.data[offset + 2] = 128; // Velocity Y (0)
+  imageData.data[offset + 3] = 255; // Alpha
 };
 
 // Draw structures
@@ -202,47 +208,49 @@ writeFileSync('public/levels/custom/particles.png', buffer);
 2. Create `level.json` with metadata
 3. Create `particles.png`:
    - Use image editor (GIMP, Photoshop)
-  - Set size to 1024×1024 (or match your configured `WORLD_SIZE`)
-   - Use exact RGB values for particle types
-   - Save as PNG (no compression artifacts)
+
+- Set size to 1024×1024 (or match your configured `WORLD_SIZE`)
+- Use exact RGB values for particle types
+- Save as PNG (no compression artifacts)
+
 4. Add to `index.json`
 
 ## Particle Type Values
 
 When creating PNG textures, use these exact R channel values:
 
-| Type | R Value | Material |
-|------|---------|----------|
-| 0 | 0 | Empty |
-| 17 | 17 | Stone |
-| 18 | 18 | Glass |
-| 19 | 19 | Heite (hot static emitter) |
-| 35 | 35 | Sand |
-| 37 | 37 | Dirt |
-| 39 | 39 | Gravel |
-| 40 | 40 | Copper |
-| 41 | 41 | Ite (insulator) |
-| 42 | 42 | Ice |
-| 43 | 43 | Oil Sludge |
-| 44 | 44 | Slime Crystal |
-| 45 | 45 | Acid Crystal |
-| 46 | 46 | Coolant Ice |
-| 47 | 47 | Nitrogen Ice |
-| 65 | 65 | Water |
-| 80 | 80 | Lava |
-| 96 | 96 | Slime |
-| 97 | 97 | Acid |
-| 98 | 98 | Oil |
-| 99 | 99 | Coolant |
-| 100 | 100 | Liquid Nitrogen |
-| 113 | 113 | Steam |
-| 128 | 128 | Smoke |
-| 144 | 144 | Air |
-| 145 | 145 | Nitrogen |
-| 146 | 146 | Oil Vapor |
-| 147 | 147 | Slime Vapor |
-| 148 | 148 | Acid Vapor |
-| 149 | 149 | Coolant Vapor |
+| Type | R Value | Material                   |
+| ---- | ------- | -------------------------- |
+| 0    | 0       | Empty                      |
+| 17   | 17      | Stone                      |
+| 18   | 18      | Glass                      |
+| 19   | 19      | Heite (hot static emitter) |
+| 35   | 35      | Sand                       |
+| 37   | 37      | Dirt                       |
+| 39   | 39      | Gravel                     |
+| 40   | 40      | Copper                     |
+| 41   | 41      | Ite (insulator)            |
+| 42   | 42      | Ice                        |
+| 43   | 43      | Oil Sludge                 |
+| 44   | 44      | Slime Crystal              |
+| 45   | 45      | Acid Crystal               |
+| 46   | 46      | Coolant Ice                |
+| 47   | 47      | Nitrogen Ice               |
+| 65   | 65      | Water                      |
+| 80   | 80      | Lava                       |
+| 96   | 96      | Slime                      |
+| 97   | 97      | Acid                       |
+| 98   | 98      | Oil                        |
+| 99   | 99      | Coolant                    |
+| 100  | 100     | Liquid Nitrogen            |
+| 113  | 113     | Steam                      |
+| 128  | 128     | Smoke                      |
+| 144  | 144     | Air                        |
+| 145  | 145     | Nitrogen                   |
+| 146  | 146     | Oil Vapor                  |
+| 147  | 147     | Slime Vapor                |
+| 148  | 148     | Acid Vapor                 |
+| 149  | 149     | Coolant Vapor              |
 
 **G and B channels:** Set to 128 (zero velocity)
 **A channel:** Set to 255 (opaque)
@@ -258,6 +266,7 @@ Completely blank world - all particles set to type 0 (Empty).
 ### Sandbox Level
 
 Pre-built playground with:
+
 - 4 liquid pools at top (water, lava, slime, acid)
 - Open-top pools allowing particles to fall in
 - 3 platforms with different granular materials (sand, dirt, gravel)
@@ -295,12 +304,14 @@ Pre-built playground with:
 ### PNG vs Raw Formats
 
 **Why PNG?**
+
 - Lossless compression (20 KB vs 16 MB raw)
 - Human-readable in image editors
 - Easy to version control
 - Browser-native loading
 
 **Alternatives considered:**
+
 - Raw binary: Too large, no browser support
 - JPEG: Lossy compression breaks particle types
 - WebP: Not fully compatible with all browsers

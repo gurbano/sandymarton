@@ -113,6 +113,26 @@ export const margolusHelperFunctions = `
   float random(vec2 co, float seed) {
     return fract(sin(dot(co.xy + seed, vec2(12.9898, 78.233))) * 43758.5453);
   }
+
+  float computeEffectiveDensity(float particleType, float temperature) {
+    float baseDensity = getMaterialDensity(particleType);
+    float defaultTemp = getMaterialDefaultTemperature(particleType);
+    float tempDelta = temperature - defaultTemp;
+
+    float expansionCoeff = 0.0;
+    if (particleType >= LIQUID_MIN && particleType <= LIQUID_MAX) {
+      expansionCoeff = 0.55;
+    } else if (particleType >= GAS_MIN && particleType <= GAS_MAX) {
+      expansionCoeff = 1.4;
+    } else if (particleType >= SOLID_MIN && particleType <= SOLID_MAX) {
+      expansionCoeff = 0.18;
+    }
+
+    float adjusted = baseDensity - tempDelta * expansionCoeff;
+    float minDensity = baseDensity * 0.2;
+    float maxDensity = baseDensity * 3.5;
+    return clamp(adjusted, minDensity, maxDensity);
+  }
 `;
 
 /**

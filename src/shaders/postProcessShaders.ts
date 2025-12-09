@@ -5,6 +5,7 @@
 
 import { fbmNoise } from './noiseUtils';
 import { generateShaderConstants } from '../world/ParticleTypeConstants';
+import { generateParticleGlowCode } from '../world/RenderMaterialProperties';
 
 /**
  * Standard vertex shader for post-processing effects
@@ -69,6 +70,107 @@ export const materialVariationFragmentShader = `
     variedColor = clamp(variedColor, 0.0, 1.0);
 
     gl_FragColor = vec4(variedColor, baseColor.a);
+  }
+`;
+
+export const glowFragmentShader = `
+  uniform sampler2D uColorTexture;
+  uniform sampler2D uStateTexture;
+  uniform vec2 uTextureSize;
+  uniform float uGlowIntensity;
+  uniform float uGlowRadius;
+
+  varying vec2 vUv;
+
+  ${generateShaderConstants()}
+
+  float getParticleGlow(float particleType) {
+${generateParticleGlowCode()}
+  }
+
+  void main() {
+    vec4 baseColor = texture2D(uColorTexture, vUv);
+    vec4 statePixel = texture2D(uStateTexture, vUv);
+    float particleType = statePixel.r * 255.0;
+
+    float selfGlow = getParticleGlow(particleType);
+    vec3 baseRgb = baseColor.rgb;
+    vec3 glowAccum = vec3(0.0);
+    float totalWeight = 0.0;
+
+    float baseSelfWeight = selfGlow * 0.35;
+    glowAccum += baseRgb * baseSelfWeight;
+    totalWeight += baseSelfWeight;
+
+    vec2 texelSize = 1.0 / uTextureSize;
+    vec2 offsets[8];
+    offsets[0] = vec2(1.0, 0.0);
+    offsets[1] = vec2(-1.0, 0.0);
+    offsets[2] = vec2(0.0, 1.0);
+    offsets[3] = vec2(0.0, -1.0);
+    offsets[4] = vec2(1.0, 1.0);
+    offsets[5] = vec2(-1.0, 1.0);
+    offsets[6] = vec2(1.0, -1.0);
+    offsets[7] = vec2(-1.0, -1.0);
+
+    float weights[8];
+    weights[0] = 1.0;
+    weights[1] = 1.0;
+    weights[2] = 1.0;
+    weights[3] = 1.0;
+    weights[4] = 0.7;
+    weights[5] = 0.7;
+    weights[6] = 0.7;
+    weights[7] = 0.7;
+
+    float borderSum = 0.0;
+    float emptySum = 0.0;
+    float sameSum = 0.0;
+
+    for (int i = 0; i < 8; i++) {
+      vec2 scaledOffset = offsets[i] * texelSize * max(uGlowRadius, 0.5);
+      vec2 neighborUV = clamp(vUv + scaledOffset, 0.0, 1.0);
+      vec4 neighborColor = texture2D(uColorTexture, neighborUV);
+      vec4 neighborState = texture2D(uStateTexture, neighborUV);
+      float neighborType = neighborState.r * 255.0;
+      float neighborGlow = getParticleGlow(neighborType);
+      float relationWeight = weights[i];
+
+      bool isEmptyNeighbor = neighborType < EMPTY_MAX;
+      bool isSameMaterial = abs(neighborType - particleType) < 0.5;
+
+      if (isEmptyNeighbor) {
+        emptySum += relationWeight;
+      } else if (!isSameMaterial) {
+        borderSum += relationWeight;
+      } else {
+        sameSum += relationWeight;
+      }
+
+      float weight = neighborGlow * relationWeight;
+
+      if (isEmptyNeighbor) {
+        weight *= 1.6;
+      } else if (isSameMaterial) {
+        weight *= 0.35;
+      } else {
+        weight *= 1.2;
+      }
+
+      glowAccum += neighborColor.rgb * weight;
+      totalWeight += weight;
+    }
+
+    float borderIntensity = clamp(borderSum / 6.0, 0.0, 1.0);
+    float emptyIntensity = clamp(emptySum / 4.0, 0.0, 1.0);
+
+    vec3 glowColor = totalWeight > 0.0 ? glowAccum / totalWeight : baseRgb;
+    vec3 edgeGlow = max(vec3(0.0), glowColor - baseRgb);
+    vec3 highlight = baseRgb * selfGlow * (0.04 + 0.5 * borderIntensity + 0.45 * emptyIntensity);
+
+    float glowStrength = uGlowIntensity * (0.35 + 0.45 * borderIntensity + 0.4 * emptyIntensity);
+    vec3 finalColor = baseRgb + (edgeGlow + highlight) * glowStrength;
+    gl_FragColor = vec4(clamp(finalColor, 0.0, 1.0), baseColor.a);
   }
 `;
 

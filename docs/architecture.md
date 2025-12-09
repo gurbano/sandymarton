@@ -14,11 +14,13 @@ Sandy2 is built on a modular, GPU-first architecture that maximizes parallelizat
 ### Simulation Layer
 
 **MainSimulation.tsx**
+
 - Orchestrates the simulation pipeline
 - Manages texture ping-ponging
 - Controls frame rate and update loop
 
 **Shader Passes**
+
 1. Margolus CA (8 iterations default) - Granular physics and settling
 2. Liquid Spread (4 passes) - Horizontal liquid flow
 3. Archimedes (2 passes) - Buoyancy and density layering
@@ -28,6 +30,7 @@ Sandy2 is built on a modular, GPU-first architecture that maximizes parallelizat
 7. Force Transfer (optional) - Experimental external force propagation
 
 Each pass:
+
 - Reads from input texture
 - Applies transformations via fragment shader
 - Writes to output texture
@@ -36,12 +39,14 @@ Each pass:
 ### Rendering Layer
 
 **PostProcessRenderer.tsx**
+
 - Converts particle state to visual colors
 - Applies post-processing effects:
   - Edge blending for smooth boundaries
   - Material variation for natural texture
 
 **TextureRenderer.tsx**
+
 - Final display rendering
 - Liquid animation with time-based noise
 - Camera controls (pan, zoom)
@@ -50,6 +55,7 @@ Each pass:
 ### UI Layer
 
 **SideControls.tsx**
+
 - Material selection
 - Tool modes (draw, erase, fill)
 - Simulation configuration
@@ -57,6 +63,7 @@ Each pass:
 - Rendering effect toggles
 
 **ParticleCounter.tsx**
+
 - Real-time particle statistics refreshed periodically
 - CPU reads the GPU-owned state texture (Uint8Array) for aggregation
 - Optimized counting loop avoids per-frame overhead
@@ -88,24 +95,28 @@ Final Rendering
 ## Texture Management
 
 ### State Textures
+
 - Format: RGBA8 (Uint8Array)
 - Size: 1024×1024 pixels (configurable)
 - Storage: GPU-only (DataTexture)
 - Updates: Every frame via render-to-texture
 
 ### Heat / Force Textures
+
 - Format: RGBA8
 - Channels: TempLow, TempHigh, ForceX, ForceY
 - Purpose: Shared ambient temperature and force storage between passes
 - Lifecycle: Created once, ping-ponged each frame
 
 ### Color Textures
+
 - Format: RGBA8
 - Size: Same as state texture
 - Purpose: Intermediate post-processing results
 - Lifecycle: Created on-demand, cached
 
 ### Render Targets
+
 - WebGLRenderTarget for off-screen rendering
 - NearestFilter for pixel-perfect sampling
 - No depth/stencil buffers (2D simulation)
@@ -141,12 +152,14 @@ Total: ~50-65 MB
 ## Browser Compatibility
 
 **Minimum Requirements:**
+
 - WebGL 2.0 support
 - Fragment shader texture reads
 - Render-to-texture capability
 - GLSL ES 3.0
 
 **Tested On:**
+
 - Chrome 100+
 - Firefox 100+
 - Safari 15.4+

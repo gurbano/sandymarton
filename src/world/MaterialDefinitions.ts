@@ -21,6 +21,7 @@ const BaseEmptyAttributes: MaterialAttributes = {
   defaultTemperature: celsiusToKelvin(25), // Room temperature
   thermalCapacity: 0.0, // Empty space - heat passes through instantly
   thermalConductivity: 0.0, // Empty - no conduction
+  glowStrength: 0.0,
 };
 
 const BaseStaticAttributes: MaterialAttributes = {
@@ -34,6 +35,7 @@ const BaseStaticAttributes: MaterialAttributes = {
   defaultTemperature: celsiusToKelvin(25), // 25°C = 298K
   thermalCapacity: 0.8, // High capacity = particle loses less temp when emitting
   thermalConductivity: 0.3, // Stone is a moderate insulator
+  glowStrength: 0.0,
 };
 
 const BaseSolidAttributes: MaterialAttributes = {
@@ -47,6 +49,7 @@ const BaseSolidAttributes: MaterialAttributes = {
   defaultTemperature: celsiusToKelvin(25), // 25°C = 298K
   thermalCapacity: 0.5, // Medium thermal capacity for solids
   thermalConductivity: 0.5, // Medium conductivity
+  glowStrength: 0.0,
 };
 
 const BaseLiquidAttributes: MaterialAttributes = {
@@ -60,6 +63,7 @@ const BaseLiquidAttributes: MaterialAttributes = {
   defaultTemperature: celsiusToKelvin(20), // 20°C = 293K
   thermalCapacity: 0.7, // Liquids have high thermal capacity
   thermalConductivity: 0.6, // Liquids conduct reasonably well
+  glowStrength: 0.0,
 };
 
 const BaseGasAttributes: MaterialAttributes = {
@@ -73,6 +77,7 @@ const BaseGasAttributes: MaterialAttributes = {
   defaultTemperature: celsiusToKelvin(100), // 100°C = 373K (hot gas)
   thermalCapacity: 0.2, // Gases have low thermal capacity - heat quickly
   thermalConductivity: 0.1, // Gases are poor conductors (insulators)
+  glowStrength: 0.0,
 };
 
 export const MaterialDefinitions: Partial<Record<ParticleType, MaterialAttributes>> = {
@@ -124,6 +129,7 @@ export const MaterialDefinitions: Partial<Record<ParticleType, MaterialAttribute
   defaultTemperature: celsiusToKelvin(-10),
   thermalCapacity: 0.85,
   thermalConductivity: 0.45,
+  glowStrength: 0.08,
 },
 
 [ParticleType.OIL_SLUDGE]: {
@@ -137,6 +143,7 @@ export const MaterialDefinitions: Partial<Record<ParticleType, MaterialAttribute
   defaultTemperature: celsiusToKelvin(15),
   thermalCapacity: 0.65,
   thermalConductivity: 0.15,
+  glowStrength: 0.05,
 },
 
 [ParticleType.SLIME_CRYSTAL]: {
@@ -176,6 +183,7 @@ export const MaterialDefinitions: Partial<Record<ParticleType, MaterialAttribute
   defaultTemperature: celsiusToKelvin(-40),
   thermalCapacity: 0.75,
   thermalConductivity: 0.4,
+  glowStrength: 0.12,
 },
 
 [ParticleType.NITROGEN_ICE]: {
@@ -189,6 +197,7 @@ export const MaterialDefinitions: Partial<Record<ParticleType, MaterialAttribute
   defaultTemperature: celsiusToKelvin(-210),
   thermalCapacity: 0.25,
   thermalConductivity: 0.3,
+  glowStrength: 0.16,
 },
 
 // Liquid particles
@@ -213,6 +222,7 @@ export const MaterialDefinitions: Partial<Record<ParticleType, MaterialAttribute
   defaultTemperature: celsiusToKelvin(1000), // 1000°C = 1273K (molten rock)
   thermalCapacity: 0.90,     // Very high capacity - lava loses only 5% of emitted heat
   thermalConductivity: 0.2,  // Moderate conductivity - transfers heat but not too fast
+  glowStrength: 0.85,
 },
 
 [ParticleType.SLIME]: {
@@ -224,6 +234,7 @@ export const MaterialDefinitions: Partial<Record<ParticleType, MaterialAttribute
   color: [100, 255, 100, 200],
   hardness: 1,
   friction: 0.4,             // OK
+  glowStrength: 0.25,
 },
 
 [ParticleType.ACID]: {
@@ -235,6 +246,7 @@ export const MaterialDefinitions: Partial<Record<ParticleType, MaterialAttribute
   color: [150, 255, 50, 220],
   hardness: 1,
   friction: 0.03,            // Low friction
+  glowStrength: 0.3,
 },
 
 // Gas particles
@@ -244,6 +256,7 @@ export const MaterialDefinitions: Partial<Record<ParticleType, MaterialAttribute
   viscosity: 1,
   color: [200, 200, 255, 100],
   friction: 0.01,
+  glowStrength: 0.18,
 },
 
 [ParticleType.SMOKE]: {
@@ -252,6 +265,7 @@ export const MaterialDefinitions: Partial<Record<ParticleType, MaterialAttribute
   viscosity: 5,
   color: [80, 80, 80, 150],
   friction: 0.02,
+  glowStrength: 0.05,
 },
 
 [ParticleType.AIR]: {
@@ -262,6 +276,7 @@ export const MaterialDefinitions: Partial<Record<ParticleType, MaterialAttribute
   friction: 0.01,
   defaultTemperature: celsiusToKelvin(25), // Room temperature
   thermalConductivity: 0.02, // Air is a good insulator
+  glowStrength: 0.0,
 },
 
 // === NEW INSULATOR/CONDUCTOR MATERIALS ===
@@ -276,6 +291,7 @@ export const MaterialDefinitions: Partial<Record<ParticleType, MaterialAttribute
   hardness: 6,
   thermalCapacity: 0.7,      // Medium-high capacity
   thermalConductivity: 0.05, // Very low - excellent insulator
+  glowStrength: 0.55,
 },
 
 [ParticleType.HEITE]: {
@@ -288,6 +304,7 @@ export const MaterialDefinitions: Partial<Record<ParticleType, MaterialAttribute
   defaultTemperature: celsiusToKelvin(500), // Starts hot
   thermalCapacity: 1.0,      // Never loses temp (infinite heat source)
   thermalConductivity: 0.8,  // High conductivity - transfers heat to surroundings
+  glowStrength: 0.9,
 },
 
 // Solid conductors/insulators
@@ -301,6 +318,7 @@ export const MaterialDefinitions: Partial<Record<ParticleType, MaterialAttribute
   friction: 0.3,
   thermalCapacity: 0.4,      // Medium capacity
   thermalConductivity: 1.0,  // Perfect conductor - fastest heat transfer
+  glowStrength: 0.25,
 },
 
 [ParticleType.ITE]: {
@@ -327,6 +345,7 @@ export const MaterialDefinitions: Partial<Record<ParticleType, MaterialAttribute
   friction: 0.05,
   thermalCapacity: 0.6,
   thermalConductivity: 0.1,  // Poor conductor - insulating liquid
+  glowStrength: 0.1,
 },
 
 [ParticleType.COOLANT]: {
@@ -341,6 +360,7 @@ export const MaterialDefinitions: Partial<Record<ParticleType, MaterialAttribute
   defaultTemperature: celsiusToKelvin(-20), // Starts cold
   thermalCapacity: 0.3,      // Heats up quickly (absorbs heat)
   thermalConductivity: 0.95, // Excellent conductor - absorbs heat fast
+  glowStrength: 0.32,
 },
 
 [ParticleType.LIQUID_NITROGEN]: {
@@ -355,6 +375,7 @@ export const MaterialDefinitions: Partial<Record<ParticleType, MaterialAttribute
   defaultTemperature: celsiusToKelvin(-196),
   thermalCapacity: 0.25,
   thermalConductivity: 0.92,
+  glowStrength: 0.35,
 },
 
 // Gas thermal materials
@@ -367,6 +388,7 @@ export const MaterialDefinitions: Partial<Record<ParticleType, MaterialAttribute
   defaultTemperature: celsiusToKelvin(-100), // Very cold
   thermalCapacity: 0.1,      // Very low - heats up easily
   thermalConductivity: 0.8,  // Good conductor for a gas - absorbs heat
+  glowStrength: 0.22,
 },
 
 [ParticleType.OIL_VAPOR]: {
@@ -378,6 +400,7 @@ export const MaterialDefinitions: Partial<Record<ParticleType, MaterialAttribute
   defaultTemperature: celsiusToKelvin(180),
   thermalCapacity: 0.08,
   thermalConductivity: 0.3,
+  glowStrength: 0.12,
 },
 
 [ParticleType.SLIME_VAPOR]: {
@@ -389,6 +412,7 @@ export const MaterialDefinitions: Partial<Record<ParticleType, MaterialAttribute
   defaultTemperature: celsiusToKelvin(120),
   thermalCapacity: 0.12,
   thermalConductivity: 0.25,
+  glowStrength: 0.28,
 },
 
 [ParticleType.ACID_VAPOR]: {
@@ -400,6 +424,7 @@ export const MaterialDefinitions: Partial<Record<ParticleType, MaterialAttribute
   defaultTemperature: celsiusToKelvin(60),
   thermalCapacity: 0.15,
   thermalConductivity: 0.35,
+  glowStrength: 0.2,
 },
 
 [ParticleType.COOLANT_VAPOR]: {
@@ -411,6 +436,7 @@ export const MaterialDefinitions: Partial<Record<ParticleType, MaterialAttribute
   defaultTemperature: celsiusToKelvin(-70),
   thermalCapacity: 0.05,
   thermalConductivity: 0.45,
+  glowStrength: 0.24,
 },
 
 };

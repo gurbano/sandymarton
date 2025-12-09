@@ -1,4 +1,5 @@
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import type { IconDefinition } from '@fortawesome/fontawesome-svg-core';
 import {
   faRotateRight,
   faMountain,
@@ -25,16 +26,23 @@ import {
   faOilCan,
   faWind,
   faTemperatureLow,
+  faWandMagicSparkles,
+  faBrush,
+  faSun,
 } from '@fortawesome/free-solid-svg-icons';
 import { ParticleType } from '../world/ParticleTypes';
 import { ParticleTypeRanges } from '../world/ParticleTypeConstants';
 import { WorldInitType } from '../world/WorldGeneration';
 import { useState, useEffect } from 'react';
 import type { RenderConfig } from '../types/RenderConfig';
+import { RenderEffectType } from '../types/RenderConfig';
 import { loadLevelIndex } from '../utils/LevelLoader';
 import type { Level } from '../types/Level';
 
-export type ToolMode = 'inspect' | 'add' | 'remove' | 'fill';
+const MIN_LEFT_WIDTH = 160;
+const MAX_LEFT_WIDTH = 320;
+
+type ToolMode = 'inspect' | 'add' | 'remove' | 'fill';
 
 interface SideControlsProps {
   particleTypes: { name: string; value: number }[];
@@ -53,7 +61,7 @@ interface SideControlsProps {
   onBrushSizeChange: (size: number) => void;
 }
 
-const particleIcons: Record<string, any> = {
+const particleIcons: Record<string, IconDefinition> = {
   STONE: faCubes,
   GLASS: faCubes,
   HEITE: faFire,
@@ -85,6 +93,12 @@ const particleIcons: Record<string, any> = {
   COOLANT_VAPOR: faWind,
 };
 
+const effectIcons: Record<RenderEffectType, IconDefinition> = {
+  [RenderEffectType.EDGE_BLENDING]: faWandMagicSparkles,
+  [RenderEffectType.MATERIAL_VARIATION]: faBrush,
+  [RenderEffectType.GLOW]: faSun,
+};
+
 export function SideControls({
   particleTypes,
   selectedParticle,
@@ -106,6 +120,8 @@ export function SideControls({
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [saveLevelName, setSaveLevelName] = useState('');
   const [saveLevelDescription, setSaveLevelDescription] = useState('');
+  const [leftToolbarWidth, setLeftToolbarWidth] = useState<number>(190);
+  const [isResizingLeft, setIsResizingLeft] = useState(false);
 
   // Collapsible sections - Settings expanded by default, Levels collapsed
   const [showSettings, setShowSettings] = useState(true);
@@ -172,8 +188,88 @@ export function SideControls({
     e.stopPropagation();
   };
 
+  const handleLeftResizeMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsResizingLeft(true);
+  };
+
+  useEffect(() => {
+    if (!isResizingLeft) {
+      return;
+    }
+
+    const handleMouseMove = (event: MouseEvent) => {
+      const newWidth = Math.min(MAX_LEFT_WIDTH, Math.max(MIN_LEFT_WIDTH, event.clientX));
+      setLeftToolbarWidth(newWidth);
+    };
+
+    const handleMouseUp = () => {
+      setIsResizingLeft(false);
+    };
+
+    const body = document.body;
+    const previousCursor = body.style.cursor;
+    const previousUserSelect = body.style.userSelect;
+    body.style.cursor = 'col-resize';
+    body.style.userSelect = 'none';
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+      body.style.cursor = previousCursor;
+      body.style.userSelect = previousUserSelect;
+    };
+  }, [isResizingLeft]);
+
   // Show materials panel when Draw or Fill is active
   const shouldShowMaterials = toolMode === 'add' || toolMode === 'fill';
+
+  const handleEffectToggle = (effectType: RenderEffectType) => {
+    const updatedEffects = renderConfig.effects.map((effect) =>
+      effect.type === effectType ? { ...effect, enabled: !effect.enabled } : effect,
+    );
+
+    onRenderConfigChange({ ...renderConfig, effects: updatedEffects });
+  };
+
+  const handleEdgeBlendChange = (value: number) => {
+    onRenderConfigChange({
+      ...renderConfig,
+      edgeBlending: { ...renderConfig.edgeBlending, blendStrength: value },
+    });
+  };
+
+  const handleNoiseScaleChange = (value: number) => {
+    onRenderConfigChange({
+      ...renderConfig,
+      materialVariation: { ...renderConfig.materialVariation, noiseScale: value },
+    });
+  };
+
+  const handleNoiseStrengthChange = (value: number) => {
+    onRenderConfigChange({
+      ...renderConfig,
+      materialVariation: { ...renderConfig.materialVariation, noiseStrength: value },
+    });
+  };
+
+  const handleGlowIntensityChange = (value: number) => {
+    onRenderConfigChange({
+      ...renderConfig,
+      glow: { ...renderConfig.glow, intensity: value },
+    });
+  };
+
+  const handleGlowRadiusChange = (value: number) => {
+    onRenderConfigChange({
+      ...renderConfig,
+      glow: { ...renderConfig.glow, radius: value },
+    });
+  };
 
   // Render material grid (3 items per row)
   const renderMaterialGrid = (materials: typeof particleTypes) => (
@@ -195,9 +291,13 @@ export function SideControls({
   return (
     <>
       {/* LEFT TOOLBAR - Tools & Materials */}
-      <div className="toolbar-left" onMouseDown={handleMouseDown}>
-        {/* Tool Buttons */}
-        <div className="toolbar-section">
+      <div
+        className="toolbar-left-container"
+        style={{ width: `${leftToolbarWidth}px` }}
+      >
+        <div className="toolbar-left" onMouseDown={handleMouseDown}>
+          {/* Tool Buttons */}
+          <div className="toolbar-section">
           <button
             className={`toolbar-btn ${toolMode === 'inspect' ? 'active' : ''}`}
             onClick={() => onToolModeChange('inspect')}
@@ -287,6 +387,14 @@ export function SideControls({
             )}
           </div>
         )}
+        </div>
+        <div
+          className={`toolbar-resizer ${isResizingLeft ? 'active' : ''}`}
+          onMouseDown={handleLeftResizeMouseDown}
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Resize tool sidebar"
+        />
       </div>
 
       {/* RIGHT SIDEBAR - Settings & Levels */}
@@ -318,6 +426,135 @@ export function SideControls({
                       <FontAwesomeIcon icon={overlay.type === 'heat' ? faFire : faCloud} />
                       <span>{overlay.name}</span>
                     </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Renderer Effects */}
+              <div className="settings-group">
+                <div className="settings-group-label">Renderer Effects</div>
+                <div className="effect-cards">
+                  {renderConfig.effects.map((effect) => (
+                    <div key={effect.type} className="effect-card">
+                      <button
+                        className={`effect-toggle ${effect.enabled ? 'active' : ''}`}
+                        onClick={() => handleEffectToggle(effect.type)}
+                      >
+                        <FontAwesomeIcon icon={effectIcons[effect.type]} />
+                        <div className="effect-details">
+                          <span className="effect-name">{effect.name}</span>
+                          <span className="effect-description">{effect.description}</span>
+                        </div>
+                        <span className="effect-status">{effect.enabled ? 'On' : 'Off'}</span>
+                      </button>
+
+                      {effect.type === RenderEffectType.EDGE_BLENDING && (
+                        <div className="effect-controls">
+                          <label className="effect-control">
+                            <div className="effect-control-header">
+                              <span>Blend Strength</span>
+                              <span className="effect-value">
+                                {renderConfig.edgeBlending.blendStrength.toFixed(2)}
+                              </span>
+                            </div>
+                            <input
+                              type="range"
+                              min="0"
+                              max="1"
+                              step="0.05"
+                              value={renderConfig.edgeBlending.blendStrength}
+                              onChange={(e) => handleEdgeBlendChange(parseFloat(e.target.value))}
+                              className="passes-slider"
+                              disabled={!effect.enabled}
+                            />
+                          </label>
+                        </div>
+                      )}
+
+                      {effect.type === RenderEffectType.MATERIAL_VARIATION && (
+                        <div className="effect-controls">
+                          <label className="effect-control">
+                            <div className="effect-control-header">
+                              <span>Noise Scale</span>
+                              <span className="effect-value">
+                                {renderConfig.materialVariation.noiseScale.toFixed(1)}
+                              </span>
+                            </div>
+                            <input
+                              type="range"
+                              min="1"
+                              max="10"
+                              step="0.5"
+                              value={renderConfig.materialVariation.noiseScale}
+                              onChange={(e) => handleNoiseScaleChange(parseFloat(e.target.value))}
+                              className="passes-slider"
+                              disabled={!effect.enabled}
+                            />
+                          </label>
+                          <label className="effect-control">
+                            <div className="effect-control-header">
+                              <span>Noise Strength</span>
+                              <span className="effect-value">
+                                {renderConfig.materialVariation.noiseStrength.toFixed(2)}
+                              </span>
+                            </div>
+                            <input
+                              type="range"
+                              min="0"
+                              max="1"
+                              step="0.05"
+                              value={renderConfig.materialVariation.noiseStrength}
+                              onChange={(e) =>
+                                handleNoiseStrengthChange(parseFloat(e.target.value))
+                              }
+                              className="passes-slider"
+                              disabled={!effect.enabled}
+                            />
+                          </label>
+                        </div>
+                      )}
+
+                      {effect.type === RenderEffectType.GLOW && (
+                        <div className="effect-controls">
+                          <label className="effect-control">
+                            <div className="effect-control-header">
+                              <span>Glow Intensity</span>
+                              <span className="effect-value">
+                                {renderConfig.glow.intensity.toFixed(2)}
+                              </span>
+                            </div>
+                            <input
+                              type="range"
+                              min="0"
+                              max="2"
+                              step="0.05"
+                              value={renderConfig.glow.intensity}
+                              onChange={(e) => handleGlowIntensityChange(parseFloat(e.target.value))}
+                              className="passes-slider"
+                              disabled={!effect.enabled}
+                            />
+                          </label>
+                          <label className="effect-control">
+                            <div className="effect-control-header">
+                              <span>Glow Radius</span>
+                              <span className="effect-value">
+                                {renderConfig.glow.radius.toFixed(1)}
+                              </span>
+                            </div>
+                            <input
+                              type="range"
+                              min="1"
+                              max="4"
+                              step="0.1"
+                              value={renderConfig.glow.radius}
+                              onChange={(e) => handleGlowRadiusChange(parseFloat(e.target.value))}
+                              className="passes-slider"
+                              disabled={!effect.enabled}
+                            />
+                          </label>
+                        </div>
+                      )}
+                    </div>
                   ))}
                 </div>
               </div>

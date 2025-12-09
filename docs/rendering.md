@@ -14,6 +14,8 @@ Color Texture (RGB colors)
 Edge Blending (optional)
     ↓
 Material Variation (optional)
+  ↓
+Material Glow (optional)
     ↓
 Final Rendering + Liquid Animation
     ↓
@@ -23,9 +25,11 @@ Display Canvas
 ## Base Color Shader
 
 ### Purpose
+
 Converts particle type IDs to base RGB colors.
 
 ### Implementation
+
 ```glsl
 vec4 getParticleColor(float particleType) {
   if (particleType >= 0.0 && particleType < 1.0) {
@@ -42,17 +46,17 @@ Auto-generated from `ParticleColors` definition.
 
 ### Color Palette
 
-| Material | RGB | Hex |
-|----------|-----|-----|
-| Empty | (0, 0, 0) | #000000 |
-| Stone | (102, 102, 102) | #666666 |
-| Sand | (194, 178, 128) | #C2B280 |
-| Dirt | (139, 90, 43) | #8B5A2B |
-| Gravel | (169, 169, 169) | #A9A9A9 |
-| Water | (64, 164, 223) | #40A4DF |
-| Lava | (255, 69, 0) | #FF4500 |
-| Slime | (127, 255, 0) | #7FFF00 |
-| Acid | (173, 255, 47) | #ADFF2F |
+| Material | RGB             | Hex     |
+| -------- | --------------- | ------- |
+| Empty    | (0, 0, 0)       | #000000 |
+| Stone    | (102, 102, 102) | #666666 |
+| Sand     | (194, 178, 128) | #C2B280 |
+| Dirt     | (139, 90, 43)   | #8B5A2B |
+| Gravel   | (169, 169, 169) | #A9A9A9 |
+| Water    | (64, 164, 223)  | #40A4DF |
+| Lava     | (255, 69, 0)    | #FF4500 |
+| Slime    | (127, 255, 0)   | #7FFF00 |
+| Acid     | (173, 255, 47)  | #ADFF2F |
 
 ## Post-Processing Effects
 
@@ -61,6 +65,7 @@ Auto-generated from `ParticleColors` definition.
 **Purpose:** Smooths boundaries between different materials.
 
 **Algorithm:**
+
 ```glsl
 // Sample 3×3 neighborhood
 vec4 center = texture(uColorTexture, uv);
@@ -77,12 +82,14 @@ if (isEdge) {
 ```
 
 **Parameters:**
+
 - `blendStrength` (0.0 - 1.0): Blend intensity
   - 0.0 = No blending
   - 0.5 = Subtle smoothing (default)
   - 1.0 = Maximum smoothing
 
 **Effect:**
+
 - Reduces pixelation at material boundaries
 - Creates softer, more organic appearance
 - Most visible at zoomed-in views
@@ -92,6 +99,7 @@ if (isEdge) {
 **Purpose:** Adds natural texture variation using fractal noise.
 
 **Algorithm:**
+
 ```glsl
 // FBM (Fractal Brownian Motion) noise
 float fbm(vec2 p) {
@@ -114,6 +122,7 @@ vec3 color = baseColor * (1.0 + variation * uNoiseStrength);
 ```
 
 **Parameters:**
+
 - `noiseScale` (0.5 - 10.0): Detail level
   - Low = Large patterns
   - High = Fine detail
@@ -124,15 +133,52 @@ vec3 color = baseColor * (1.0 + variation * uNoiseStrength);
   - 1.0 = Strong variation
 
 **Effect:**
+
 - Breaks up flat color regions
 - Simulates natural material texture
 - Adds visual interest without changing simulation
+
+### 3. Material Glow
+
+**Purpose:** Adds subtle emissive halos around particles that naturally glow (lava, heated metals) while keeping detail intact.
+
+**Algorithm:**
+
+```glsl
+float selfGlow = getParticleGlow(particleType);
+vec3 baseRgb = texture2D(uColorTexture, vUv).rgb;
+
+// Weighted sample of 8 neighbors
+for each neighbor {
+  float neighborGlow = getParticleGlow(neighborType);
+  float weight = neighborGlow * falloff;
+  // Boost contrast against empty space and other materials
+  if (neighborType is empty) weight *= 1.6;
+  else if (neighborType is same material) weight *= 0.35;
+  glowAccum += neighborColor * weight;
+}
+
+vec3 edgeGlow = max(vec3(0.0), (glowAccum / totalWeight) - baseRgb);
+vec3 finalColor = baseRgb + edgeGlow * uGlowIntensity;
+```
+
+**Parameters:**
+
+- `intensity` (0.0 - 2.0): Multiplier applied to the halo contribution. Default: **0.7** for a restrained glow.
+- `radius` (0.5 - 4.0): Scales sampling offsets. Default: **2.6** to emphasize outer edges without flooding the material interior.
+
+**Effect:**
+
+- Keeps glow stronger against empty cells or different materials so silhouettes pop.
+- Dampens amplification within the same material to preserve surface detail (e.g., ice veins).
+- Responds to per-material glow strengths from `MaterialDefinitions`.
 
 ## Liquid Animation
 
 **Purpose:** Adds dynamic, flowing appearance to liquids.
 
 **Algorithm:**
+
 ```glsl
 if (particleType >= 64.0 && particleType < 112.0) {
   // Dual-layer smooth noise
@@ -155,12 +201,14 @@ if (particleType >= 64.0 && particleType < 112.0) {
 ```
 
 **Features:**
+
 - Two noise layers moving in different directions
 - Time-based animation for flowing effect
 - Subtle enough to not distract from simulation
 - Applied after post-processing
 
 **Performance:**
+
 - Runs on final display shader
 - No extra render passes needed
 - Negligible performance impact
@@ -185,11 +233,13 @@ vec2 texUV = (worldParticleCoord + WORLD_SIZE/2) / uTextureSize;
 ### Zoom System
 
 **Pixel Size Parameter:**
+
 - 1.0 = Each particle is 1×1 screen pixel
 - 2.0 = Each particle is 2×2 screen pixels (zoomed in)
 - 0.5 = Each particle is 0.5×0.5 screen pixels (zoomed out)
 
 **Pan System:**
+
 - `uCenter` = World coordinates of view center
 - Updated by drag interactions
 - Clamped to world boundaries
@@ -218,11 +268,13 @@ if (texUV.x < 0.0 || texUV.x > 1.0 ||
 ## Render Configuration
 
 ### Default Settings
+
 ```typescript
 {
   effects: [
     { type: 'edge-blending', enabled: true },
-    { type: 'material-variation', enabled: true }
+    { type: 'material-variation', enabled: true },
+    { type: 'glow', enabled: true }
   ],
   edgeBlending: {
     blendStrength: 0.5
@@ -230,20 +282,26 @@ if (texUV.x < 0.0 || texUV.x > 1.0 ||
   materialVariation: {
     noiseScale: 4.0,
     noiseStrength: 0.15
+  },
+  glow: {
+    intensity: 0.7,
+    radius: 2.6
   }
 }
 ```
 
 ### Performance Impact
 
-| Effect | GPU Cost | Visual Impact |
-|--------|----------|---------------|
-| Base Colors | Low | Required |
-| Edge Blending | Medium | High at zoom |
-| Material Variation | Medium | Medium overall |
-| Liquid Animation | Low | High for liquids |
+| Effect             | GPU Cost | Visual Impact                 |
+| ------------------ | -------- | ----------------------------- |
+| Base Colors        | Low      | Required                      |
+| Edge Blending      | Medium   | High at zoom                  |
+| Material Variation | Medium   | Medium overall                |
+| Material Glow      | Medium   | Highlights emissive materials |
+| Liquid Animation   | Low      | High for liquids              |
 
 **Optimization Tips:**
+
 - Disable effects on low-end GPUs
 - Reduce noise quality for better performance
 - Use lower blend strength for faster rendering
@@ -251,12 +309,14 @@ if (texUV.x < 0.0 || texUV.x > 1.0 ||
 ## Visual Quality Comparison
 
 ### Without Post-Processing
+
 - Flat colors
 - Sharp pixel boundaries
 - Static appearance
 - Fast rendering
 
 ### With Post-Processing
+
 - Textured materials
 - Smooth transitions
 - Animated liquids

@@ -11,14 +11,14 @@ A real-time particle simulation using Margolus cellular automata running entirel
 ![Sandy2 Demo](docs/images/screenshot-1.png)
 ![Sandy2 Features](docs/images/screenshot-2.png)
 
-> *Screenshots coming soon*
+> _Screenshots coming soon_
 
 ## ✨ Features
 
 - **GPU-Accelerated Physics** - Entire simulation runs on GPU using GLSL shaders
 - **Multiple Materials** - Sand, water, stone, dirt, gravel, liquids (water, lava, slime, acid), and more
 - **Realistic Dynamics** - Material-specific friction, buoyancy, and liquid flow
-- **Advanced Rendering** - Edge blending, material variation, animated liquids
+- **Advanced Rendering** - Edge blending, material variation, temperature-aware glow, animated liquids
 - **Level System** - Load and save custom levels as PNG textures
 - **Interactive Drawing** - Paint particles directly onto the canvas
 
@@ -45,6 +45,7 @@ npm run build
 ## 📚 Documentation
 
 For detailed technical information, see the [documentation](docs/README.md):
+
 - [Architecture Overview](docs/architecture.md)
 - [Simulation Pipeline](docs/simulation.md)
 - [Rendering System](docs/rendering.md)
