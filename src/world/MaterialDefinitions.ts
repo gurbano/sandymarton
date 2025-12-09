@@ -113,6 +113,84 @@ export const MaterialDefinitions: Partial<Record<ParticleType, MaterialAttribute
   friction: 0.9,             // Very high friction - rocks interlock
 },
 
+[ParticleType.ICE]: {
+  ...BaseSolidAttributes,
+  density: 920,              // Ice is less dense than liquid water
+  meltingPoint: 0,
+  boilingPoint: 100,
+  color: [180, 220, 255, 255],
+  hardness: 2,
+  friction: 0.35,            // Slippery compared to other solids
+  defaultTemperature: celsiusToKelvin(-10),
+  thermalCapacity: 0.85,
+  thermalConductivity: 0.45,
+},
+
+[ParticleType.OIL_SLUDGE]: {
+  ...BaseSolidAttributes,
+  density: 980,
+  meltingPoint: 25,
+  boilingPoint: 320,
+  color: [60, 40, 25, 255],
+  hardness: 2,
+  friction: 0.8,             // Sticky solid
+  defaultTemperature: celsiusToKelvin(15),
+  thermalCapacity: 0.65,
+  thermalConductivity: 0.15,
+},
+
+[ParticleType.SLIME_CRYSTAL]: {
+  ...BaseSolidAttributes,
+  density: 1150,
+  meltingPoint: 5,
+  boilingPoint: 180,
+  color: [140, 255, 160, 255],
+  hardness: 3,
+  friction: 0.6,
+  defaultTemperature: celsiusToKelvin(0),
+  thermalCapacity: 0.55,
+  thermalConductivity: 0.25,
+},
+
+[ParticleType.ACID_CRYSTAL]: {
+  ...BaseSolidAttributes,
+  density: 1400,
+  meltingPoint: 45,
+  boilingPoint: 120,
+  color: [200, 255, 120, 255],
+  hardness: 4,
+  friction: 0.7,
+  defaultTemperature: celsiusToKelvin(18),
+  thermalCapacity: 0.4,
+  thermalConductivity: 0.35,
+},
+
+[ParticleType.COOLANT_ICE]: {
+  ...BaseSolidAttributes,
+  density: 950,
+  meltingPoint: -60,
+  boilingPoint: 80,
+  color: [150, 220, 255, 255],
+  hardness: 3,
+  friction: 0.3,
+  defaultTemperature: celsiusToKelvin(-40),
+  thermalCapacity: 0.75,
+  thermalConductivity: 0.4,
+},
+
+[ParticleType.NITROGEN_ICE]: {
+  ...BaseSolidAttributes,
+  density: 1030,
+  meltingPoint: -210,
+  boilingPoint: -195,
+  color: [200, 230, 255, 255],
+  hardness: 2,
+  friction: 0.5,
+  defaultTemperature: celsiusToKelvin(-210),
+  thermalCapacity: 0.25,
+  thermalConductivity: 0.3,
+},
+
 // Liquid particles
 [ParticleType.WATER]: {
   ...BaseLiquidAttributes,
@@ -265,6 +343,20 @@ export const MaterialDefinitions: Partial<Record<ParticleType, MaterialAttribute
   thermalConductivity: 0.95, // Excellent conductor - absorbs heat fast
 },
 
+[ParticleType.LIQUID_NITROGEN]: {
+  ...BaseLiquidAttributes,
+  density: 810,
+  viscosity: 2,
+  meltingPoint: -210,
+  boilingPoint: -196,
+  color: [180, 220, 255, 200],
+  hardness: 1,
+  friction: 0.04,
+  defaultTemperature: celsiusToKelvin(-196),
+  thermalCapacity: 0.25,
+  thermalConductivity: 0.92,
+},
+
 // Gas thermal materials
 [ParticleType.NITROGEN]: {
   ...BaseGasAttributes,
@@ -275,6 +367,50 @@ export const MaterialDefinitions: Partial<Record<ParticleType, MaterialAttribute
   defaultTemperature: celsiusToKelvin(-100), // Very cold
   thermalCapacity: 0.1,      // Very low - heats up easily
   thermalConductivity: 0.8,  // Good conductor for a gas - absorbs heat
+},
+
+[ParticleType.OIL_VAPOR]: {
+  ...BaseGasAttributes,
+  density: 0.7,
+  viscosity: 2,
+  color: [120, 120, 110, 110],
+  friction: 0.02,
+  defaultTemperature: celsiusToKelvin(180),
+  thermalCapacity: 0.08,
+  thermalConductivity: 0.3,
+},
+
+[ParticleType.SLIME_VAPOR]: {
+  ...BaseGasAttributes,
+  density: 0.65,
+  viscosity: 3,
+  color: [140, 255, 170, 110],
+  friction: 0.03,
+  defaultTemperature: celsiusToKelvin(120),
+  thermalCapacity: 0.12,
+  thermalConductivity: 0.25,
+},
+
+[ParticleType.ACID_VAPOR]: {
+  ...BaseGasAttributes,
+  density: 0.75,
+  viscosity: 2,
+  color: [190, 255, 120, 110],
+  friction: 0.02,
+  defaultTemperature: celsiusToKelvin(60),
+  thermalCapacity: 0.15,
+  thermalConductivity: 0.35,
+},
+
+[ParticleType.COOLANT_VAPOR]: {
+  ...BaseGasAttributes,
+  density: 0.6,
+  viscosity: 1,
+  color: [160, 220, 255, 110],
+  friction: 0.015,
+  defaultTemperature: celsiusToKelvin(-70),
+  thermalCapacity: 0.05,
+  thermalConductivity: 0.45,
 },
 
 };
@@ -405,18 +541,41 @@ float getMaterialThermalConductivity(float particleType) {
  * -1 means no transition occurs
  */
 export const PhaseTransitions: Record<number, { boilsTo: number; meltsTo: number; condensesTo: number; freezesTo: number }> = {
-  // Water boils to steam, steam condenses to water
-  [ParticleType.WATER]: { boilsTo: ParticleType.STEAM, meltsTo: -1, condensesTo: -1, freezesTo: -1 },
+  // Water phases
+  [ParticleType.ICE]: { boilsTo: -1, meltsTo: ParticleType.WATER, condensesTo: -1, freezesTo: -1 },
+  [ParticleType.WATER]: { boilsTo: ParticleType.STEAM, meltsTo: -1, condensesTo: -1, freezesTo: ParticleType.ICE },
   [ParticleType.STEAM]: { boilsTo: -1, meltsTo: -1, condensesTo: ParticleType.WATER, freezesTo: -1 },
 
-  // Lava solidifies to stone when cooled below ~700°C
+  // Lava phases (liquid ➜ stone solid ➜ smoke gas)
   [ParticleType.LAVA]: { boilsTo: ParticleType.SMOKE, meltsTo: -1, condensesTo: -1, freezesTo: ParticleType.STONE },
 
-  // Oil boils to smoke
-  [ParticleType.OIL]: { boilsTo: ParticleType.SMOKE, meltsTo: -1, condensesTo: -1, freezesTo: -1 },
+  // Oil phases
+  [ParticleType.OIL_SLUDGE]: { boilsTo: -1, meltsTo: ParticleType.OIL, condensesTo: -1, freezesTo: -1 },
+  [ParticleType.OIL]: { boilsTo: ParticleType.OIL_VAPOR, meltsTo: -1, condensesTo: -1, freezesTo: ParticleType.OIL_SLUDGE },
+  [ParticleType.OIL_VAPOR]: { boilsTo: -1, meltsTo: -1, condensesTo: ParticleType.OIL, freezesTo: -1 },
 
-  // Slime boils to steam (it's water-based)
-  [ParticleType.SLIME]: { boilsTo: ParticleType.STEAM, meltsTo: -1, condensesTo: -1, freezesTo: -1 },
+  // Slime phases
+  [ParticleType.SLIME_CRYSTAL]: { boilsTo: -1, meltsTo: ParticleType.SLIME, condensesTo: -1, freezesTo: -1 },
+  [ParticleType.SLIME]: { boilsTo: ParticleType.SLIME_VAPOR, meltsTo: -1, condensesTo: -1, freezesTo: ParticleType.SLIME_CRYSTAL },
+  [ParticleType.SLIME_VAPOR]: { boilsTo: -1, meltsTo: -1, condensesTo: ParticleType.SLIME, freezesTo: -1 },
+
+  // Acid phases
+  [ParticleType.ACID_CRYSTAL]: { boilsTo: -1, meltsTo: ParticleType.ACID, condensesTo: -1, freezesTo: -1 },
+  [ParticleType.ACID]: { boilsTo: ParticleType.ACID_VAPOR, meltsTo: -1, condensesTo: -1, freezesTo: ParticleType.ACID_CRYSTAL },
+  [ParticleType.ACID_VAPOR]: { boilsTo: -1, meltsTo: -1, condensesTo: ParticleType.ACID, freezesTo: -1 },
+
+  // Coolant phases
+  [ParticleType.COOLANT_ICE]: { boilsTo: -1, meltsTo: ParticleType.COOLANT, condensesTo: -1, freezesTo: -1 },
+  [ParticleType.COOLANT]: { boilsTo: ParticleType.COOLANT_VAPOR, meltsTo: -1, condensesTo: -1, freezesTo: ParticleType.COOLANT_ICE },
+  [ParticleType.COOLANT_VAPOR]: { boilsTo: -1, meltsTo: -1, condensesTo: ParticleType.COOLANT, freezesTo: -1 },
+
+  // Nitrogen phases
+  [ParticleType.NITROGEN_ICE]: { boilsTo: -1, meltsTo: ParticleType.LIQUID_NITROGEN, condensesTo: -1, freezesTo: -1 },
+  [ParticleType.LIQUID_NITROGEN]: { boilsTo: ParticleType.NITROGEN, meltsTo: -1, condensesTo: -1, freezesTo: ParticleType.NITROGEN_ICE },
+  [ParticleType.NITROGEN]: { boilsTo: -1, meltsTo: -1, condensesTo: ParticleType.LIQUID_NITROGEN, freezesTo: -1 },
+
+  // Lava vaporization and residual smoke
+  [ParticleType.SMOKE]: { boilsTo: -1, meltsTo: -1, condensesTo: -1, freezesTo: -1 },
 };
 
 /**
@@ -428,6 +587,7 @@ export function generatePhaseTransitionShaderConstants(): string {
   const meltingPoints: number[] = [];
   const boilingPoints: number[] = [];
   const boilsTo: number[] = [];
+  const meltsTo: number[] = [];
   const condensesTo: number[] = [];
   const freezesTo: number[] = [];
   const condensationTemps: number[] = []; // Temperature below which gas condenses
@@ -446,6 +606,7 @@ export function generatePhaseTransitionShaderConstants(): string {
 
     // Phase transition targets (-1 = no transition)
     boilsTo[i] = transitions?.boilsTo ?? -1;
+  meltsTo[i] = transitions?.meltsTo ?? -1;
     condensesTo[i] = transitions?.condensesTo ?? -1;
     freezesTo[i] = transitions?.freezesTo ?? -1;
 
@@ -474,6 +635,11 @@ const float MATERIAL_BOILING_POINTS[256] = float[256](
 // What particle type this boils/vaporizes to (-1 = no transition)
 const int MATERIAL_BOILS_TO[256] = int[256](
   ${boilsTo.join(', ')}
+);
+
+// What particle type this melts to (-1 = no transition)
+const int MATERIAL_MELTS_TO[256] = int[256](
+  ${meltsTo.join(', ')}
 );
 
 // What particle type this condenses to (-1 = no transition)
@@ -514,6 +680,15 @@ int getMaterialBoilsTo(float particleType) {
   int index = int(particleType);
   if (index >= 0 && index < 256) {
     return MATERIAL_BOILS_TO[index];
+  }
+  return -1;
+}
+
+// Helper to get what this particle melts to (-1 if no transition)
+int getMaterialMeltsTo(float particleType) {
+  int index = int(particleType);
+  if (index >= 0 && index < 256) {
+    return MATERIAL_MELTS_TO[index];
   }
   return -1;
 }

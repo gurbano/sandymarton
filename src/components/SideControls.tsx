@@ -20,6 +20,11 @@ import {
   faFloppyDisk,
   faGear,
   faLayerGroup,
+  faSnowflake,
+  faIcicles,
+  faOilCan,
+  faWind,
+  faTemperatureLow,
 } from '@fortawesome/free-solid-svg-icons';
 import { ParticleType } from '../world/ParticleTypes';
 import { ParticleTypeRanges } from '../world/ParticleTypeConstants';
@@ -49,16 +54,35 @@ interface SideControlsProps {
 }
 
 const particleIcons: Record<string, any> = {
+  STONE: faCubes,
+  GLASS: faCubes,
+  HEITE: faFire,
   SAND: faMountain,
   DIRT: faSeedling,
-  STONE: faCubes,
   GRAVEL: faCubes,
+  COPPER: faCubes,
+  ITE: faSeedling,
+  ICE: faSnowflake,
+  OIL_SLUDGE: faOilCan,
+  SLIME_CRYSTAL: faIcicles,
+  ACID_CRYSTAL: faBiohazard,
+  COOLANT_ICE: faSnowflake,
+  NITROGEN_ICE: faIcicles,
   WATER: faDroplet,
   LAVA: faFire,
   SLIME: faFlask,
   ACID: faBiohazard,
+  OIL: faOilCan,
+  COOLANT: faTemperatureLow,
+  LIQUID_NITROGEN: faTemperatureLow,
   STEAM: faCloud,
   SMOKE: faSmog,
+  AIR: faWind,
+  NITROGEN: faWind,
+  OIL_VAPOR: faWind,
+  SLIME_VAPOR: faCloud,
+  ACID_VAPOR: faBiohazard,
+  COOLANT_VAPOR: faWind,
 };
 
 export function SideControls({

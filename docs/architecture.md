@@ -4,10 +4,10 @@ Sandy2 is built on a modular, GPU-first architecture that maximizes parallelizat
 
 ## Core Principles
 
-1. **GPU-Everything**: All simulation and rendering logic runs on the GPU via GLSL shaders
+1. **GPU-First**: Simulation and rendering logic primarily run on the GPU via GLSL shaders
 2. **Double Buffering**: Ping-pong texture swapping for state updates
 3. **Modular Pipeline**: Each simulation pass is independent and composable
-4. **Zero CPU Processing**: Particle state never leaves GPU memory
+4. **Minimal CPU Processing**: Particle state stays on the GPU except for lightweight analytics (e.g., particle counting)
 
 ## System Components
 
@@ -19,9 +19,13 @@ Sandy2 is built on a modular, GPU-first architecture that maximizes parallelizat
 - Controls frame rate and update loop
 
 **Shader Passes**
-1. Margolus CA (4 iterations) - Granular physics
-2. Liquid Spread - Horizontal liquid flow
-3. Archimedes - Buoyancy and density layering
+1. Margolus CA (8 iterations default) - Granular physics and settling
+2. Liquid Spread (4 passes) - Horizontal liquid flow
+3. Archimedes (2 passes) - Buoyancy and density layering
+4. Ambient Heat Transfer (2 passes) - Heat layer diffusion and emission
+5. Particle Heat Diffusion (2 passes) - Direct conduction between particles
+6. Phase Transitions (1 pass) - Material changes based on temperature
+7. Force Transfer (optional) - Experimental external force propagation
 
 Each pass:
 - Reads from input texture
@@ -53,9 +57,9 @@ Each pass:
 - Rendering effect toggles
 
 **ParticleCounter.tsx**
-- Real-time particle statistics
-- Computed entirely on GPU
-- Reduction shader for counting
+- Real-time particle statistics refreshed periodically
+- CPU reads the GPU-owned state texture (Uint8Array) for aggregation
+- Optimized counting loop avoids per-frame overhead
 
 ## Data Flow
 
@@ -85,9 +89,15 @@ Final Rendering
 
 ### State Textures
 - Format: RGBA8 (Uint8Array)
-- Size: 2048×2048 pixels
+- Size: 1024×1024 pixels (configurable)
 - Storage: GPU-only (DataTexture)
 - Updates: Every frame via render-to-texture
+
+### Heat / Force Textures
+- Format: RGBA8
+- Channels: TempLow, TempHigh, ForceX, ForceY
+- Purpose: Shared ambient temperature and force storage between passes
+- Lifecycle: Created once, ping-ponged each frame
 
 ### Color Textures
 - Format: RGBA8

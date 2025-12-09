@@ -8,6 +8,7 @@ This directory contains detailed technical documentation for Sandy2.
 - **[Simulation Pipeline](simulation.md)** - Detailed explanation of physics simulation stages
 - **[Rendering System](rendering.md)** - Post-processing effects and visual rendering
 - **[Level System](levels.md)** - Level loading, saving, and texture format
+- **[Material Reference](materials.md)** - Full list of particle materials and properties
 
 ## Project Structure
 
@@ -38,8 +39,8 @@ src/
 │   ├── RenderConfig.ts          # Rendering configuration
 │   └── Level.ts                 # Level metadata
 └── hooks/              # React hooks
-    ├── useParticleDrawing.ts    # Interactive drawing
-    └── useCameraControls.ts     # Pan and zoom
+  ├── useParticleDrawing.ts    # Interactive drawing
+  └── useTextureControls.ts    # Pan and zoom with inertia and bounds
 ```
 
 ## Tech Stack Details
@@ -64,10 +65,10 @@ src/
 
 ### Particle State Texture (RGBA)
 Each pixel in the state texture represents one particle:
-- **R channel**: Particle type (0-255)
-- **G channel**: Velocity X (0-255, encoded as -128 to +127)
-- **B channel**: Velocity Y (0-255, encoded as -128 to +127)
-- **A channel**: Additional data (currently unused)
+- **R channel**: Particle type ID (0-255)
+- **G channel**: Temperature low byte (Kelvin encoding)
+- **B channel**: Temperature high byte
+- **A channel**: Reserved / auxiliary data (default 255)
 
 ### Material Types
 - **Empty** (0): Void space
@@ -78,12 +79,14 @@ Each pixel in the state texture represents one particle:
 
 ## Performance Characteristics
 
-- **World Size**: 2048×2048 particles (4.2M particles)
+- **World Size**: 1024×1024 particles (≈1.05M)
 - **Target FPS**: 60 fps
-- **GPU Memory**: ~16 MB for particle state textures
-- **Simulation Passes per Frame**:
-  - 4× Margolus iterations
-  - 1× Liquid spread
-  - 1× Archimedes buoyancy
-  - 2-3× Post-processing effects
+- **GPU Memory**: ~4 MB per state texture (ping-pong + heat layer ≈ 16 MB total)
+- **Simulation Passes per Frame** (defaults):
+  - 8× Margolus iterations
+  - 4× Liquid spread passes
+  - 2× Archimedes buoyancy passes
+  - 2× Ambient heat diffusion passes
+  - 2× Particle heat conduction passes
+  - 1× Phase transition pass
 - **Render Resolution**: Independent of world size (adjustable pixel scale)

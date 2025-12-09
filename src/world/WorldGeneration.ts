@@ -107,7 +107,7 @@ export class WorldGeneration {
     }
 
     if (options?.randomParticles) {
-      // Add 2 million random particles
+      // Add 4 million random particles
       const particleCount = 4_000_000;
       const availableTypes = [
         ParticleType.SAND,

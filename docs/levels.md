@@ -78,7 +78,7 @@ Metadata for a specific level.
 PNG image storing particle state data.
 
 **Format:**
-- Size: 2048×2048 pixels
+- Size: 1024×1024 pixels (matches `WORLD_SIZE`)
 - Color Mode: RGBA (8-bit per channel)
 - Compression: PNG (lossless)
 
@@ -88,7 +88,7 @@ PNG image storing particle state data.
 - **B**: Velocity Y (0-255, maps to -128 to +127)
 - **A**: Unused (set to 255)
 
-**File Size:** ~20-25 KB (with PNG compression)
+**File Size:** ~10-15 KB (with PNG compression)
 
 ## Loading Levels
 
@@ -202,7 +202,7 @@ writeFileSync('public/levels/custom/particles.png', buffer);
 2. Create `level.json` with metadata
 3. Create `particles.png`:
    - Use image editor (GIMP, Photoshop)
-   - Set size to 2048×2048
+  - Set size to 1024×1024 (or match your configured `WORLD_SIZE`)
    - Use exact RGB values for particle types
    - Save as PNG (no compression artifacts)
 4. Add to `index.json`
@@ -215,13 +215,34 @@ When creating PNG textures, use these exact R channel values:
 |------|---------|----------|
 | 0 | 0 | Empty |
 | 17 | 17 | Stone |
+| 18 | 18 | Glass |
+| 19 | 19 | Heite (hot static emitter) |
 | 35 | 35 | Sand |
 | 37 | 37 | Dirt |
 | 39 | 39 | Gravel |
+| 40 | 40 | Copper |
+| 41 | 41 | Ite (insulator) |
+| 42 | 42 | Ice |
+| 43 | 43 | Oil Sludge |
+| 44 | 44 | Slime Crystal |
+| 45 | 45 | Acid Crystal |
+| 46 | 46 | Coolant Ice |
+| 47 | 47 | Nitrogen Ice |
 | 65 | 65 | Water |
 | 80 | 80 | Lava |
 | 96 | 96 | Slime |
 | 97 | 97 | Acid |
+| 98 | 98 | Oil |
+| 99 | 99 | Coolant |
+| 100 | 100 | Liquid Nitrogen |
+| 113 | 113 | Steam |
+| 128 | 128 | Smoke |
+| 144 | 144 | Air |
+| 145 | 145 | Nitrogen |
+| 146 | 146 | Oil Vapor |
+| 147 | 147 | Slime Vapor |
+| 148 | 148 | Acid Vapor |
+| 149 | 149 | Coolant Vapor |
 
 **G and B channels:** Set to 128 (zero velocity)
 **A channel:** Set to 255 (opaque)

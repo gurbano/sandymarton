@@ -149,7 +149,7 @@ function MainSimulation({
   const forceTransferIterationRef = useRef(0);
   const initializedRef = useRef(false);
 
-  // Heat/Force layer texture - stores temperature (R), forceX (G), forceY (B)
+  // Heat/Force layer texture - stores tempLow (R), tempHigh (G), forceX (B), forceY (A)
   const heatForceLayerRef = useRef<DataTexture | null>(null);
 
   // Track current heat RT index for ping-pong rendering

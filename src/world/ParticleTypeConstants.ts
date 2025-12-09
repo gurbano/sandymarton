@@ -43,6 +43,12 @@ export const ParticleTypeConstants = {
   GRAVEL: 39,
   COPPER: 40,
   ITE: 41,
+  ICE: 42,
+  OIL_SLUDGE: 43,
+  SLIME_CRYSTAL: 44,
+  ACID_CRYSTAL: 45,
+  COOLANT_ICE: 46,
+  NITROGEN_ICE: 47,
   // Liquid
   WATER: 65,
   LAVA: 80,
@@ -50,11 +56,16 @@ export const ParticleTypeConstants = {
   ACID: 97,
   OIL: 98,
   COOLANT: 99,
+  LIQUID_NITROGEN: 100,
   // Gas
   STEAM: 113,
   SMOKE: 128,
   AIR: 144,
   NITROGEN: 145,
+  OIL_VAPOR: 146,
+  SLIME_VAPOR: 147,
+  ACID_VAPOR: 148,
+  COOLANT_VAPOR: 149,
 } as const;
 
 /**
@@ -81,13 +92,22 @@ const float STONE_TYPE = ${ParticleTypeConstants.STONE}.0;
 const float SAND_TYPE = ${ParticleTypeConstants.SAND}.0;
 const float DIRT_TYPE = ${ParticleTypeConstants.DIRT}.0;
 const float GRAVEL_TYPE = ${ParticleTypeConstants.GRAVEL}.0;
+const float ICE_TYPE = ${ParticleTypeConstants.ICE}.0;
 const float WATER_TYPE = ${ParticleTypeConstants.WATER}.0;
 const float LAVA_TYPE = ${ParticleTypeConstants.LAVA}.0;
 const float SLIME_TYPE = ${ParticleTypeConstants.SLIME}.0;
 const float ACID_TYPE = ${ParticleTypeConstants.ACID}.0;
+const float OIL_TYPE = ${ParticleTypeConstants.OIL}.0;
+const float COOLANT_TYPE = ${ParticleTypeConstants.COOLANT}.0;
+const float LIQUID_NITROGEN_TYPE = ${ParticleTypeConstants.LIQUID_NITROGEN}.0;
 const float STEAM_TYPE = ${ParticleTypeConstants.STEAM}.0;
 const float SMOKE_TYPE = ${ParticleTypeConstants.SMOKE}.0;
 const float AIR_TYPE = ${ParticleTypeConstants.AIR}.0;
+const float NITROGEN_TYPE = ${ParticleTypeConstants.NITROGEN}.0;
+const float OIL_VAPOR_TYPE = ${ParticleTypeConstants.OIL_VAPOR}.0;
+const float SLIME_VAPOR_TYPE = ${ParticleTypeConstants.SLIME_VAPOR}.0;
+const float ACID_VAPOR_TYPE = ${ParticleTypeConstants.ACID_VAPOR}.0;
+const float COOLANT_VAPOR_TYPE = ${ParticleTypeConstants.COOLANT_VAPOR}.0;
 
 // Internal behavior states for Margolus CA
 // These represent how particles behave, not what they are

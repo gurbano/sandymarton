@@ -64,6 +64,7 @@ export const phaseTransitionFragmentShader = `
 
     // Get transition targets
     int boilsTo = getMaterialBoilsTo(particleType);
+  int meltsTo = getMaterialMeltsTo(particleType);
     int condensesTo = getMaterialCondensesTo(particleType);
     int freezesTo = getMaterialFreezesTo(particleType);
 
@@ -78,6 +79,11 @@ export const phaseTransitionFragmentShader = `
     // Only trigger if there's a valid target and temp drops below condensation point
     else if (condensesTo >= 0 && condensationTemp > 0.0 && particleTemp < condensationTemp) {
       newParticleType = float(condensesTo);
+    }
+    // Check for melting (solid → liquid)
+    // Trigger when temperature rises above melting point
+    else if (meltsTo >= 0 && particleTemp >= meltingPoint) {
+      newParticleType = float(meltsTo);
     }
     // Check for freezing/solidification (liquid → solid)
     // Only trigger if there's a valid target and temp drops below melting point

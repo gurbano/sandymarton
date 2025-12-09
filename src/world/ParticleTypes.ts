@@ -22,7 +22,13 @@ export enum ParticleType {
   DIRT = 37,
   GRAVEL = 39,
   COPPER = 40,     // Conductor - very high conductivity
-  ITE = 41,     // Insulator - wool-like, very low conductivity
+  ITE = 41,      // Insulator - wool-like, very low conductivity
+  ICE = 42,      // Frozen water solid phase
+  OIL_SLUDGE = 43, // Semi-solidified oil residue
+  SLIME_CRYSTAL = 44, // Frozen slime shards
+  ACID_CRYSTAL = 45,  // Crystallized acid salts
+  COOLANT_ICE = 46,   // Frozen coolant pellets
+  NITROGEN_ICE = 47,  // Frozen nitrogen (dry ice equivalent)
 
   // Liquid particles (64-111)
   // LIQUID = 64,
@@ -32,6 +38,7 @@ export enum ParticleType {
   ACID = 97,
   OIL = 98,        // Insulator liquid - low conductivity
   COOLANT = 99,    // Cooling liquid - high conductivity, cold default
+  LIQUID_NITROGEN = 100, // Cryogenic nitrogen
 
   // Gas particles (112-159)
   // GAS = 112,
@@ -39,6 +46,10 @@ export enum ParticleType {
   SMOKE = 128,
   AIR = 144,
   NITROGEN = 145,  // Cold gas - cooling effect
+  OIL_VAPOR = 146, // Vaporized oil fumes
+  SLIME_VAPOR = 147, // Suspended slime spores
+  ACID_VAPOR = 148,  // Acidic fumes
+  COOLANT_VAPOR = 149, // Chilled coolant mist
 
 }
 
@@ -98,15 +109,26 @@ export const ParticleColors: Record<number, [number, number, number, number]> = 
   [ParticleType.GRAVEL]: [100, 100, 100, 255],  // Opaque dark gray
   [ParticleType.COPPER]: [184, 115, 51, 255],   // Copper brown-orange
   [ParticleType.ITE]: [255, 250, 220, 255],  // Off-white (wool/insulation)
+  [ParticleType.ICE]: [180, 220, 255, 255],     // Frosted blue-white
+  [ParticleType.OIL_SLUDGE]: [60, 40, 25, 255], // Dark brown solid
+  [ParticleType.SLIME_CRYSTAL]: [140, 255, 160, 255], // Bright green crystal
+  [ParticleType.ACID_CRYSTAL]: [200, 255, 120, 255],  // Neon yellow crystal
+  [ParticleType.COOLANT_ICE]: [150, 220, 255, 255],   // Pale cyan ice
+  [ParticleType.NITROGEN_ICE]: [200, 230, 255, 255],  // Nearly white ice
   [ParticleType.WATER]: [50, 150, 255, 220],    // Bright cyan-blue, less transparent
   [ParticleType.LAVA]: [255, 0, 0, 255],        // Opaque orange-red
   [ParticleType.SLIME]: [100, 255, 100, 200],   // Semi-transparent green
   [ParticleType.ACID]: [150, 255, 50, 220],     // Semi-transparent lime green
   [ParticleType.OIL]: [40, 30, 20, 200],        // Dark brown (oil)
   [ParticleType.COOLANT]: [100, 200, 255, 200], // Light blue (coolant)
+  [ParticleType.LIQUID_NITROGEN]: [180, 220, 255, 220], // Transparent icy blue
   [ParticleType.STEAM]: [200, 200, 255, 100],   // Very transparent light blue
   [ParticleType.SMOKE]: [80, 80, 80, 150],      // Semi-transparent dark gray
   [ParticleType.NITROGEN]: [150, 200, 255, 80], // Very transparent cold blue
+  [ParticleType.OIL_VAPOR]: [120, 120, 110, 110], // Pale gray brown fumes
+  [ParticleType.SLIME_VAPOR]: [140, 255, 170, 100], // Greenish mist
+  [ParticleType.ACID_VAPOR]: [190, 255, 120, 110],  // Yellow-green vapor
+  [ParticleType.COOLANT_VAPOR]: [160, 220, 255, 110], // Chilled mist
 };
 
 // Note: Velocity functions removed - particle texture now stores temperature in G,B channels
