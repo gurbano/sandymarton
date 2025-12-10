@@ -1,4 +1,5 @@
 import { useEffect, useCallback, useRef } from 'react';
+import type { RefObject } from 'react';
 import { WorldGeneration } from '../world/WorldGeneration';
 import { ParticleType } from '../world/ParticleTypes';
 import type { DataTexture } from 'three';
@@ -41,7 +42,7 @@ interface UseParticleDrawingProps {
   center: { x: number; y: number };
   onDraw: (newTexture: DataTexture) => void;
   worldTexture: DataTexture;
-  heatTexture?: DataTexture | null;
+  heatTextureRef?: RefObject<DataTexture | null>;
   toolMode?: ToolMode;
   brushSize?: number;
   onMouseMove?: (pos: { x: number; y: number } | null) => void;
@@ -60,7 +61,7 @@ export function useParticleDrawing({
   center,
   onDraw,
   worldTexture,
-  heatTexture = null,
+  heatTextureRef,
   toolMode = 'add',
   brushSize = 3,
   onMouseMove,
@@ -128,6 +129,7 @@ export function useParticleDrawing({
     const data = worldTexture.image.data as Uint8Array;
     if (!data) return null;
 
+    const heatTexture = heatTextureRef?.current;
     const heatImage = heatTexture?.image as { data?: Uint8Array; width?: number; height?: number } | undefined;
     const heatData = heatImage?.data instanceof Uint8Array ? heatImage.data : undefined;
     const heatWidth = heatImage?.width ?? WORLD_SIZE;
@@ -214,7 +216,7 @@ export function useParticleDrawing({
       position: worldPos,
       brushSize,
     };
-  }, [worldTexture, brushSize, heatTexture]);
+  }, [worldTexture, brushSize, heatTextureRef]);
 
   const drawParticle = useCallback((screenX: number, screenY: number) => {
     // Don't draw in inspect mode

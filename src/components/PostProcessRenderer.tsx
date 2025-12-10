@@ -32,7 +32,8 @@ import {
 
 interface PostProcessRendererProps {
   colorTexture: Texture; // Base color texture
-  stateTexture: Texture; // Simulation state texture (for material type lookup)
+  /** Ref to state texture (read each frame, avoids prop-based re-renders) */
+  stateTextureRef: RefObject<Texture | null>;
   /** Ref to heat RT texture (read each frame, avoids GPU read-back) */
   heatTextureRef: RefObject<Texture | null>;
   textureSize: number;
@@ -232,7 +233,7 @@ const createCombinedHeatOverlayResources = (
  */
 function PostProcessRenderer({
   colorTexture,
-  stateTexture,
+  stateTextureRef,
   heatTextureRef,
   textureSize,
   config,
@@ -254,24 +255,24 @@ function PostProcessRenderer({
   const forceOverlayRef = useRef<EffectResources | null>(null);
   const initializedRef = useRef(false);
 
-  // Create effect resources (heatTextureRef.current read in useFrame, not here)
+  // Create effect resources (refs read in useFrame, not here)
+  // Pass null for textures - they'll be updated each frame from refs
   useEffect(() => {
-    const edgeBlending = createEdgeBlendingResources(textureSize, colorTexture, stateTexture);
+    const edgeBlending = createEdgeBlendingResources(textureSize, colorTexture, colorTexture);
     const materialVariation = createMaterialVariationResources(
       textureSize,
       colorTexture,
-      stateTexture
+      colorTexture
     );
-    const glow = createGlowResources(textureSize, colorTexture, stateTexture);
-    const heatOverlay = createHeatOverlayResources(textureSize, colorTexture, stateTexture);
-    // Pass null initially - heat texture updated in useFrame from ref
-    const ambientHeatOverlay = createAmbientHeatOverlayResources(textureSize, colorTexture, stateTexture, null);
-    const combinedHeatOverlay = createCombinedHeatOverlayResources(textureSize, colorTexture, stateTexture, null);
+    const glow = createGlowResources(textureSize, colorTexture, colorTexture);
+    const heatOverlay = createHeatOverlayResources(textureSize, colorTexture, colorTexture);
+    const ambientHeatOverlay = createAmbientHeatOverlayResources(textureSize, colorTexture, colorTexture, null);
+    const combinedHeatOverlay = createCombinedHeatOverlayResources(textureSize, colorTexture, colorTexture, null);
     const forceOverlay = createForceOverlayResources(textureSize, colorTexture, null);
 
     edgeBlendingRef.current = edgeBlending;
     materialVariationRef.current = materialVariation;
-  glowRef.current = glow;
+    glowRef.current = glow;
     heatOverlayRef.current = heatOverlay;
     ambientHeatOverlayRef.current = ambientHeatOverlay;
     combinedHeatOverlayRef.current = combinedHeatOverlay;
@@ -295,7 +296,7 @@ function PostProcessRenderer({
       });
       renderTargets.forEach((rt) => rt.dispose());
     };
-  }, [textureSize, colorTexture, stateTexture, gl, renderTargets]);
+  }, [textureSize, colorTexture, gl, renderTargets]);
 
   // Run post-processing pipeline each frame
   useFrame(() => {
@@ -303,12 +304,16 @@ function PostProcessRenderer({
       return;
     }
 
+    // Read state texture from ref each frame
+    const stateTexture = stateTextureRef.current;
+    if (!stateTexture) return;
+
     let currentSource: Texture = colorTexture;
     let rtIndex = 0;
 
     // Execute each enabled effect in order, ensuring glow runs last
-  const glowEffects: RenderConfig['effects'] = [];
-  const otherEffects: RenderConfig['effects'] = [];
+    const glowEffects: RenderConfig['effects'] = [];
+    const otherEffects: RenderConfig['effects'] = [];
 
     for (const effect of config.effects) {
       if (effect.type === RenderEffectType.GLOW) {

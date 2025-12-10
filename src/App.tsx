@@ -20,26 +20,86 @@ import { WORLD_SIZE } from './constants/worldConstants';
 import { loadLevel } from './utils/LevelLoader';
 import { saveLevel } from './utils/LevelSaver';
 
+type BackgroundPaletteColor = [number, number, number];
+
+interface BackgroundParams {
+  palette: BackgroundPaletteColor[];
+  seed: number;
+  noiseOffsets: [number, number, number, number];
+}
+
+const BACKGROUND_PALETTES: BackgroundPaletteColor[][] = [
+  [
+    [18, 22, 28],
+    [32, 38, 46],
+    [45, 52, 60],
+    [28, 33, 40],
+  ],
+  [
+    [20, 18, 24],
+    [38, 32, 42],
+    [60, 45, 58],
+    [30, 26, 34],
+  ],
+  [
+    [16, 21, 25],
+    [30, 37, 42],
+    [48, 56, 62],
+    [26, 29, 34],
+  ],
+  [
+    [14, 18, 24],
+    [31, 36, 44],
+    [52, 58, 66],
+    [24, 27, 33],
+  ],
+  [
+    [22, 20, 28],
+    [44, 36, 48],
+    [62, 48, 58],
+    [32, 27, 36],
+  ],
+];
+
+const createBackgroundParams = (): BackgroundParams => {
+  const palette = BACKGROUND_PALETTES[Math.floor(Math.random() * BACKGROUND_PALETTES.length)] ?? BACKGROUND_PALETTES[0];
+  return {
+    palette,
+    seed: Math.random() * 1000,
+    noiseOffsets: [Math.random() * 1000, Math.random() * 1000, Math.random() * 1000, Math.random() * 1000],
+  };
+};
+
+
 function Scene({
-  texture,
+  textureRef,
   heatTextureRef,
   pixelSize,
   center,
   renderConfig,
+  backgroundPalette,
+  backgroundSeed,
+  backgroundNoiseOffsets,
 }: {
-  texture: Texture;
+  textureRef: RefObject<Texture | null>;
   heatTextureRef: RefObject<Texture | null>;
   pixelSize: number;
   center: { x: number; y: number };
   renderConfig: RenderConfig;
+  backgroundPalette: BackgroundPaletteColor[];
+  backgroundSeed: number;
+  backgroundNoiseOffsets: [number, number, number, number];
 }) {
   return (
     <TextureRenderer
-      texture={texture}
+      textureRef={textureRef}
       heatTextureRef={heatTextureRef}
       pixelSize={pixelSize}
       center={center}
       renderConfig={renderConfig}
+      backgroundPalette={backgroundPalette}
+      backgroundSeed={backgroundSeed}
+      backgroundNoiseOffsets={backgroundNoiseOffsets}
     />
   );
 }
@@ -93,9 +153,23 @@ function App() {
   // FPS tracking
   const [fps, setFps] = useState<number>(0);
 
+  const [backgroundParams, setBackgroundParams] = useState<BackgroundParams>(() => createBackgroundParams());
+
+  const refreshBackgroundParams = useCallback(() => {
+    setBackgroundParams(createBackgroundParams());
+  }, []);
+
   // Ref to share heat RT texture between MainSimulation and TextureRenderer (avoids GPU read-back)
   const heatRTRef = useRef<Texture | null>(null);
-  const [ambientHeatTexture, setAmbientHeatTexture] = useState<DataTexture | null>(null);
+  // Ref for ambient heat texture (used for inspection, set once by MainSimulation)
+  const ambientHeatTextureRef = useRef<DataTexture | null>(null);
+  // Ref for world texture (avoids prop drilling and re-renders)
+  const worldTextureRef = useRef<DataTexture>(worldTexture);
+
+  // Keep ref in sync with state (state only changes on reset)
+  useEffect(() => {
+    worldTextureRef.current = worldTexture;
+  }, [worldTexture]);
 
   // Handle drawing particles and updating texture
   const handleDraw = useCallback((texture: DataTexture) => {
@@ -252,7 +326,7 @@ function App() {
     center,
     onDraw: handleDraw,
     worldTexture: worldTexture,
-    heatTexture: ambientHeatTexture,
+    heatTextureRef: ambientHeatTextureRef,
     toolMode,
     brushSize,
     onMouseMove: handleMouseMove,
@@ -266,10 +340,11 @@ function App() {
     // Create new texture with current init type
     const newTexture = worldGen.initNewWorld({ initType: worldInitType });
     setWorldTexture(newTexture);
+    refreshBackgroundParams();
     setCenter({ x: 0, y: 0 });
     setResetCount(prev => prev + 1);
     setSimulationEnabled(true);
-  }, [worldGen, setCenter, worldInitType]);
+  }, [worldGen, setCenter, worldInitType, refreshBackgroundParams]);
 
   // Load level handler
   const handleLoadLevel = useCallback(async (levelId: string) => {
@@ -278,6 +353,7 @@ function App() {
       const { particleTexture } = await loadLevel(levelId);
       const newTexture = worldGen.initFromTexture(particleTexture);
       setWorldTexture(newTexture);
+      refreshBackgroundParams();
       setCenter({ x: 0, y: 0 });
       setResetCount(prev => prev + 1);
       setSimulationEnabled(true);
@@ -310,10 +386,7 @@ function App() {
         <MainSimulation
           worldTexture={worldTexture}
           textureSize={WORLD_SIZE}
-          onTextureUpdate={(newTexture) => {
-            setWorldTexture(newTexture);
-          }}
-          onHeatTextureReady={setAmbientHeatTexture}
+          onHeatTextureReady={(tex) => { ambientHeatTextureRef.current = tex; }}
           heatRTRef={heatRTRef}
           enabled={simulationEnabled}
           config={simulationConfig}
@@ -321,7 +394,16 @@ function App() {
           onFpsUpdate={setFps}
           shouldCaptureHeatLayer={toolMode === 'inspect'}
         />
-        <Scene texture={worldTexture} heatTextureRef={heatRTRef} pixelSize={pixelSize} center={center} renderConfig={renderConfig} />
+        <Scene
+          textureRef={worldTextureRef}
+          heatTextureRef={heatRTRef}
+          pixelSize={pixelSize}
+          center={center}
+          renderConfig={renderConfig}
+          backgroundPalette={backgroundParams.palette}
+          backgroundSeed={backgroundParams.seed}
+          backgroundNoiseOffsets={backgroundParams.noiseOffsets}
+        />
       </Canvas>
 
       {/* Overlay Controls */}

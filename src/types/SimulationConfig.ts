@@ -38,13 +38,13 @@ export interface SimulationConfig {
 }
 
 export const DEFAULT_AMBIENT_HEAT_SETTINGS: AmbientHeatSettings = {
-  emissionMultiplier: 1,
-  diffusionMultiplier: 0.1,
-  equilibriumStrength: 0.01,
+  emissionMultiplier: 0.3,
+  diffusionMultiplier: 0.8,
+  equilibriumStrength: 0.1,
   equilibriumTemperature: 298.0,
   equilibriumMaxDelta: 1,
   equilibriumInterval: 1,
-  heatmapCouplingMultiplier: 1,
+  heatmapCouplingMultiplier: 2,
 };
 
 export const DEFAULT_SIMULATION_CONFIG: SimulationConfig = {

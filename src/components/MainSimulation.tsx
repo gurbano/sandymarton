@@ -42,7 +42,8 @@ import { ParticleType } from '../world/ParticleTypes';
 interface MainSimulationProps {
   worldTexture: DataTexture;
   textureSize: number;
-  onTextureUpdate: (texture: DataTexture) => void;
+  /** @deprecated No longer needed - texture is updated in-place */
+  onTextureUpdate?: (texture: DataTexture) => void;
   onHeatTextureReady?: (texture: DataTexture) => void;
   /** Ref to share heat RT texture directly with rendering (avoids GPU read-back) */
   heatRTRef?: RefObject<Texture | null>;
@@ -111,7 +112,6 @@ const createSimulationResources = (
 function MainSimulation({
   worldTexture,
   textureSize,
-  onTextureUpdate,
   onHeatTextureReady,
   heatRTRef,
   enabled = true,
@@ -572,9 +572,6 @@ function MainSimulation({
       // If ambient heat is disabled, still share the initial heat texture
       (heatRTRef as { current: Texture | null }).current = heatForceLayerRef.current;
     }
-
-    // Notify parent that texture was updated
-    onTextureUpdate(worldTexture);
   });
 
   return null;

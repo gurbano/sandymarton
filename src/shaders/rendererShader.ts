@@ -58,11 +58,18 @@ export const vertexShader = `
 export const fragmentShader = `
   uniform sampler2D uTexture;
   uniform sampler2D uStateTexture; // Always contains state data (particle types)
+  uniform sampler2D uBackgroundTexture; // Optional background texture
   uniform vec2 uTextureSize;  // Size of the world texture
   uniform vec2 uCanvasSize;   // Size of the canvas in pixels
   uniform float uPixelSize;   // Zoom level (1 = 1:1, 2 = each particle is 2x2 pixels)
   uniform vec2 uCenter;       // World coordinates to center the view on
   uniform bool uIsColorTexture; // true if texture already contains colors, false if it contains state data
+  uniform float uHasBackground;  // >0 when a background texture is provided
+  const int MAX_BACKGROUND_COLORS = 6;
+  uniform vec3 uBackgroundPalette[MAX_BACKGROUND_COLORS];
+  uniform int uBackgroundPaletteSize;
+  uniform float uBackgroundSeed;
+  uniform vec2 uBackgroundNoiseOffsets[2];
   uniform float uTime;        // Time in seconds for liquid animation
   varying vec2 vUv;
 
@@ -89,6 +96,26 @@ export const fragmentShader = `
 
   bool isParticleType(float typeValue, float targetType) {
     return typeValue >= targetType && typeValue < targetType + 1.0;
+  }
+
+  vec3 getBackgroundPaletteColor(int index) {
+    int paletteCount = max(uBackgroundPaletteSize, 1);
+    int clampedIndex = int(mod(float(index), float(paletteCount)));
+    vec3 color = uBackgroundPalette[0];
+    if (clampedIndex == 0) {
+      color = uBackgroundPalette[0];
+    } else if (clampedIndex == 1) {
+      color = uBackgroundPalette[1];
+    } else if (clampedIndex == 2) {
+      color = uBackgroundPalette[2];
+    } else if (clampedIndex == 3) {
+      color = uBackgroundPalette[3];
+    } else if (clampedIndex == 4) {
+      color = uBackgroundPalette[4];
+    } else {
+      color = uBackgroundPalette[5];
+    }
+    return color;
   }
 
   // Get color based on particle type
@@ -134,6 +161,43 @@ ${generateParticleColorCode()}
     // Always sample state texture to get particle type
     vec4 stateData = texture2D(uStateTexture, texUV);
     float particleType = stateData.r * 255.0;
+
+    // Sample background for this pixel (defaults to procedural stripes if none provided)
+    vec4 backgroundSample;
+    if (uHasBackground > 0.5) {
+      vec2 backgroundUV = clamp(texUV, 0.0, 1.0);
+      backgroundSample = texture2D(uBackgroundTexture, backgroundUV);
+    } else {
+      float paletteCount = float(max(uBackgroundPaletteSize, 1));
+      float stripeScale = 42.0;
+      float stripeCoord = (worldParticleCoord.y + uBackgroundSeed) / stripeScale;
+      float stripeIndex = floor(stripeCoord);
+      float stripeLocal = fract(stripeCoord);
+      int baseIndex = int(mod(stripeIndex, paletteCount));
+      int nextIndex = int(mod(float(baseIndex + 1), paletteCount));
+      vec3 baseColor = getBackgroundPaletteColor(baseIndex);
+      vec3 nextColor = getBackgroundPaletteColor(nextIndex);
+      float blend = smoothstep(0.25, 0.75, stripeLocal) * 0.4;
+      vec3 backgroundColor = mix(baseColor, nextColor, blend);
+
+      vec2 rockCoord1 = worldParticleCoord * 0.08 + uBackgroundNoiseOffsets[0];
+      vec2 rockCoord2 = worldParticleCoord * 0.18 + uBackgroundNoiseOffsets[1];
+      float rockNoise = smoothNoise(rockCoord1) * 0.6 + smoothNoise(rockCoord2) * 0.4;
+      float rockContrast = (rockNoise - 0.5) * 0.16;
+      backgroundColor = clamp(backgroundColor + vec3(rockContrast), 0.0, 1.0);
+
+      vec2 mistCoord1 = worldParticleCoord * 0.028 + vec2(uTime * 0.008, uTime * 0.006);
+      vec2 mistCoord2 = worldParticleCoord * 0.054 + vec2(-uTime * 0.006, uTime * 0.005);
+      vec2 mistCoord3 = worldParticleCoord * 0.095 + vec2(uTime * 0.004, -uTime * 0.003);
+      float mistSample1 = smoothNoise(mistCoord1);
+      float mistSample2 = smoothNoise(mistCoord2);
+      float mistSample3 = smoothNoise(mistCoord3);
+      float mist = (mistSample1 + mistSample2 + mistSample3) / 3.0;
+      float mistAmount = (mist - 0.5) * 0.025;
+      backgroundColor = clamp(backgroundColor + vec3(mistAmount), 0.0, 1.0);
+
+      backgroundSample = vec4(backgroundColor, 1.0);
+    }
 
     // Get color from either post-processed texture or compute from particle type
     vec4 color;
@@ -276,6 +340,9 @@ ${generateParticleColorCode()}
     color.rgb = clamp(color.rgb, 0.0, 1.0);
     color.a = clamp(color.a, 0.0, 1.0);
 
-    gl_FragColor = color;
+    vec3 finalColor = mix(backgroundSample.rgb, color.rgb, color.a);
+    float finalAlpha = clamp(backgroundSample.a + color.a * (1.0 - backgroundSample.a), 0.0, 1.0);
+
+    gl_FragColor = vec4(clamp(finalColor, 0.0, 1.0), max(finalAlpha, 1e-3));
   }
 `;

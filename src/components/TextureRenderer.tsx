@@ -11,6 +11,8 @@ import {
   Scene,
   OrthographicCamera,
   PlaneGeometry,
+  Vector2,
+  Vector3,
 } from 'three';
 import { vertexShader, fragmentShader } from '../shaders/rendererShader';
 import { baseColorVertexShader, baseColorFragmentShader } from '../shaders/baseColorShader';
@@ -19,21 +21,32 @@ import PostProcessRenderer from './PostProcessRenderer';
 import type { RenderConfig } from '../types/RenderConfig';
 import { WORLD_SIZE } from '../constants/worldConstants';
 
+const MAX_BACKGROUND_COLORS = 6;
+
 interface TextureRendererProps {
-  texture: Texture;
+  /** Ref to world state texture (avoids prop-based re-renders) */
+  textureRef: RefObject<Texture | null>;
   /** Ref to heat RT texture (shared from MainSimulation, avoids GPU read-back) */
   heatTextureRef: RefObject<Texture | null>;
   pixelSize?: number;
   center?: { x: number; y: number };
   renderConfig?: RenderConfig; // Optional post-processing config
+  backgroundTexture?: Texture | null;
+  backgroundPalette?: [number, number, number][];
+  backgroundSeed?: number;
+  backgroundNoiseOffsets?: [number, number, number, number];
 }
 
 function TextureRenderer({
-  texture,
+  textureRef,
   heatTextureRef,
   pixelSize = 16,
   center = { x: 0, y: 0 },
   renderConfig,
+  backgroundTexture = null,
+  backgroundPalette,
+  backgroundSeed = 0,
+  backgroundNoiseOffsets = [0, 0, 0, 0],
 }: TextureRendererProps) {
   const meshRef = useRef<Mesh>(null);
   const { size, gl } = useThree();
@@ -45,6 +58,7 @@ function TextureRenderer({
   }, [size.width, size.height]);
 
   // Base color rendering resources (only created if renderConfig is provided)
+  // Created once, textures updated in useFrame
   const baseColorResources = useMemo(() => {
     if (!renderConfig) return null;
 
@@ -63,7 +77,7 @@ function TextureRenderer({
     const geometry = new PlaneGeometry(2, 2);
     const material = new ShaderMaterial({
       uniforms: {
-        uStateTexture: { value: texture },
+        uStateTexture: { value: null }, // Will be set in useFrame
       },
       vertexShader: baseColorVertexShader,
       fragmentShader: baseColorFragmentShader,
@@ -72,7 +86,7 @@ function TextureRenderer({
     scene.add(mesh);
 
     return { renderTarget, scene, camera, material, geometry, mesh };
-  }, [renderConfig, texture]);
+  }, [renderConfig]);
 
   // Cleanup base color resources
   useEffect(() => {
@@ -86,17 +100,28 @@ function TextureRenderer({
     };
   }, [baseColorResources]);
 
+  // Shader material created once, uniforms updated in useFrame
   const shaderMaterial = useMemo(
     () =>
       new ShaderMaterial({
         uniforms: {
-          uTexture: { value: texture },
-          uStateTexture: { value: texture }, // Always points to the state texture
+          uTexture: { value: null },
+          uStateTexture: { value: null },
           uTextureSize: { value: [WORLD_SIZE, WORLD_SIZE] },
           uCanvasSize: { value: canvasSize },
           uPixelSize: { value: pixelSize },
           uCenter: { value: [center.x, center.y] },
           uIsColorTexture: { value: false },
+          uBackgroundTexture: { value: null },
+          uHasBackground: { value: backgroundTexture ? 1 : 0 },
+          uBackgroundPalette: {
+            value: Array.from({ length: MAX_BACKGROUND_COLORS }, () => new Vector3(0, 0, 0)),
+          },
+          uBackgroundPaletteSize: { value: 0 },
+          uBackgroundSeed: { value: 0 },
+          uBackgroundNoiseOffsets: {
+            value: [new Vector2(0, 0), new Vector2(0, 0)],
+          },
           uTime: { value: 0 },
         },
         vertexShader,
@@ -106,36 +131,68 @@ function TextureRenderer({
     []
   );
 
-  // Update time and render base colors each frame
+  // Update all uniforms each frame (reads from refs, no React re-renders needed)
   useFrame((state) => {
+    const texture = textureRef.current;
+    if (!texture) return;
+
     // Update time uniform for liquid animation
     shaderMaterial.uniforms.uTime.value = state.clock.elapsedTime;
 
-    if (!baseColorResources) return;
-
-    // Update state texture
-    baseColorResources.material.uniforms.uStateTexture.value = texture;
-
-    // Render to base color render target
-    gl.setRenderTarget(baseColorResources.renderTarget);
-    gl.render(baseColorResources.scene, baseColorResources.camera);
-    gl.setRenderTarget(null);
-  });
-
-  // Update uniforms when props change
-  useEffect(() => {
-    // Use post-processed texture if available, otherwise use the raw state texture
+    // Update texture uniforms from refs each frame
     const displayTexture = postProcessedTexture || texture;
     const isColorTexture = postProcessedTexture !== null;
 
     shaderMaterial.uniforms.uTexture.value = displayTexture;
-    shaderMaterial.uniforms.uStateTexture.value = texture; // Always use state texture for particle type
+    shaderMaterial.uniforms.uStateTexture.value = texture;
     shaderMaterial.uniforms.uIsColorTexture.value = isColorTexture;
+    shaderMaterial.uniforms.uBackgroundTexture.value = backgroundTexture ?? displayTexture;
+
+    // Render base colors if resources exist
+    if (baseColorResources) {
+      baseColorResources.material.uniforms.uStateTexture.value = texture;
+      gl.setRenderTarget(baseColorResources.renderTarget);
+      gl.render(baseColorResources.scene, baseColorResources.camera);
+      gl.setRenderTarget(null);
+    }
+  });
+
+  // Update non-texture uniforms when props change
+  useEffect(() => {
     shaderMaterial.uniforms.uCanvasSize.value = canvasSize;
     shaderMaterial.uniforms.uPixelSize.value = pixelSize;
     shaderMaterial.uniforms.uCenter.value = [center.x, center.y];
+    shaderMaterial.uniforms.uHasBackground.value = backgroundTexture ? 1 : 0;
+
+    const palette = backgroundPalette ?? [];
+    const paletteUniform = shaderMaterial.uniforms.uBackgroundPalette
+      .value as Vector3[];
+    const paletteSize = Math.min(palette.length, MAX_BACKGROUND_COLORS);
+    for (let i = 0; i < MAX_BACKGROUND_COLORS; i += 1) {
+      if (i < paletteSize) {
+        const [r, g, b] = palette[i];
+        paletteUniform[i].set(r / 255, g / 255, b / 255);
+      } else {
+        paletteUniform[i].set(0, 0, 0);
+      }
+    }
+    shaderMaterial.uniforms.uBackgroundPaletteSize.value = paletteSize;
+    shaderMaterial.uniforms.uBackgroundSeed.value = backgroundSeed;
+    const noiseUniform = shaderMaterial.uniforms.uBackgroundNoiseOffsets
+      .value as Vector2[];
+    noiseUniform[0].set(backgroundNoiseOffsets[0], backgroundNoiseOffsets[1]);
+    noiseUniform[1].set(backgroundNoiseOffsets[2], backgroundNoiseOffsets[3]);
     shaderMaterial.needsUpdate = true;
-  }, [shaderMaterial, texture, postProcessedTexture, canvasSize, pixelSize, center]);
+  }, [
+    shaderMaterial,
+    canvasSize,
+    pixelSize,
+    center,
+    backgroundTexture,
+    backgroundPalette,
+    backgroundSeed,
+    backgroundNoiseOffsets,
+  ]);
 
   const handlePostProcessComplete = (finalTexture: Texture) => {
     setPostProcessedTexture(finalTexture);
@@ -146,7 +203,7 @@ function TextureRenderer({
       {renderConfig && baseColorResources && (
         <PostProcessRenderer
           colorTexture={baseColorResources.renderTarget.texture}
-          stateTexture={texture}
+          stateTextureRef={textureRef}
           heatTextureRef={heatTextureRef}
           textureSize={WORLD_SIZE}
           config={renderConfig}
