@@ -1,331 +1,139 @@
 # Rendering System
 
-The rendering pipeline transforms particle state data into a visually appealing display through multiple post-processing passes.
+The rendering stack converts the GPU-resident particle textures into a stylised scene with optional post-processing, overlays, and procedural backgrounds. All processing happens on the GPU; React merely wires texture refs and configuration into the shader pipeline.
 
-## Pipeline Overview
+## High-level Pipeline
 
-```
-State Texture (RGBA: type, vx, vy, data)
-    ↓
-Base Color Shader
-    ↓
-Color Texture (RGB colors)
-    ↓
-Edge Blending (optional)
-    ↓
-Material Variation (optional)
-  ↓
-Material Glow (optional)
-    ↓
-Final Rendering + Liquid Animation
-    ↓
-Display Canvas
+```mermaid
+flowchart LR
+    State[(World State<br/>Texture)] --> BaseColor["Base Color<br/>Pre-pass"]
+    BaseColor --> PostFX["PostProcessRenderer<br/>Effects"]
+    PostFX --> Overlays["Overlays<br/>(Heat / Force)"]
+    Overlays --> FinalQuad["TextureRenderer<br/>Display Shader"]
+    FinalQuad --> Canvas[(Canvas)]
+    Heat[(Heat/Force<br/>Render Target)] --> Overlays
+    Heat --> FinalQuad
+    Background["Procedural<br/>Background"] --> FinalQuad
 ```
 
-## Base Color Shader
+## Base Color Pre-pass
 
-### Purpose
+The base color pass lives inside `TextureRenderer` and renders material colours into a dedicated `WebGLRenderTarget` whenever post-processing is enabled.
 
-Converts particle type IDs to base RGB colors.
+- Uses `baseColorVertexShader` / `baseColorFragmentShader` to map particle IDs to RGBA values.
+- Runs once per frame and writes into a fixed-size render target (`WORLD_SIZE × WORLD_SIZE`).
+- Keeps the canonical state texture untouched so simulation tools can continue to read raw data.
 
-### Implementation
+### Palette Overview
 
-```glsl
-vec4 getParticleColor(float particleType) {
-  if (particleType >= 0.0 && particleType < 1.0) {
-    return vec4(0.0, 0.0, 0.0, 0.0); // Empty
-  }
-  if (particleType >= 17.0 && particleType < 18.0) {
-    return vec4(0.4, 0.4, 0.4, 1.0); // Stone
-  }
-  // ... more materials
-}
-```
+| Material | RGB | Notes |
+| --- | --- | --- |
+| Sand | (194, 178, 128) | Warm granular base |
+| Dirt | (139, 90, 43) | Rich, darker soil |
+| Water | (64, 164, 223) | Ocean blue, responds to liquid animation |
+| Lava | (255, 80, 20) | High luminance for glow pass |
+| Slime | (0, 255, 100) | Vivid greens for FX |
 
-Auto-generated from `ParticleColors` definition.
+Colours are sourced from `MaterialDefinitions`/`ParticleColors` so rendering stays in sync with simulation metadata.
 
-### Color Palette
+## Modular Post-processing (`PostProcessRenderer`)
 
-| Material | RGB             | Hex     |
-| -------- | --------------- | ------- |
-| Empty    | (0, 0, 0)       | #000000 |
-| Stone    | (102, 102, 102) | #666666 |
-| Sand     | (194, 178, 128) | #C2B280 |
-| Dirt     | (139, 90, 43)   | #8B5A2B |
-| Gravel   | (169, 169, 169) | #A9A9A9 |
-| Water    | (64, 164, 223)  | #40A4DF |
-| Lava     | (255, 69, 0)    | #FF4500 |
-| Slime    | (127, 255, 0)   | #7FFF00 |
-| Acid     | (173, 255, 47)  | #ADFF2F |
+`PostProcessRenderer` consumes the base colour texture and chains a set of configurable effect passes using two ping-pong render targets. Glow always runs last to preserve additive blending, while other effects execute in user-defined order.
 
-## Post-Processing Effects
+### Effect Catalogue
 
-### 1. Edge Blending
+| Effect | Shader | Key uniforms | Default | Purpose |
+| --- | --- | --- | --- | --- |
+| Edge blending | `edgeBlendingFragmentShader` | `uBlendStrength` | 0.5 | Softens hard pixel boundaries. |
+| Material variation | `materialVariationFragmentShader` | `uNoiseScale`, `uNoiseStrength` | 4.0 / 0.15 | Adds FBM-driven texture detail. |
+| Glow | `glowFragmentShader` | `uGlowIntensity`, `uGlowRadius` | 0.7 / 2.6 | Creates emissive halos around hot materials. |
 
-**Purpose:** Smooths boundaries between different materials.
+Disabled effects skip both render target swaps and draw calls, keeping the pipeline lean on low-end GPUs.
 
-**Algorithm:**
+## Overlay System
 
-```glsl
-// Sample 3×3 neighborhood
-vec4 center = texture(uColorTexture, uv);
-vec4 neighbors[8]; // TL, T, TR, L, R, BL, B, BR
+After the core effects, the renderer can composite diagnostic overlays using the latest state and heat textures shared through refs.
 
-// Check if at material boundary
-bool isEdge = any(neighbors != center);
+- **Particle heat overlay** – Shades per-particle temperatures.
+- **Ambient heat overlay** – Visualises the shared heat/force map; requires a valid heat texture.
+- **Combined heat overlay** – When both overlays are active, a specialised shader renders them in a single pass to save bandwidth.
+- **Force overlay** – Decodes vector forces from the heat texture (B/A channels).
 
-if (isEdge) {
-  // Average with neighbors
-  vec4 blended = mix(center, avgNeighbors, uBlendStrength);
-  return blended;
-}
-```
+Each overlay reuses the ping-pong targets and exposes a uniform `uOverlayStrength` (default 0.7) for quick tuning.
 
-**Parameters:**
+## TextureRenderer Display Shader
 
-- `blendStrength` (0.0 - 1.0): Blend intensity
-  - 0.0 = No blending
-  - 0.5 = Subtle smoothing (default)
-  - 1.0 = Maximum smoothing
+The final shader (`rendererShader`) draws either the base state or the fully processed colour texture on a screen-covering quad.
 
-**Effect:**
+### Camera & Zoom
 
-- Reduces pixelation at material boundaries
-- Creates softer, more organic appearance
-- Most visible at zoomed-in views
+- `uPixelSize` controls zoom (1.0 = 1 pixel per particle).
+- `uCenter` stores the world-space focal point, updated by `useTextureControls` to enable click-and-drag panning.
+- Coordinate conversion mirrors the CPU drawing hook to keep interaction maths consistent.
 
-### 2. Material Variation
+### Procedural Backgrounds
 
-**Purpose:** Adds natural texture variation using fractal noise.
+`App.tsx` randomises palette, seed, and noise offsets on resets/level loads. The shader:
 
-**Algorithm:**
+- Accepts up to six palette colours (`uBackgroundPalette`).
+- Samples layered noise with offsets from `uBackgroundNoiseOffsets` for subtle motion.
+- Falls back to the colour texture when backgrounds are disabled (e.g., for clean screenshots).
 
-```glsl
-// FBM (Fractal Brownian Motion) noise
-float fbm(vec2 p) {
-  float value = 0.0;
-  float amplitude = 0.5;
-  float frequency = 1.0;
+### Liquid Animation
 
-  for (int i = 0; i < 4; i++) {
-    value += amplitude * noise(p * frequency);
-    amplitude *= 0.5;
-    frequency *= 2.0;
-  }
+Liquids (particle IDs 64–111) receive a dual-layer noise modulation driven by `uTime` to create gentle shimmer. Brightness varies by ±8%, and a small colour shift keeps motion visible without overpowering the materials.
 
-  return value;
-}
+### Out-of-bounds Guard
 
-// Apply to color
-float variation = fbm(worldCoord * uNoiseScale);
-vec3 color = baseColor * (1.0 + variation * uNoiseStrength);
-```
+Pixels outside the world texture fall back to a dark checkered pattern so players can identify view limits while panning.
 
-**Parameters:**
+## Heat Texture Integration
 
-- `noiseScale` (0.5 - 10.0): Detail level
-  - Low = Large patterns
-  - High = Fine detail
-  - Default: 4.0
-- `noiseStrength` (0.0 - 1.0): Effect intensity
-  - 0.0 = Uniform color
-  - 0.15 = Subtle variation (default)
-  - 1.0 = Strong variation
+`TextureRenderer` receives a heat render target ref from `MainSimulation`. This allows:
 
-**Effect:**
+- Overlay shaders to access fresh ambient data without triggering GPU read-backs.
+- Inspect mode to highlight temperature fields in real time.
+- Future FX (e.g., refractive heat haze) to reuse the same textures.
 
-- Breaks up flat color regions
-- Simulates natural material texture
-- Adds visual interest without changing simulation
-
-### 3. Material Glow
-
-**Purpose:** Adds subtle emissive halos around particles that naturally glow (lava, heated metals) while keeping detail intact.
-
-**Algorithm:**
-
-```glsl
-float selfGlow = getParticleGlow(particleType);
-vec3 baseRgb = texture2D(uColorTexture, vUv).rgb;
-
-// Weighted sample of 8 neighbors
-for each neighbor {
-  float neighborGlow = getParticleGlow(neighborType);
-  float weight = neighborGlow * falloff;
-  // Boost contrast against empty space and other materials
-  if (neighborType is empty) weight *= 1.6;
-  else if (neighborType is same material) weight *= 0.35;
-  glowAccum += neighborColor * weight;
-}
-
-vec3 edgeGlow = max(vec3(0.0), (glowAccum / totalWeight) - baseRgb);
-vec3 finalColor = baseRgb + edgeGlow * uGlowIntensity;
-```
-
-**Parameters:**
-
-- `intensity` (0.0 - 2.0): Multiplier applied to the halo contribution. Default: **0.7** for a restrained glow.
-- `radius` (0.5 - 4.0): Scales sampling offsets. Default: **2.6** to emphasize outer edges without flooding the material interior.
-
-**Effect:**
-
-- Keeps glow stronger against empty cells or different materials so silhouettes pop.
-- Dampens amplification within the same material to preserve surface detail (e.g., ice veins).
-- Responds to per-material glow strengths from `MaterialDefinitions`.
-
-## Liquid Animation
-
-**Purpose:** Adds dynamic, flowing appearance to liquids.
-
-**Algorithm:**
-
-```glsl
-if (particleType >= 64.0 && particleType < 112.0) {
-  // Dual-layer smooth noise
-  vec2 noiseCoord1 = worldCoord * 0.05 + vec2(uTime * 0.3, uTime * 0.2);
-  float n1 = smoothNoise(noiseCoord1);
-
-  vec2 noiseCoord2 = worldCoord * 0.08 - vec2(uTime * 0.2, uTime * 0.25);
-  float n2 = smoothNoise(noiseCoord2);
-
-  float combined = (n1 + n2) * 0.5;
-
-  // Brightness variation (±8%)
-  float brightness = 0.92 + combined * 0.16;
-  color.rgb *= brightness;
-
-  // Subtle color shift
-  float colorShift = (combined - 0.5) * 0.04;
-  color.rgb += vec3(colorShift);
-}
-```
-
-**Features:**
-
-- Two noise layers moving in different directions
-- Time-based animation for flowing effect
-- Subtle enough to not distract from simulation
-- Applied after post-processing
-
-**Performance:**
-
-- Runs on final display shader
-- No extra render passes needed
-- Negligible performance impact
-
-## Final Renderer
-
-### Coordinate Mapping
-
-```glsl
-// Canvas pixel → Particle coordinate
-vec2 pixelCoord = vUv * uCanvasSize;
-vec2 particleCoord = floor(pixelCoord / uPixelSize);
-
-// Apply pan/zoom
-vec2 viewCenter = vec2(particlesInView) / 2.0;
-vec2 worldParticleCoord = particleCoord - viewCenter + uCenter;
-
-// Convert to texture UV [0, 1]
-vec2 texUV = (worldParticleCoord + WORLD_SIZE/2) / uTextureSize;
-```
-
-### Zoom System
-
-**Pixel Size Parameter:**
-
-- 1.0 = Each particle is 1×1 screen pixel
-- 2.0 = Each particle is 2×2 screen pixels (zoomed in)
-- 0.5 = Each particle is 0.5×0.5 screen pixels (zoomed out)
-
-**Pan System:**
-
-- `uCenter` = World coordinates of view center
-- Updated by drag interactions
-- Clamped to world boundaries
-
-### Out-of-Bounds Rendering
-
-```glsl
-if (texUV.x < 0.0 || texUV.x > 1.0 ||
-    texUV.y < 0.0 || texUV.y > 1.0) {
-  // Dark checkered pattern
-  float gridSize = 32.0;
-  float grid = mod(
-    floor(worldCoord.x / gridSize) +
-    floor(worldCoord.y / gridSize),
-    2.0
-  );
-  vec3 gridColor = mix(
-    vec3(0.05, 0.05, 0.08),
-    vec3(0.08, 0.08, 0.12),
-    grid
-  );
-  return vec4(gridColor, 1.0);
-}
-```
-
-## Render Configuration
-
-### Default Settings
+## Render Configuration Summary
 
 ```typescript
-{
+const DEFAULT_RENDER_CONFIG = {
   effects: [
     { type: 'edge-blending', enabled: true },
     { type: 'material-variation', enabled: true },
     { type: 'glow', enabled: true }
   ],
-  edgeBlending: {
-    blendStrength: 0.5
-  },
-  materialVariation: {
-    noiseScale: 4.0,
-    noiseStrength: 0.15
-  },
-  glow: {
-    intensity: 0.7,
-    radius: 2.6
-  }
-}
+  overlays: [
+    { type: 'heat', enabled: false },
+    { type: 'ambient-heat', enabled: false },
+    { type: 'force', enabled: false }
+  ],
+  edgeBlending: { blendStrength: 0.5 },
+  materialVariation: { noiseScale: 4.0, noiseStrength: 0.15 },
+  glow: { intensity: 0.7, radius: 2.6 }
+};
 ```
 
-### Performance Impact
+| Setting | Range | Impact |
+| --- | --- | --- |
+| `blendStrength` | 0 → 1 | Higher values blur boundaries more aggressively. |
+| `noiseScale` | 0.5 → 10 | Larger numbers create finer FBM detail. |
+| `noiseStrength` | 0 → 1 | Controls contrast of variation patterns. |
+| `glow.intensity` | 0 → 2 | Amplifies emissive halos. |
+| `glow.radius` | 0.5 → 4 | Expands glow sample footprint. |
 
-| Effect             | GPU Cost | Visual Impact                 |
-| ------------------ | -------- | ----------------------------- |
-| Base Colors        | Low      | Required                      |
-| Edge Blending      | Medium   | High at zoom                  |
-| Material Variation | Medium   | Medium overall                |
-| Material Glow      | Medium   | Highlights emissive materials |
-| Liquid Animation   | Low      | High for liquids              |
+## Performance Tips
 
-**Optimization Tips:**
-
-- Disable effects on low-end GPUs
-- Reduce noise quality for better performance
-- Use lower blend strength for faster rendering
-
-## Visual Quality Comparison
-
-### Without Post-Processing
-
-- Flat colors
-- Sharp pixel boundaries
-- Static appearance
-- Fast rendering
-
-### With Post-Processing
-
-- Textured materials
-- Smooth transitions
-- Animated liquids
-- Slightly slower rendering
+- Post-process resources are created once and disposed on unmount to avoid shader recompilation costs.
+- Effects and overlays short-circuit when disabled, so toggling them off is effectively free.
+- The base colour pre-pass only runs when post-processing is active; pure state rendering skips the extra target.
+- All render targets use `NearestFilter` to keep sampling bandwidth low and preserve pixel art fidelity.
 
 ## Future Enhancements
 
-- [ ] **Bloom** - Glow effect for lava, acid
-- [ ] **Particle Overlays** - Sparkles, steam wisps
-- [ ] **Custom Backgrounds** - Gradients, images
-- [ ] **Lighting** - Simple ambient/directional lighting
-- [ ] **Shadows** - Soft shadows for depth
+- [ ] Bloom or tone-mapped highlights for high-energy materials.
+- [ ] Particle overlay sprites (sparks, steam wisps) built on instancing.
+- [ ] User-selectable background themes and HDR screenshots.
+- [ ] Simple light accumulation to add depth without heavy shadow maps.
+- [ ] GPU-side histogram capture for adaptive colour grading.

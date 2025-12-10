@@ -218,11 +218,12 @@ function App() {
         brushSize: context.brushSize,
         worldTexture: context.worldTexture,
         heatTextureRef: ambientHeatTextureRef,
+        selectedMaterial: selectedParticle,
       });
       // Trigger redraw after buildable placement
       context.worldTexture.needsUpdate = true;
     }
-  }, [selectedBuildable]);
+  }, [selectedBuildable, selectedParticle]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {

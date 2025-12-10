@@ -6,6 +6,13 @@ import type {
   BuildableDefinition,
   BuildableClickContext,
 } from './Buildables';
+import {
+  GPU_BUILDABLE_TYPE,
+  LIFETIME_PERMANENT,
+  DEFAULT_HEAT_INTENSITY,
+} from './BuildablesConstants';
+import { getBuildablesManager } from './BuildablesTextureManager';
+import { ParticleType } from '../world/ParticleTypes';
 
 /**
  * Registry of all available buildables
@@ -20,8 +27,19 @@ export const BuildableDefinitions: BuildableDefinition[] = [
     category: BuildableCategory.SOURCES,
     icon: 'faucet',
     onPlace: (context: BuildableClickContext) => {
-      // TODO: Implement material source placement
-      console.log('Material Source placed at', context.worldX, context.worldY);
+      const manager = getBuildablesManager();
+      const slot = manager.addBuildable({
+        type: GPU_BUILDABLE_TYPE.MATERIAL_SOURCE,
+        x: context.worldX,
+        y: context.worldY,
+        subtype: context.selectedMaterial ?? ParticleType.SAND,
+        radius: context.brushSize,
+        lifetime: LIFETIME_PERMANENT,
+        rate: 0.5, // 50% chance to spawn per frame per empty pixel in radius
+      });
+      if (slot !== null) {
+        console.log('Material Source placed at', context.worldX, context.worldY, 'slot:', slot);
+      }
     },
   },
   {
@@ -31,8 +49,18 @@ export const BuildableDefinitions: BuildableDefinition[] = [
     category: BuildableCategory.SOURCES,
     icon: 'circle-down',
     onPlace: (context: BuildableClickContext) => {
-      // TODO: Implement material sink placement
-      console.log('Material Sink placed at', context.worldX, context.worldY);
+      const manager = getBuildablesManager();
+      const slot = manager.addBuildable({
+        type: GPU_BUILDABLE_TYPE.MATERIAL_SINK,
+        x: context.worldX,
+        y: context.worldY,
+        radius: context.brushSize,
+        lifetime: LIFETIME_PERMANENT,
+        rate: 0.3, // 30% chance to delete per frame per particle in radius
+      });
+      if (slot !== null) {
+        console.log('Material Sink placed at', context.worldX, context.worldY, 'slot:', slot);
+      }
     },
   },
   {
@@ -42,8 +70,19 @@ export const BuildableDefinitions: BuildableDefinition[] = [
     category: BuildableCategory.SOURCES,
     icon: 'fire',
     onPlace: (context: BuildableClickContext) => {
-      // TODO: Implement heat source placement
-      console.log('Heat Source placed at', context.worldX, context.worldY);
+      const manager = getBuildablesManager();
+      const slot = manager.addBuildable({
+        type: GPU_BUILDABLE_TYPE.HEAT_SOURCE,
+        x: context.worldX,
+        y: context.worldY,
+        subtype: DEFAULT_HEAT_INTENSITY / 10, // Temperature intensity (scaled down, shader scales up)
+        radius: context.brushSize * 2, // Heat has larger radius than brush
+        lifetime: LIFETIME_PERMANENT,
+        rate: 1.0, // Full heat application rate
+      });
+      if (slot !== null) {
+        console.log('Heat Source placed at', context.worldX, context.worldY, 'slot:', slot);
+      }
     },
   },
   {
@@ -53,8 +92,19 @@ export const BuildableDefinitions: BuildableDefinition[] = [
     category: BuildableCategory.SOURCES,
     icon: 'snowflake',
     onPlace: (context: BuildableClickContext) => {
-      // TODO: Implement cold source placement
-      console.log('Cold Source placed at', context.worldX, context.worldY);
+      const manager = getBuildablesManager();
+      const slot = manager.addBuildable({
+        type: GPU_BUILDABLE_TYPE.COLD_SOURCE,
+        x: context.worldX,
+        y: context.worldY,
+        subtype: DEFAULT_HEAT_INTENSITY / 10, // Cooling intensity (scaled down, shader scales up)
+        radius: context.brushSize * 2, // Cold has larger radius than brush
+        lifetime: LIFETIME_PERMANENT,
+        rate: 1.0, // Full cooling rate
+      });
+      if (slot !== null) {
+        console.log('Cold Source placed at', context.worldX, context.worldY, 'slot:', slot);
+      }
     },
   },
 ];

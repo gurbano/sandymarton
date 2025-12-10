@@ -33,11 +33,24 @@ import {
   phaseTransitionFragmentShader,
   phaseTransitionVertexShader,
 } from '../shaders/phaseTransitionShaders';
+import {
+  buildablesToHeatFragmentShader,
+  buildablesToHeatVertexShader,
+} from '../shaders/buildablesToHeatShader';
+import {
+  buildablesToWorldFragmentShader,
+  buildablesToWorldVertexShader,
+} from '../shaders/buildablesToWorldShader';
 import { useFrame, useThree } from '@react-three/fiber';
 import type { SimulationConfig } from '../types/SimulationConfig';
 import { SimulationStepType, DEFAULT_AMBIENT_HEAT_SETTINGS } from '../types/SimulationConfig';
 import { MaterialDefinitions, getDefaultBaseAttributes } from '../world/MaterialDefinitions';
 import { ParticleType } from '../world/ParticleTypes';
+import {
+  getBuildablesManager,
+  BUILDABLES_TEXTURE_WIDTH,
+  BUILDABLES_TEXTURE_HEIGHT,
+} from '../buildables';
 
 interface MainSimulationProps {
   worldTexture: DataTexture;
@@ -144,6 +157,8 @@ function MainSimulation({
   const particleOnlyHeatSceneRef = useRef<SimulationResources | null>(null);
   const phaseTransitionSceneRef = useRef<SimulationResources | null>(null);
   const forceTransferSceneRef = useRef<SimulationResources | null>(null);
+  const buildablesToHeatSceneRef = useRef<SimulationResources | null>(null);
+  const buildablesToWorldSceneRef = useRef<SimulationResources | null>(null);
   const margolusIterationRef = useRef(0);
   const liquidSpreadIterationRef = useRef(0);
   const archimedesIterationRef = useRef(0);
@@ -266,6 +281,32 @@ function MainSimulation({
     });
     forceTransferResources.material.uniforms.uHeatForceLayer = { value: heatForceTexture };
 
+    // Create buildables to heat resources (applies heat/cold from buildables to heat layer)
+    const buildablesManager = getBuildablesManager();
+    const buildablesToHeatResources = createSimulationResources(textureSize, worldTexture, {
+      vertexShader: buildablesToHeatVertexShader,
+      fragmentShader: buildablesToHeatFragmentShader,
+    });
+    buildablesToHeatResources.material.uniforms.uHeatTexture = { value: heatForceTexture };
+    buildablesToHeatResources.material.uniforms.uBuildablesPosition = { value: buildablesManager.positionTexture };
+    buildablesToHeatResources.material.uniforms.uBuildablesData = { value: buildablesManager.dataTexture };
+    buildablesToHeatResources.material.uniforms.uBuildablesSize = { value: new Vector2(BUILDABLES_TEXTURE_WIDTH, BUILDABLES_TEXTURE_HEIGHT) };
+    buildablesToHeatResources.material.uniforms.uMaxBuildables = { value: 0 };
+    buildablesToHeatResources.material.uniforms.uWorldSize = { value: textureSize };
+
+    // Create buildables to world resources (spawns/absorbs particles from material sources/sinks)
+    const buildablesToWorldResources = createSimulationResources(textureSize, worldTexture, {
+      vertexShader: buildablesToWorldVertexShader,
+      fragmentShader: buildablesToWorldFragmentShader,
+    });
+    buildablesToWorldResources.material.uniforms.uBuildablesPosition = { value: buildablesManager.positionTexture };
+    buildablesToWorldResources.material.uniforms.uBuildablesData = { value: buildablesManager.dataTexture };
+    buildablesToWorldResources.material.uniforms.uBuildablesSize = { value: new Vector2(BUILDABLES_TEXTURE_WIDTH, BUILDABLES_TEXTURE_HEIGHT) };
+    buildablesToWorldResources.material.uniforms.uMaxBuildables = { value: 0 };
+    buildablesToWorldResources.material.uniforms.uWorldSize = { value: textureSize };
+    buildablesToWorldResources.material.uniforms.uTime = { value: 0 };
+    buildablesToWorldResources.material.uniforms.uFrameCount = { value: 0 };
+
     margolusSceneRef.current = margolusResources;
     liquidSpreadSceneRef.current = liquidSpreadResources;
     archimedesSceneRef.current = archimedesResources;
@@ -273,6 +314,8 @@ function MainSimulation({
     particleOnlyHeatSceneRef.current = particleOnlyHeatResources;
     phaseTransitionSceneRef.current = phaseTransitionResources;
     forceTransferSceneRef.current = forceTransferResources;
+    buildablesToHeatSceneRef.current = buildablesToHeatResources;
+    buildablesToWorldSceneRef.current = buildablesToWorldResources;
 
     // Initialize render targets
     renderTargets.forEach((rt) => {
@@ -304,6 +347,8 @@ function MainSimulation({
         particleOnlyHeatResources,
         phaseTransitionResources,
         forceTransferResources,
+        buildablesToHeatResources,
+        buildablesToWorldResources,
       ].forEach((resources) => {
         resources.scene.remove(resources.mesh);
         resources.geometry.dispose();
@@ -351,6 +396,34 @@ function MainSimulation({
 
     let currentSource: Texture = worldTexture;
     let rtIndex = 0;
+
+    // Sync buildables textures to GPU and process buildables
+    const buildablesManager = getBuildablesManager();
+    buildablesManager.syncToGPU();
+    const buildableCount = buildablesManager.count;
+
+    // Process material sources/sinks (spawn/delete particles)
+    if (buildableCount > 0 && buildablesToWorldSceneRef.current) {
+      const buildablesToWorld = buildablesToWorldSceneRef.current;
+      const targetRT = renderTargets[rtIndex % renderTargets.length];
+
+      // Update uniforms
+      buildablesToWorld.material.uniforms.uCurrentState.value = currentSource;
+      buildablesToWorld.material.uniforms.uBuildablesPosition.value = buildablesManager.positionTexture;
+      buildablesToWorld.material.uniforms.uBuildablesData.value = buildablesManager.dataTexture;
+      buildablesToWorld.material.uniforms.uMaxBuildables.value = buildableCount;
+      buildablesToWorld.material.uniforms.uTime.value = state.clock.elapsedTime;
+      buildablesToWorld.camera.position.z = 1;
+      buildablesToWorld.camera.updateProjectionMatrix();
+
+      // Render
+      gl.setRenderTarget(targetRT);
+      gl.render(buildablesToWorld.scene, buildablesToWorld.camera);
+      gl.setRenderTarget(null);
+
+      currentSource = targetRT.texture;
+      rtIndex++;
+    }
 
     // Execute particle state steps (non-heat/force steps)
     for (const step of config.steps) {
@@ -498,6 +571,33 @@ function MainSimulation({
       const worldData = worldTexture.image.data as Uint8Array;
       worldData.set(pixels);
       worldTexture.needsUpdate = true;
+    }
+
+    // Process heat/cold buildables (apply heat to heat layer)
+    if (buildableCount > 0 && buildablesToHeatSceneRef.current && heatForceLayerRef.current) {
+      const buildablesToHeat = buildablesToHeatSceneRef.current;
+
+      // Get current heat source
+      const heatSource: Texture = currentHeatRTIndexRef.current > 0
+        ? heatRenderTargets[(currentHeatRTIndexRef.current - 1) % heatRenderTargets.length].texture
+        : heatForceLayerRef.current;
+      const targetRT = heatRenderTargets[currentHeatRTIndexRef.current % heatRenderTargets.length];
+
+      // Update uniforms
+      buildablesToHeat.material.uniforms.uHeatTexture.value = heatSource;
+      buildablesToHeat.material.uniforms.uBuildablesPosition.value = buildablesManager.positionTexture;
+      buildablesToHeat.material.uniforms.uBuildablesData.value = buildablesManager.dataTexture;
+      buildablesToHeat.material.uniforms.uMaxBuildables.value = buildableCount;
+      buildablesToHeat.material.uniforms.uTextureSize.value.set(textureSize, textureSize);
+      buildablesToHeat.camera.position.z = 1;
+      buildablesToHeat.camera.updateProjectionMatrix();
+
+      // Render
+      gl.setRenderTarget(targetRT);
+      gl.render(buildablesToHeat.scene, buildablesToHeat.camera);
+      gl.setRenderTarget(null);
+
+      currentHeatRTIndexRef.current++;
     }
 
     // Execute ambient heat transfer (updates heat layer from particle temperatures)

@@ -119,7 +119,7 @@ flowchart LR
     SimConfig -->|uniforms| MainSim
     BuildablesMgr -->|syncToGPU| MainSim
     CPUTexture -->|uploaded once| GPUState[(GPU State Texture)]
-    MainSim[MainSimulation<br/>(passes + buildables)] -->|ping-pong| GPUState
+  MainSim["MainSimulation<br/>(passes + buildables)"] -->|ping-pong| GPUState
     MainSim --> HeatRTs[(Heat/Force RTs)]
     HeatRTs --> PostFX[PostProcessRenderer]
     GPUState --> PostFX

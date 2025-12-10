@@ -32,6 +32,8 @@ export interface BuildableClickContext {
   worldTexture: THREE.DataTexture;
   /** Reference to heat layer texture (DataTexture for CPU access) */
   heatTextureRef: React.RefObject<THREE.DataTexture | null>;
+  /** Currently selected material type (for material sources) */
+  selectedMaterial?: number;
 }
 
 export interface BuildableDefinition {
