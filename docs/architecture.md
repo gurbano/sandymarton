@@ -1,164 +1,169 @@
-# Architecture Overview
+## Architecture Overview
 
-Sandy2 is built on a modular, GPU-first architecture that maximizes parallelization and minimizes CPU-GPU data transfer.
+Sandy2 is a TypeScript + WebGL sandbox that keeps the full physics and rendering loop on the GPU while React handles configuration, controls, and orchestration. The updated architecture integrates buildable devices, dual heat pipelines, and post-processing overlays without introducing extra CPU/GPU sync points.
 
-## Core Principles
+## Core Design Pillars
 
-1. **GPU-First**: Simulation and rendering logic primarily run on the GPU via GLSL shaders
-2. **Double Buffering**: Ping-pong texture swapping for state updates
-3. **Modular Pipeline**: Each simulation pass is independent and composable
-4. **Minimal CPU Processing**: Particle state stays on the GPU except for lightweight analytics (e.g., particle counting)
+- **GPU-first workloads** – Every simulation rule, heat exchange, and post-effect runs inside GLSL shaders invoked through Three.js.
+- **Ping-pong buffers everywhere** – Particle, heat, buildable, and render pipelines share pairs of reusable render targets to prevent read-modify-write hazards.
+- **Config-driven orchestration** – `SimulationConfig` defines pass ordering, enabling or disabling steps without recompiling shaders.
+- **Single read-back loop** – The world state returns to CPU memory once per frame only after all particle passes finish; optional heat read-backs occur on demand for inspection tools.
+- **Buildables as first-class citizens** – The buildables manager streams texture data into two GPU passes that can spawn particles or inject heat before the core physics steps run.
 
-## System Components
+## Simulation Layer
 
-### Simulation Layer
+### Runtime Entry Point – `MainSimulation.tsx`
 
-**MainSimulation.tsx**
+- Allocates particle, heat, and post-buildable render targets sized to `textureSize`.
+- Seeds a persistent `DataTexture` (`heatForceLayerRef`) with per-material default temperatures so new worlds start in thermal equilibrium.
+- Reuses a shared `createSimulationResources` helper to create materials that differ only by shader pairings.
+- Tracks FPS with a circular buffer and surfaces the value through a callback consumed by the HUD.
 
-- Orchestrates the simulation pipeline
-- Manages texture ping-ponging
-- Controls frame rate and update loop
+### Buildables Integration
 
-**Shader Passes**
+Two dedicated passes run before the configurable particle pipeline whenever buildables are active:
 
-1. Margolus CA (8 iterations default) - Granular physics and settling
-2. Liquid Spread (4 passes) - Horizontal liquid flow
-3. Archimedes (2 passes) - Buoyancy and density layering
-4. Ambient Heat Transfer (2 passes) - Heat layer diffusion and emission
-5. Particle Heat Diffusion (2 passes) - Direct conduction between particles
-6. Phase Transitions (1 pass) - Material changes based on temperature
-7. Force Transfer (optional) - Experimental external force propagation
+1. **Buildables → World** – Uses `buildablesToWorldShader` to spawn or remove particles (sources, sinks, emitters). Writes into the particle ping-pong chain so subsequent passes see the changes immediately.
+2. **Buildables → Heat** – Projects heater/cooler effects from devices into the heat/force texture, piggybacking on the same render target pool as ambient diffusion.
 
-Each pass:
+The buildables manager keeps position/data textures and exposes a `syncToGPU()` method that uploads edits triggered by UI interactions or scripts just before the frame executes.
 
-- Reads from input texture
-- Applies transformations via fragment shader
-- Writes to output texture
-- Swaps buffers for next pass
+### Particle Pipeline
 
-### Rendering Layer
+Particle-focused passes mutate the world texture using four rotating render targets. The default ordering is:
 
-**PostProcessRenderer.tsx**
+1. **Margolus Cellular Automaton** – Granular settling and friction-controlled randomness.
+2. **Liquid Spread** – Directional liquid leveling with stochastic variance.
+3. **Archimedes Buoyancy** – Density- and temperature-aware swapping to simulate convection.
+4. **Particle-only Heat Diffusion** – Fast conduction between neighbors, factoring in ambient coupling when enabled.
+5. **Phase Transitions** – Material swaps driven by temperature thresholds.
+6. **Force Transfer (optional)** – Experimental force propagation path, off by default but sharing the resource factory.
 
-- Converts particle state to visual colors
-- Applies post-processing effects:
-  - Edge blending for smooth boundaries
-  - Material variation for natural texture
+Each shader reads `uCurrentState`, writes to the next render target, and updates iteration counters that drive alternating checkerboard patterns or random seeds. Once all passes finish, a single `gl.readRenderTargetPixels` call refreshes the CPU-side `worldTexture` so drawing tools, analytics, and level saving stay in sync without double buffering on the CPU.
 
-**TextureRenderer.tsx**
+### Heat & Force Pipeline
 
-- Final display rendering
-- Liquid animation with time-based noise
-- Camera controls (pan, zoom)
-- Pixel-perfect rendering
+- Stores temperature (16-bit Kelvin) and force vectors in an RGBA texture shared across passes.
+- Maintains two heat render targets for ping-pong diffusion while the original `DataTexture` remains the authoritative CPU copy.
+- Applies ambient diffusion, emission, and optional equilibrium nudging using uniforms sourced from `config.ambientHeatSettings`.
+- Defers equilibrium updates based on `equilibriumInterval` so idle frames skip unnecessary work.
+- Optionally reads the heat target back to CPU memory when inspection tooling toggles `shouldCaptureHeatLayer`.
+- Shares the final heat target through `heatRTRef`, allowing render overlays to visualize temperatures and forces without GPU read-back.
 
-### UI Layer
+### Execution Order Diagram
 
-**SideControls.tsx**
+```mermaid
+flowchart TD
+    subgraph Buildables
+      BW[Buildables → World]
+      BH[Buildables → Heat]
+    end
+    subgraph Particle Passes
+      M[Margolus CA]
+      L[Liquid Spread]
+      A[Archimedes]
+      PHeat[Particle Heat]
+      PT[Phase Transition]
+      FT[(Force Transfer)]
+    end
+    subgraph Heat Passes
+      Ambient[Ambient Heat Transfer]
+    end
+    BW --> M
+    M --> L --> A --> PHeat --> PT --> FT
+    BH --> Ambient
+    PT --> Ambient
+    Ambient -->|Heat RT ref| Rendering
+    PT -->|Read-back once| CPUState[(CPU DataTexture)]
+```
 
-- Material selection
-- Tool modes (draw, erase, fill)
-- Simulation configuration
-- Level management
-- Rendering effect toggles
+## Rendering Layer
 
-**ParticleCounter.tsx**
+### `TextureRenderer.tsx`
 
-- Real-time particle statistics refreshed periodically
-- CPU reads the GPU-owned state texture (Uint8Array) for aggregation
-- Optimized counting loop avoids per-frame overhead
+- Projects either the raw particle state or the post-processed color texture to a screen-filling quad.
+- Supplies uniforms for pixel size, camera center, and background metadata while animating liquids via a time uniform.
+- Seeds procedural backgrounds with random palette + noise offsets (`createBackgroundParams`) whenever worlds reset or new levels load.
+
+### Base Color Pre-pass
+
+When `renderConfig` enables post-processing, a dedicated base color render target stores material coloration so visual effects never mutate the canonical state texture.
+
+### `PostProcessRenderer.tsx`
+
+- Reads live textures through refs, avoiding React re-render churn.
+- Splits effects into “core” and “glow” buckets so additive bloom always executes last.
+- Supports edge blending, material variation noise, glow, and three overlay options (particle heat, ambient heat, force vectors). When both heat overlays are active the combined shader renders them in a single pass.
+- Ping-pong render targets recycle across effects to keep GPU allocations bounded.
+
+### Background Shader
+
+- Applies the selected palette, seed, and noise offsets across a short sequence of noise evaluations driven by elapsed time.
+- Exposes uniforms for toggling the background entirely (e.g., screenshot mode) without incurring extra passes.
+
+## UI & Tooling Layer
+
+- **`SideControls.tsx`** – Central hub for particle selection, buildable placement, render toggles, and heat tuning.
+- **`SimulationControls.tsx`** – Adjusts pass counts, friction amplifier, and pause/reset behavior.
+- **`useParticleDrawing`** – Mirrors shader math to convert screen coordinates to world coordinates, performs circular brush edits directly on the CPU-side texture, and surfaces inspection data that merges particle and ambient temperatures.
+- **`ParticleCounter.tsx`** – Uses a reusable typed-array accumulator to produce aggregate counts on a throttled timer.
+- **Buildables Manager** – Stores up to `BUILDABLES_TEXTURE_WIDTH × BUILDABLES_TEXTURE_HEIGHT` device slots and exposes sync hooks for both CPU edits and GPU consumption.
 
 ## Data Flow
 
-```
-User Input
-    ↓
-React State Updates
-    ↓
-Shader Uniforms Updated
-    ↓
-GPU Simulation Pipeline
-    ├─ Margolus CA (4×)
-    ├─ Liquid Spread
-    └─ Archimedes
-    ↓
-Post-Processing Pipeline
-    ├─ Base Colors
-    ├─ Edge Blending
-    └─ Material Variation
-    ↓
-Final Rendering
-    ├─ Liquid Animation
-    └─ Display to Canvas
+```mermaid
+flowchart LR
+    UI[UI & Tools] -->|config updates| SimConfig[SimulationConfig]
+    UI -->|draw/build| CPUTexture[(CPU DataTexture)]
+    UI -->|place devices| BuildablesMgr[Buildables Manager]
+    SimConfig -->|uniforms| MainSim
+    BuildablesMgr -->|syncToGPU| MainSim
+    CPUTexture -->|uploaded once| GPUState[(GPU State Texture)]
+    MainSim[MainSimulation<br/>(passes + buildables)] -->|ping-pong| GPUState
+    MainSim --> HeatRTs[(Heat/Force RTs)]
+    HeatRTs --> PostFX[PostProcessRenderer]
+    GPUState --> PostFX
+    PostFX --> Renderer[TextureRenderer]
+    Renderer --> Canvas[(Canvas)]
+    MainSim -->|single read-back| CPUTexture
+    HeatRTs -->|optional read-back| CPUHeat[(CPU Heat Texture)]
+    CPUHeat --> Inspector[Inspect Tooltip]
 ```
 
-## Texture Management
+## Texture Inventory
 
-### State Textures
+| Texture                        | Format          | Producer                             | Consumers                        | Notes                                                                     |
+| ------------------------------ | --------------- | ------------------------------------ | -------------------------------- | ------------------------------------------------------------------------- |
+| World state (ping-pong×4)      | RGBA8           | Particle passes, buildables → world  | Simulation pipeline, CPU sync    | Stores particle type, 16-bit temperature, metadata.                       |
+| Heat/force RTs (ping-pong×2)   | RGBA8           | Buildables → heat, ambient diffusion | Post-process overlays, inspector | Temperature low/high bytes + force vectors; CPU copy refreshed on demand. |
+| Base color RT                  | RGBA8           | Base color pre-pass                  | Post-processing pipeline         | Only allocated when effects enabled.                                      |
+| Post-process RTs (ping-pong×2) | RGBA8           | Post-process renderer                | TextureRenderer                  | Reused for every effect/overlay to cap allocations.                       |
+| Buildables position/data       | RGBA8 / RGBA32F | Buildables manager                   | Buildables shaders               | Fixed-size texture atlas describing device placement & parameters.        |
 
-- Format: RGBA8 (Uint8Array)
-- Size: 1024×1024 pixels (configurable)
-- Storage: GPU-only (DataTexture)
-- Updates: Every frame via render-to-texture
+## Performance Practices
 
-### Heat / Force Textures
-
-- Format: RGBA8
-- Channels: TempLow, TempHigh, ForceX, ForceY
-- Purpose: Shared ambient temperature and force storage between passes
-- Lifecycle: Created once, ping-ponged each frame
-
-### Color Textures
-
-- Format: RGBA8
-- Size: Same as state texture
-- Purpose: Intermediate post-processing results
-- Lifecycle: Created on-demand, cached
-
-### Render Targets
-
-- WebGLRenderTarget for off-screen rendering
-- NearestFilter for pixel-perfect sampling
-- No depth/stencil buffers (2D simulation)
-
-## Performance Optimizations
-
-1. **Minimal State Transfer**: Particle state stays on GPU
-2. **Shader Compilation Caching**: Materials created once, reused
-3. **Conditional Rendering**: Post-processing only when effects enabled
-4. **Efficient Texture Formats**: RGBA8 instead of float textures
-5. **Request Animation Frame**: Synchronizes with display refresh
-6. **Effect Disabling**: Individual passes can be toggled off
-
-## Memory Layout
-
-```
-GPU Memory:
-├── State Texture A     (~16 MB)
-├── State Texture B     (~16 MB)
-├── Color Texture       (~16 MB, optional)
-├── Post-Process RT     (~16 MB, optional)
-└── Shader Programs     (~1 MB)
-
-Total: ~50-65 MB
-```
+- Materials and geometries are created once and disposed on unmount to avoid shader recompilation churn.
+- Buildable passes short-circuit when `count === 0`, so empty worlds skip the additional render steps.
+- Heat read-back only occurs when the inspector is active, preserving bandwidth during normal play.
+- Glow executes last to reduce overdraw, and disabled effects skip both render target swaps and shader dispatches.
+- All render targets use `NearestFilter` and omit depth/stencil attachments for 2D precision with minimal bandwidth.
+- Friction amplification is exposed through the UI so heavy worlds can be stabilized without touching shader code.
 
 ## Threading Model
 
-- **Main Thread**: React rendering, UI updates, WebGL commands
-- **GPU Thread**: Parallel shader execution (thousands of cores)
-- **No Web Workers**: Not needed due to GPU parallelization
+- **Main thread** – React reconciliation, event handling, WebGL command submission, buildables synchronization.
+- **GPU** – Executes shader programs for buildables, particle passes, heat diffusion, and rendering effects in parallel.
+- **No Web Workers** – GPU parallelism handles the heavy lifting; CPU tasks (drawing, analytics) are throttled and vectorized.
 
 ## Browser Compatibility
 
-**Minimum Requirements:**
+**Minimum requirements**
 
-- WebGL 2.0 support
-- Fragment shader texture reads
-- Render-to-texture capability
-- GLSL ES 3.0
+- WebGL 2.0 + GLSL ES 3.0
+- Multiple color attachments and render-to-texture support
+- Floating-point uniforms & high precision fragment shaders
 
-**Tested On:**
+**Validated on**
 
 - Chrome 100+
 - Firefox 100+

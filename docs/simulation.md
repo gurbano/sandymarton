@@ -1,286 +1,233 @@
 # Simulation Pipeline
 
-The physics pipeline is modular and runs a configurable series of GPU shader passes each frame. By default, six core passes execute sequentially, with an optional force propagation stage available for experiments.
+The simulation loop is a configurable sequence of GPU shader passes orchestrated by `MainSimulation`. Each frame executes buildable effects, particle rules, and heat diffusion before syncing the final state back to the CPU exactly once. Optional passes remain in the pipeline configuration but skip execution when disabled.
 
-## 1. Margolus Cellular Automata
+## Frame Timeline
+
+```mermaid
+flowchart TD
+  BW[Buildables → World] --> Margolus
+  BW -. no devices .-> Margolus
+  Margolus[Margolus CA] --> Liquid[Liquid Spread]
+    Liquid --> Archimedes
+    Archimedes --> ParticleHeat[Particle Heat Diffusion]
+    ParticleHeat --> Phase[Phase Transition]
+    Phase --> Force[(Force Transfer?)]
+    Force --> Readback[CPU Read-back]
+    BW --> HeatBuildables[Buildables → Heat]
+    HeatBuildables --> Ambient[Ambient Heat Transfer]
+    Phase --> Ambient
+  Ambient --> Post[Heat texture shared with rendering]
+    Readback --> CPUTexture[(CPU DataTexture)]
+```
+
+`Force Transfer` is optional—when disabled the pipeline jumps straight from phase transitions to the read-back without extra render target swaps.
+
+## Buildables Pre-passes
+
+### 0. Buildables → World (Material Sources & Sinks)
+
+- Pulls device placement & configuration from the buildables manager (`positionTexture`, `dataTexture`).
+- Injects or removes particles (e.g., material spawners, void sinks) before the main passes so downstream physics sees the updated state.
+- Uniforms include `uMaxBuildables`, time, and world size for deterministic emission.
+
+### 0b. Buildables → Heat (Heaters & Coolers)
+
+- Writes heater/cooler contributions into the heat render target pool.
+- Runs only when devices exist, otherwise the pass is skipped to avoid extra GPU work.
+- Shares the same ping-pong targets as ambient diffusion to keep allocations stable.
+
+## 1. Margolus Cellular Automaton
 
 ### Overview
 
-A 2x2 block-based cellular automaton that simulates granular physics. Runs 4 iterations per frame with alternating block parity to avoid grid artifacts.
+A 2×2 block-based automaton that simulates granular settling. The default configuration runs **8 passes**, which equals two complete parity cycles per frame.
 
-### Algorithm
+### Key Mechanics
 
-**Block Processing:**
+- Alternates block parity every pass to prevent directional bias.
+- Samples per-material friction from `MaterialDefinitions` and multiplies it by the global `uFrictionAmplifier`.
+- Uses a seeded random uniform to jitter outcome probabilities so packed piles break up naturally.
 
-```
-Frame N (even):     Frame N+1 (odd):
-┌──┬──┬──┬──┐      ┌──┬──┬──┬──┐
-│ A│ B│ A│ B│      │  │ C│ D│  │
-├──┼──┼──┼──┤      ├──┼──┼──┼──┤
-│ C│ D│ C│ D│      │  │ C│ D│  │
-├──┼──┼──┼──┤  →   ├──┼──┼──┼──┤
-│ A│ B│ A│ B│      │  │ C│ D│  │
-├──┼──┼──┼──┤      ├──┼──┼──┼──┤
-│ C│ D│ C│ D│      │  │ C│ D│  │
-└──┴──┴──┴──┘      └──┴──┴──┴──┘
+```glsl
+float toppleProbability = 1.0 - clamp(baseFriction * uFrictionAmplifier, 0.0, 1.0);
+if (rand(uRandomSeed, blockCoord) < toppleProbability) {
+    swapCells();
+}
 ```
 
-### Transition Rules
+### Typical Friction Coefficients
 
-For each 2×2 block:
-
-```
-┌────┬────┐
-│ TL │ TR │
-├────┼────┤
-│ BL │ BR │
-└────┴────┘
-```
-
-**Toppling Logic:**
-
-1. Identify heavy (solid/liquid) and light (empty/gas) particles
-2. Check if configuration is unstable (heavy over light)
-3. Apply friction-based probability:
-   ```glsl
-   float toppleProbability = 1.0 - clamp(
-       baseFriction * uFrictionAmplifier,
-       0.0, 1.0
-   );
-   ```
-4. Swap positions if random value < probability
-
-**Material-Specific Friction:**
-
-- **Sand**: 0.3 (flows easily)
-- **Dirt**: 0.5 (moderate resistance)
-- **Gravel**: 0.2 (very loose)
-- **Stone**: 1.0 (immovable)
-
-### 4-Iteration Cycle
-
-Each frame runs an even/odd parity cycle. With the default configuration (`passes: 8`), the shader performs two full parity cycles per frame, eliminating directional bias and giving granular materials extra settling time.
+| Material | Base friction |
+| -------- | ------------- |
+| Sand     | 0.30          |
+| Dirt     | 0.50          |
+| Gravel   | 0.20          |
+| Stone    | 1.00          |
 
 ## 2. Liquid Spread
 
 ### Overview
 
-Specialized shader for horizontal liquid flow. Operates on individual particles rather than blocks.
+Evaluates every liquid pixel independently to encourage lateral leveling. The shader prefers deterministic movement (toward more empty space) and adds noise for organic flow.
 
-### Algorithm
+### Highlights
 
-For each liquid particle:
+- Checks immediate left/right neighbors and the cells beneath them to identify potential flow directions.
+- Applies the same friction scaling as Margolus to modulate spread probability per material.
+- Guardrails prevent oscillation by prioritizing the direction with more vertical headroom.
 
-1. **Check horizontal neighbors** (left, right)
-2. **Identify empty spaces** below neighbors
-3. **Select direction**:
-   - Deterministic: Choose direction with more empty space
-   - Add random variance for natural flow
-4. **Probabilistic spread**:
-   ```glsl
-   float spreadProbability = 1.0 - (baseFriction * uFrictionAmplifier);
-   if (random < spreadProbability) {
-       swap(center, neighbor);
-   }
-   ```
-
-### Material-Specific Behavior
-
-**Water** (friction 0.1):
-
-- Spreads rapidly
-- Fills containers evenly
-- High horizontal mobility
-
-**Lava** (friction 0.4):
-
-- Slower spread
-- More viscous behavior
-- Moderate horizontal mobility
-
-**Slime** (friction 0.6):
-
-- Very slow spread
-- Sticky behavior
-- Low horizontal mobility
-
-**Acid** (friction 0.2):
-
-- Fast spread
-- Similar to water but slightly slower
-
-### Edge Cases
-
-- **Receiver particle must be empty**
-- **Deterministic direction prevents oscillation**
-- **Spread only happens if empty space exists below neighbor**
+| Material       | Behavior                      |
+| -------------- | ----------------------------- |
+| Water (μ=0.10) | Rapid leveling and even fills |
+| Lava (μ=0.40)  | Viscous, slower spread        |
+| Slime (μ=0.60) | Sticky, rarely moves          |
+| Acid (μ=0.20)  | Slightly slower than water    |
 
 ## 3. Archimedes Buoyancy
 
 ### Overview
 
-Implements density-based floating and sinking. Lighter materials rise through heavier ones.
+Handles convection and density-driven swapping. Each 2×2 block compares effective densities and bubbles lighter materials upward.
 
-### Temperature-Aware Density
-
-Base densities still come from `MaterialDefinitions`, but the shader now offsets them using each material's default temperature and an expansion coefficient:
+### Temperature-aware Density
 
 ```glsl
-float computeEffectiveDensity(float particleType, float temp) {
-   float base = getMaterialDensity(particleType);
-   float delta = temp - getMaterialDefaultTemperature(particleType);
-   float coeff = chooseCoeffForState(particleType); // higher for gases
-   return clamp(base - delta * coeff, base * 0.2, base * 3.5);
+float computeEffectiveDensity(float type, float temp) {
+    float base = getMaterialDensity(type);
+    float delta = temp - getMaterialDefaultTemperature(type);
+    float coeff = chooseCoeffForState(type);
+    return clamp(base - delta * coeff, base * 0.2, base * 3.5);
 }
 ```
 
-**Expansion coefficients (defaults):**
+- Hot gases (coeff ≈ 1.4) rise quickly.
+- Liquids (coeff ≈ 0.55) respond moderately.
+- Solids (coeff ≈ 0.18) barely budge unless extremely heated.
 
-- **Gases:** `1.4` – very responsive to heat so hot pockets rise quickly.
-- **Liquids:** `0.55` – moderate expansion keeps convection noticeable without destabilizing pools.
-- **Solids:** `0.18` – subtle effect prevents hot rocks from floating unrealistically.
-
-### Algorithm
-
-For each 2×2 block:
-
-1. **Compute effective density** for every cell using temperature-adjusted values.
-2. **Compare columns** (and individual cells) to detect heavier-over-lighter configurations.
-3. **Swap if unstable**, with a small tolerance (`~0.25` for liquids, `~0.05` for gases) so slight gradients are enough to trigger convection.
-
-### Behavior Examples
-
-- **Steam over water:** Hot gas now rises faster because the coefficient boosts the density delta.
-- **Heated lava columns:** Hotter lava pockets become slightly lighter than cooler neighbors and drift upward rather than sinking back down.
-- **Same-material convection:** If water at the bottom warms up by ~6 K more than the top, it will rise even though the base densities match.
-- **Cold slabs:** Cooling increases effective density, so chilled liquid sinks and prevents inverted layers from sticking around.
-
-## 4. Ambient Heat Transfer
+## 4. Particle-only Heat Diffusion
 
 ### Overview
 
-Transfers energy between the heat/force layer texture and nearby particles. This pass models radiation, slow diffusion through air, and global temperature equalization.
+Runs **before the GPU read-back** so the CPU always sees the already-conducted temperatures. Operates purely on particle neighbors and optionally couples to the ambient layer via `uHeatmapCouplingMultiplier`.
 
-### Highlights
+### Notable Uniforms
 
-- Reads particle emit/absorb properties from material tables.
-- Deposits heat to the shared heat texture, which is later used by other passes and overlays.
-- Default configuration runs `passes: 2` per frame.
+- `uEmissionMultiplier` – Multiplies material emission/absorption rates.
+- `uHeatForceLayer` – Reads the latest ambient map when coupling is > 0.
 
-## 5. Particle-Only Heat Diffusion
-
-### Overview
-
-Directly exchanges temperature between immediate particle neighbors without touching the ambient layer. This produces fast conduction through solids and liquids.
-
-### Highlights
-
-- Uses material conductivity to scale heat flow.
-- Runs after ambient diffusion so newly emitted heat can immediately spread through dense materials.
-- Default configuration runs `passes: 2`.
-
-## 6. Phase Transition
+## 5. Phase Transition
 
 ### Overview
 
-Converts particles to new types when their temperature crosses material-specific thresholds (melting, freezing, vaporization).
+Evaluates each pixel against material thresholds (melting/boiling points) after diffusion settles. Transforms particle IDs and reinitializes default temperatures for the new material type.
 
-### Highlights
+### Examples
 
-- Uses `meltingPoint` and `boilingPoint` from `MaterialDefinitions`.
-- Example: lava cooling into stone or water boiling into steam.
-- Default configuration runs `passes: 1`.
+- Water → Steam when `temp ≥ boilingPoint`.
+- Lava → Stone when `temp ≤ solidifyPoint`.
+- Steam → Water when cooled by ambient diffusion or buildable chillers.
+
+## 6. Ambient Heat Transfer
+
+### Overview
+
+Updates the ambient heat/force texture, diffusing energy from particles and devices through a 5×5 neighborhood.
+
+### Controls (from `SimulationConfig.ambientHeatSettings`)
+
+- `emissionMultiplier` – Scales how aggressively particles deposit heat.
+- `diffusionMultiplier` – Controls spread through the environment.
+- `equilibriumStrength` / `equilibriumTemperature` – Pulls the system toward a baseline temperature.
+- `equilibriumInterval` – Applies equilibrium every N frames to reduce workload during idle periods.
+- `heatmapCouplingMultiplier` – Influences the earlier particle-only diffusion pass.
+
+### Conditional Read-back
+
+When the inspector is open (`shouldCaptureHeatLayer = true`), the latest heat render target is copied to the CPU-visible `DataTexture` so hover tooltips can display ambient temperatures.
 
 ## Optional: Force Transfer
 
-### Overview
+- Shares the same render target pool as other particle passes.
+- Propagates vector forces encoded in the heat texture’s B/A channels.
+- Disabled by default but safe to enable for experimentation.
 
-Propagates external force vectors stored in the heat/force texture, paving the way for wind or scripted effects. Disabled by default but available for experimentation.
+## Temperature & Heat Data Model
 
-## Temperature & Heat Simulation
+| Channel | Particle state texture | Heat/force texture      |
+| ------- | ---------------------- | ----------------------- |
+| R       | Particle type          | Temp low byte           |
+| G       | Temp low byte          | Temp high byte          |
+| B       | Temp high byte         | Force X (128 = neutral) |
+| A       | Reserved metadata      | Force Y (128 = neutral) |
 
-### Data Storage
+- Both textures are `UnsignedByteType` for compatibility and bandwidth efficiency.
+- Default temperatures are seeded from `MaterialDefinitions` so world resets stay deterministic.
 
-- **Particle State Texture (`DataTexture`)** – Stores particle type in the R channel and 16-bit Kelvin temperature split across G (low byte) and B (high byte). The A channel is reserved for future metadata.
-- **Heat/Force Layer (`DataTexture`)** – Holds ambient/environmental temperature in R/G (low/high bytes) and per-pixel force vectors in B/A. This texture is initialized from material defaults and shared with rendering overlays.
+## GPU Assets in Flight
 
-### GPU Textures in Flight
+- **Particle ping-pong ×4** – Keeps the particle state on the GPU through all simulation stages.
+- **Heat ping-pong ×2** – Alternates ambient diffusion outputs without reallocating textures.
+- **Buildables atlases** – Fixed-size textures describing device positions, parameters, and counts.
+- **CPU-visible DataTextures** – `worldTexture` and `heatForceLayerRef` receive read-backs when required.
 
-- **Particle ping-pong targets:** four `WebGLRenderTarget`s keep the particle state on the GPU while the simulation pipeline runs.
-- **Heat ping-pong targets:** two `WebGLRenderTarget`s alternate writes for the ambient heat diffusion shader.
-- **Base data textures:** the CPU-visible `worldTexture` and the persistent heat/force layer provide initial data and accept the final read-back for editing/drawing.
+## CPU Sync & Tooling Hooks
 
-### Pass Interaction
-
-1. **Ambient Heat Transfer** reads the latest particle state plus the previous heat layer, emits heat from hot particles into the environment, diffuses it through a 5×5 neighborhood, and gently relaxes toward room temperature before writing into the next heat render target.
-2. **Particle-Only Heat Diffusion** operates purely on the particle state, exchanging energy with the four cardinal neighbors. Conductors equalize quickly; insulators move heat slowly.
-3. **Phase Transitions** examines the updated particle temperatures and material thresholds to convert particles (e.g., water ⇄ steam, lava → stone).
-4. **CPU Sync** occurs once per frame: the final particle render target is read back into the original `worldTexture` so painting tools and level saving see the latest temperatures.
-
-### Material Metadata
-
-- Thermal capacity and conductivity from `MaterialDefinitions` scale how much heat particles emit or absorb.
-- Melting/boiling points plus explicit transition maps drive the shader logic for boiling, condensation, and solidification.
-
-### Visualization Hooks
-
-- Rendering overlays tap the live heat render target through a shared ref, enabling particle heat, ambient heat, or force vector visualization without extra GPU reads.
+1. After phase transitions (and optional force transfer) complete, the final particle render target is copied into `worldTexture` so painting, level saving, and analytics operate on the newest frame.
+2. Heat read-back is conditional; only inspection or tooling actions trigger it, preserving frame budget otherwise.
+3. `onFpsUpdate` aggregates frame times over a 60-sample circular buffer, smoothing HUD output without allocations.
 
 ## Pipeline Configuration
 
 ### Default Settings
 
 ```typescript
-{
-   frictionAmplifier: 1.3,
-   steps: [
-      { type: 'margolus-ca', passes: 8, enabled: true },
-      { type: 'liquid-spread', passes: 4, enabled: true },
-      { type: 'archimedes', passes: 2, enabled: true },
-      { type: 'heat-transfer', passes: 2, enabled: true },
-      { type: 'particle-only-heat', passes: 2, enabled: true },
-      { type: 'phase-transition', passes: 1, enabled: true },
-      { type: 'force-transfer', passes: 1, enabled: false }
-   ]
-}
+const DEFAULT_SIMULATION_CONFIG = {
+  frictionAmplifier: 1.3,
+  ambientHeatSettings: {
+    emissionMultiplier: 0.3,
+    diffusionMultiplier: 0.8,
+    equilibriumStrength: 0.1,
+    equilibriumTemperature: 298.0,
+    equilibriumMaxDelta: 1,
+    equilibriumInterval: 1,
+    heatmapCouplingMultiplier: 2,
+  },
+  steps: [
+    { type: 'margolus-ca', passes: 8, enabled: true },
+    { type: 'liquid-spread', passes: 4, enabled: true },
+    { type: 'archimedes', passes: 2, enabled: true },
+    { type: 'heat-transfer', passes: 2, enabled: true },
+    { type: 'particle-only-heat', passes: 2, enabled: true },
+    { type: 'phase-transition', passes: 1, enabled: true },
+    { type: 'force-transfer', passes: 1, enabled: false },
+  ],
+};
 ```
 
 ### Adjustable Parameters
 
-**Friction Amplifier** (0.0 - 10.0):
+- **Friction amplifier** – Higher values slow granular flow; lower values make everything looser.
+- **Pass counts** – Tweak individual `passes` fields to trade accuracy for performance (e.g., more heat passes for faster equilibration).
+- **Ambient settings** – Exposed through the UI so high-energy scenes can relax or stay chaotic.
 
-- Multiplies base friction for all materials.
-- Higher values = slower movement.
-- Lower values = more fluid behavior.
+## Performance Notes
 
-**Pass Counts** (per step):
-
-- Increase Margolus passes for smoother sand settling.
-- Increase liquid spread for faster fluid leveling.
-- Increase heat diffusion for quicker thermal equalization.
-
-## Performance Characteristics
-
-- **Margolus**: O(n/4) per iteration (processes 2×2 blocks).
-- **Liquid Spread**: O(n) (evaluates every pixel).
-- **Archimedes**: O(n) (vertical swaps per pixel).
-- **Heat passes**: O(n) (local diffusion per pixel).
-- **Phase Transition**: O(n) (single lookup per pixel).
-
-For the default `WORLD_SIZE = 1024`, each full-frame update touches ~1.05M pixels per pass. Even with the extended pipeline, the GPU handles the work comfortably at 60 fps on mid-range hardware thanks to parallel fragment shaders.
+- Margolus operates on one quarter of the pixels per iteration (2×2 blocks), so 8 passes roughly equal 2 full screen sweeps.
+- Liquid, Archimedes, heat, and phase passes are O(n); the GPU’s fragment parallelism keeps them within the 16 ms frame budget at 1024×1024 on mid-range hardware.
+- Buildable passes short-circuit when no devices exist, keeping empty worlds lightweight.
 
 ## Known Limitations
 
-1. **No diagonal movement** in Margolus (2×2 blocks only).
-2. **Liquid spread** only handles horizontal flow; vertical pressure simulation is still simplified.
-3. **No full fluid dynamics** (pressure fields, vortices).
-4. **Material reactions** are limited (no chemical mixing aside from phase changes).
-5. **Force transfer** is experimental and disabled by default.
+1. Margolus still lacks diagonal motion and higher-order fluid dynamics.
+2. Liquid spread is purely horizontal; vertical pressure and vortices remain approximated.
+3. Force transfer is experimental and not yet integrated with gameplay systems.
+4. Chemical reactions are limited to phase transitions; mixing systems are on the roadmap.
 
 ## Future Improvements
 
-- [ ] Diagonal flow for liquids.
-- [ ] Pressure simulation.
-- [ ] Material reactions (water + lava = stone).
-- [ ] Advanced convection models using velocity fields.
-- [ ] Gas dispersion improvements.
+- [ ] Diagonal and vertical liquid pressure model.
+- [ ] Velocity field to drive ambient convection.
+- [ ] Cross-material reactions (e.g., water + lava → stone) inside the GPU pipeline.
+- [ ] Extensible buildable scripting for custom device behaviors.
+- [ ] GPU-side analytics (particle counts, heat histograms) to reduce CPU polling.
