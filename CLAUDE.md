@@ -5,12 +5,14 @@ A real-time particle simulation using WebGL/Three.js with GPU-accelerated cellul
 ## Project Overview
 
 **Tech Stack:**
+
 - React 18 + TypeScript + Vite
 - Three.js / @react-three/fiber for WebGL rendering
 - GLSL shaders for GPU-accelerated simulation
 - Ping-pong rendering pattern for state updates
 
 **Key Features:**
+
 - Margolus neighborhood cellular automata for realistic granular physics
 - Multi-phase materials (solid, liquid, gas) with phase transitions
 - Temperature simulation with heat diffusion and conduction
@@ -76,15 +78,18 @@ src/
 ### Texture Formats
 
 **Particle State Texture (DataTexture, RGBA8):**
+
 ```
 R = Particle Type (0-255)
 G = Temperature Low Byte
 B = Temperature High Byte
 A = Unused (255)
 ```
+
 Temperature is 16-bit Kelvin encoded across G+B channels.
 
 **Heat/Force Layer Texture (WebGLRenderTarget, RGBA8):**
+
 ```
 R = Ambient Temperature Low Byte
 G = Ambient Temperature High Byte
@@ -132,17 +137,18 @@ flowchart TB
     PT --> |GPU Readback| WT
     AHT --> HT
 
-    style M fill:#e1f5fe
-    style LS fill:#e1f5fe
-    style AR fill:#e1f5fe
-    style POH fill:#fff3e0
-    style PT fill:#fce4ec
-    style AHT fill:#fff3e0
+  style M fill:#1d4ed8,stroke:#1e3a8a,color:#f8fafc
+  style LS fill:#1d4ed8,stroke:#1e3a8a,color:#f8fafc
+  style AR fill:#1d4ed8,stroke:#1e3a8a,color:#f8fafc
+  style POH fill:#7c3aed,stroke:#5b21b6,color:#f8fafc
+  style PT fill:#7c3aed,stroke:#5b21b6,color:#f8fafc
+  style AHT fill:#ea580c,stroke:#9a3412,color:#f8fafc
 ```
 
 ### Simulation Steps Detail
 
 #### 1. Margolus Cellular Automata (`margolusShaders.ts`)
+
 - **Purpose:** Gravity and granular physics for falling particles
 - **Algorithm:** Probabilistic 2x2 block cellular automata
 - **Key Features:**
@@ -152,6 +158,7 @@ flowchart TB
 - **Transitions:** Particles fall, topple, and pile naturally
 
 #### 2. Liquid Spread (`liquidSpreadShaders.ts`)
+
 - **Purpose:** Horizontal spreading behavior for liquids and gases
 - **Key Features:**
   - Liquids spread horizontally when supported
@@ -159,6 +166,7 @@ flowchart TB
   - Gases spread horizontally under ceilings (inverse behavior)
 
 #### 3. Archimedes (`archimedesShaders.ts`)
+
 - **Purpose:** Buoyancy and fluid displacement
 - **Key Features:**
   - Solids sink through liquids
@@ -167,6 +175,7 @@ flowchart TB
   - Uses `computeEffectiveDensity()` combining base density + temperature
 
 #### 4. Particle Heat Transfer (`particleOnlyHeatShaders.ts`)
+
 - **Purpose:** Direct heat exchange between particles
 - **Key Features:**
   - Particles emit/absorb heat based on thermal conductivity
@@ -174,6 +183,7 @@ flowchart TB
   - Fast particle-to-particle conduction
 
 #### 5. Phase Transitions (`phaseTransitionShaders.ts`)
+
 - **Purpose:** Material state changes based on temperature
 - **Transitions:**
   - **Boiling:** liquid → gas (water→steam, lava→smoke)
@@ -182,6 +192,7 @@ flowchart TB
   - **Melting:** solid → liquid (ice→water, basalt→lava)
 
 #### 6. Ambient Heat Transfer (`ambientHeatTransferShaders.ts`)
+
 - **Purpose:** Environmental heat diffusion (heat layer)
 - **Key Features:**
   - Particles emit heat to environment based on thermal capacity
@@ -233,44 +244,50 @@ flowchart TB
     HRT --> PH
     HRT --> AH
 
-    style BC fill:#c8e6c9
-    style EB fill:#bbdefb
-    style MV fill:#bbdefb
-    style GL fill:#bbdefb
-    style PH fill:#ffe0b2
-    style AH fill:#ffe0b2
-    style RS fill:#e1bee7
+  style BC fill:#166534,stroke:#14532d,color:#f8fafc
+  style EB fill:#1d4ed8,stroke:#1e3a8a,color:#f8fafc
+  style MV fill:#1d4ed8,stroke:#1e3a8a,color:#f8fafc
+  style GL fill:#1d4ed8,stroke:#1e3a8a,color:#f8fafc
+  style PH fill:#c2410c,stroke:#7c2d12,color:#f8fafc
+  style AH fill:#c2410c,stroke:#7c2d12,color:#f8fafc
+  style RS fill:#7c3aed,stroke:#5b21b6,color:#f8fafc
 ```
 
 ### Rendering Stages
 
 #### 1. Base Color (`baseColorShader.ts`)
+
 - Maps particle types to RGBA colors
 - Auto-generated from `ParticleColors` dictionary
 - Renders to intermediate RenderTarget
 
 #### 2. Edge Blending (`postProcessShaders.ts`)
+
 - Samples neighboring pixels
 - Blends colors at material boundaries
 - Configurable blend strength
 
 #### 3. Material Variation (`postProcessShaders.ts`)
+
 - Applies FBM (Fractional Brownian Motion) noise
 - Prevents flat uniform color blocks
 - Configurable scale and strength
 
 #### 4. Glow Pass (`postProcessShaders.ts`)
+
 - Per-material glow strength (lava, heaters, etc.)
 - Samples neighbors to create bloom effect
 - Additive blending for emissive materials
 
 #### 5. Heat/Force Overlays (`overlayShaders.ts`)
+
 - Debug visualization modes
 - Particle heat: temperature-based coloring
 - Ambient heat: environmental temperature map
 - Force vectors: directional force visualization
 
 #### 6. Final Renderer (`rendererShader.ts`)
+
 - Handles pan/zoom transformations
 - Composites background (procedural or texture)
 - Outputs to screen
@@ -283,21 +300,22 @@ flowchart TB
 
 Each particle type has configurable properties:
 
-| Property | Description | Range |
-|----------|-------------|-------|
-| `density` | Mass per volume (affects buoyancy) | 0-10000 |
-| `viscosity` | Flow resistance | 0-2000 |
-| `friction` | Topple probability in Margolus CA | 0.0-1.0 |
-| `meltingPoint` | Temperature for solid→liquid | Kelvin |
-| `boilingPoint` | Temperature for liquid→gas | Kelvin |
-| `thermalCapacity` | Heat retention (1.0 = never loses heat) | 0.0-1.0 |
-| `thermalConductivity` | Heat transfer rate (1.0 = instant) | 0.0-1.0 |
-| `glowStrength` | Emissive intensity for rendering | 0.0-1.0 |
-| `defaultTemperature` | Initial temperature when spawned | Kelvin |
+| Property              | Description                             | Range   |
+| --------------------- | --------------------------------------- | ------- |
+| `density`             | Mass per volume (affects buoyancy)      | 0-10000 |
+| `viscosity`           | Flow resistance                         | 0-2000  |
+| `friction`            | Topple probability in Margolus CA       | 0.0-1.0 |
+| `meltingPoint`        | Temperature for solid→liquid            | Kelvin  |
+| `boilingPoint`        | Temperature for liquid→gas              | Kelvin  |
+| `thermalCapacity`     | Heat retention (1.0 = never loses heat) | 0.0-1.0 |
+| `thermalConductivity` | Heat transfer rate (1.0 = instant)      | 0.0-1.0 |
+| `glowStrength`        | Emissive intensity for rendering        | 0.0-1.0 |
+| `defaultTemperature`  | Initial temperature when spawned        | Kelvin  |
 
 ### Phase Transitions (`PhaseTransitions`)
 
 Defines state change mappings:
+
 ```typescript
 [ParticleType.WATER]: {
   boilsTo: STEAM,
@@ -315,12 +333,12 @@ Defines state change mappings:
 
 ```typescript
 interface SimulationConfig {
-  steps: SimulationStep[];        // Ordered simulation passes
-  frictionAmplifier: number;      // Global friction modifier
+  steps: SimulationStep[]; // Ordered simulation passes
+  frictionAmplifier: number; // Global friction modifier
   ambientHeatSettings: {
-    emissionMultiplier: number;   // Particle → environment rate
-    diffusionMultiplier: number;  // Environment spread rate
-    equilibriumStrength: number;  // Room temp pull strength
+    emissionMultiplier: number; // Particle → environment rate
+    diffusionMultiplier: number; // Environment spread rate
+    equilibriumStrength: number; // Room temp pull strength
     equilibriumTemperature: number; // Target temp (298K = 25°C)
     heatmapCouplingMultiplier: number; // Particle ↔ heatmap coupling
   };
@@ -331,8 +349,8 @@ interface SimulationConfig {
 
 ```typescript
 interface RenderConfig {
-  effects: RenderEffect[];  // Edge blending, variation, glow
-  overlays: Overlay[];      // Heat, force visualizations
+  effects: RenderEffect[]; // Edge blending, variation, glow
+  overlays: Overlay[]; // Heat, force visualizations
   edgeBlending: { blendStrength: number };
   materialVariation: { noiseScale: number; noiseStrength: number };
   glow: { intensity: number; radius: number };
@@ -380,6 +398,7 @@ flowchart TB
 ### Key Components
 
 #### MainSimulation.tsx
+
 - Runs the simulation loop in `useFrame`
 - Manages ping-pong RenderTargets
 - Executes shader passes in order
@@ -387,12 +406,14 @@ flowchart TB
 - Updates `worldTexture.image.data` in-place
 
 #### TextureRenderer.tsx
+
 - Receives `textureRef` (not prop) for performance
 - Manages base color rendering
 - Delegates to PostProcessRenderer
 - Final output to screen via rendererShader
 
 #### PostProcessRenderer.tsx
+
 - Receives `stateTextureRef` and `heatTextureRef`
 - Chains effects: Edge → Variation → Glow → Overlays
 - Returns final texture via `onRenderComplete` callback
@@ -402,22 +423,28 @@ flowchart TB
 ## Performance Optimizations
 
 ### Ref-Based Texture Passing
+
 Textures are passed via React refs instead of props to avoid re-renders:
+
 ```typescript
 const worldTextureRef = useRef<DataTexture>(worldTexture);
 // Updated in useFrame, not triggering React reconciliation
 ```
 
 ### Single GPU Readback
+
 All particle simulation steps chain before a single `gl.readRenderTargetPixels`:
+
 ```
 Margolus → LiquidSpread → Archimedes → ParticleHeat → PhaseTransition → READBACK
 ```
 
 ### Separate Heat Pipeline
+
 Heat layer uses its own ping-pong targets, avoids unnecessary particle data copies.
 
 ### In-Place Texture Updates
+
 `worldTexture.image.data.set(pixels)` + `needsUpdate = true` instead of creating new textures.
 
 ---
@@ -425,6 +452,7 @@ Heat layer uses its own ping-pong targets, avoids unnecessary particle data copi
 ## Shader Utilities
 
 ### Temperature Encoding (`temperatureShaderUtils.ts`)
+
 ```glsl
 // Decode 16-bit temperature from two bytes
 float decodeParticleTemperature(vec4 data) {
@@ -440,7 +468,9 @@ vec2 encodeTemperature(float temp) {
 ```
 
 ### Material Property Lookup
+
 Generated GLSL arrays indexed by particle type:
+
 ```glsl
 const float MATERIAL_FRICTIONS[256] = float[256](...);
 const float MATERIAL_DENSITIES[256] = float[256](...);
@@ -456,6 +486,7 @@ float getMaterialFriction(float particleType) {
 ## World Generation
 
 `WorldGeneration.ts` provides initialization patterns:
+
 - `EMPTY`: Blank world
 - `AXIS`: X/Y axis lines for testing
 - `HOURGLASS`: Classic falling sand test
@@ -468,6 +499,7 @@ Particles are set with their default temperatures from `MaterialDefinitions`.
 ## User Interaction
 
 ### Mouse Drawing (`useParticleDrawing.ts`)
+
 - Screen coordinates → world texture coordinates
 - Circular brush with configurable size
 - Tool modes: Add, Remove, Inspect, Fill
@@ -475,6 +507,7 @@ Particles are set with their default temperatures from `MaterialDefinitions`.
 - Throttled inspection updates (500ms)
 
 ### Controls
+
 - Pan: Drag with mouse
 - Zoom: Scroll wheel (changes `pixelSize`)
 - Draw: Left click
@@ -485,8 +518,8 @@ Particles are set with their default temperatures from `MaterialDefinitions`.
 ## Key Constants
 
 ```typescript
-WORLD_SIZE = 1024           // Texture dimensions
-KELVIN_OFFSET = 273         // 0°C in Kelvin
-ROOM_TEMPERATURE_K = 298    // 25°C
-MAX_TEMPERATURE = 65535     // 16-bit max
+WORLD_SIZE = 1024; // Texture dimensions
+KELVIN_OFFSET = 273; // 0°C in Kelvin
+ROOM_TEMPERATURE_K = 298; // 25°C
+MAX_TEMPERATURE = 65535; // 16-bit max
 ```
