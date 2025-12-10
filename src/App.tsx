@@ -9,7 +9,8 @@ import { SideControls } from './components/SideControls';
 import { StatusBar } from './components/StatusBar';
 import { useTextureControls } from './hooks/useTextureControls';
 import { useParticleDrawing } from './hooks/useParticleDrawing';
-import type { InspectData } from './hooks/useParticleDrawing';
+import type { InspectData, ToolMode, BuildContext } from './hooks/useParticleDrawing';
+import { BuildableType, getBuildableByType } from './buildables';
 import { WorldGeneration, WorldInitType } from './world/WorldGeneration';
 import { ParticleType } from './world/ParticleTypes';
 import { DEFAULT_SIMULATION_CONFIG } from './types/SimulationConfig';
@@ -130,11 +131,14 @@ function App() {
   // State for selected particle type
   const [selectedParticle, setSelectedParticle] = useState<ParticleType>(ParticleType.SAND);
 
-  // Tool mode state (inspect, add, remove, fill)
-  const [toolMode, setToolMode] = useState<'inspect' | 'add' | 'remove' | 'fill'>('add');
-  const [userToolMode, setUserToolMode] = useState<'inspect' | 'add' | 'remove' | 'fill'>('add');
+  // Tool mode state (inspect, add, build, remove, fill)
+  const [toolMode, setToolMode] = useState<ToolMode>('add');
+  const [userToolMode, setUserToolMode] = useState<ToolMode>('add');
   const shiftPressedRef = useRef(false);
-  const userToolModeRef = useRef<'inspect' | 'add' | 'remove' | 'fill'>('add');
+  const userToolModeRef = useRef<ToolMode>('add');
+
+  // Selected buildable for build mode
+  const [selectedBuildable, setSelectedBuildable] = useState<BuildableType>(BuildableType.MATERIAL_SOURCE);
 
   // Brush size state
   const [brushSize, setBrushSize] = useState<number>(3);
@@ -190,7 +194,7 @@ function App() {
     }
   }, []);
 
-  const handleToolModeChange = useCallback((mode: 'inspect' | 'add' | 'remove' | 'fill') => {
+  const handleToolModeChange = useCallback((mode: ToolMode) => {
     setUserToolMode(mode);
     userToolModeRef.current = mode;
 
@@ -203,6 +207,22 @@ function App() {
       setToolMode('inspect');
     }
   }, [hideInspectTooltip]);
+
+  // Handle buildable placement
+  const handleBuild = useCallback((context: BuildContext) => {
+    const buildable = getBuildableByType(selectedBuildable);
+    if (buildable) {
+      buildable.onPlace({
+        worldX: context.worldX,
+        worldY: context.worldY,
+        brushSize: context.brushSize,
+        worldTexture: context.worldTexture,
+        heatTextureRef: ambientHeatTextureRef,
+      });
+      // Trigger redraw after buildable placement
+      context.worldTexture.needsUpdate = true;
+    }
+  }, [selectedBuildable]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -331,6 +351,7 @@ function App() {
     brushSize,
     onMouseMove: handleMouseMove,
     onInspectData: handleInspectData,
+    onBuild: handleBuild,
   });
 
   // Reset world handler
@@ -418,10 +439,12 @@ function App() {
         onWorldInitTypeChange={setWorldInitType}
         onLoadLevel={handleLoadLevel}
         onSaveLevel={handleSaveLevel}
-  toolMode={toolMode}
-  onToolModeChange={handleToolModeChange}
+        toolMode={toolMode}
+        onToolModeChange={handleToolModeChange}
         brushSize={brushSize}
         onBrushSizeChange={setBrushSize}
+        selectedBuildable={selectedBuildable}
+        onBuildableSelect={setSelectedBuildable}
       />
 
       {/* Brush Cursor - ref-based for performance */}

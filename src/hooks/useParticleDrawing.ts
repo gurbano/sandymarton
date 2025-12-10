@@ -5,7 +5,7 @@ import { ParticleType } from '../world/ParticleTypes';
 import type { DataTexture } from 'three';
 import { WORLD_SIZE } from '../constants/worldConstants';
 
-type ToolMode = 'inspect' | 'add' | 'remove' | 'fill';
+export type ToolMode = 'inspect' | 'add' | 'build' | 'remove' | 'fill';
 
 // Inspect data structure
 export interface InspectData {
@@ -35,6 +35,14 @@ const PARTICLE_COLORS: Record<string, [number, number, number]> = {
   AIR: [135, 206, 235],
 };
 
+export interface BuildContext {
+  worldX: number;
+  worldY: number;
+  brushSize: number;
+  worldTexture: DataTexture;
+  heatTextureRef: RefObject<DataTexture | null>;
+}
+
 interface UseParticleDrawingProps {
   worldGen: WorldGeneration;
   selectedParticle: ParticleType;
@@ -47,6 +55,7 @@ interface UseParticleDrawingProps {
   brushSize?: number;
   onMouseMove?: (pos: { x: number; y: number } | null) => void;
   onInspectData?: (data: InspectData | null) => void;
+  onBuild?: (context: BuildContext) => void;
 }
 
 // Convert Kelvin to Celsius
@@ -66,6 +75,7 @@ export function useParticleDrawing({
   brushSize = 3,
   onMouseMove,
   onInspectData,
+  onBuild,
 }: UseParticleDrawingProps) {
   const isDrawingRef = useRef(false);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -225,6 +235,18 @@ export function useParticleDrawing({
     const worldPos = screenToWorld(screenX, screenY);
     if (!worldPos) return;
 
+    // Handle build mode separately
+    if (toolMode === 'build') {
+      onBuild?.({
+        worldX: worldPos.x,
+        worldY: worldPos.y,
+        brushSize,
+        worldTexture,
+        heatTextureRef: heatTextureRef as RefObject<DataTexture | null>,
+      });
+      return;
+    }
+
     // Determine particle type based on tool mode
     const particleType = toolMode === 'remove' ? ParticleType.EMPTY : selectedParticle;
 
@@ -248,7 +270,7 @@ export function useParticleDrawing({
 
     // Trigger redraw (texture is already updated in-place)
     onDraw(worldTexture);
-  }, [worldTexture, worldGen, selectedParticle, screenToWorld, onDraw, toolMode, brushSize]);
+  }, [worldTexture, worldGen, selectedParticle, screenToWorld, onDraw, toolMode, brushSize, onBuild, heatTextureRef]);
 
   // Leading-edge throttled inspect function
   // Executes immediately on first call, then ignores calls for 500ms
@@ -306,6 +328,12 @@ export function useParticleDrawing({
 
       // Only left mouse button (button 0)
       if (e.button === 0) {
+        // Build mode: single click only, no continuous drawing
+        if (toolMode === 'build') {
+          drawParticle(e.clientX, e.clientY);
+          return;
+        }
+
         isDrawingRef.current = true;
         lastMousePosRef.current = { x: e.clientX, y: e.clientY };
 

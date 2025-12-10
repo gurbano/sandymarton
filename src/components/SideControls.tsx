@@ -30,6 +30,9 @@ import {
   faBrush,
   faSun,
   faGem,
+  faHammer,
+  faFaucet,
+  faCircleDown,
 } from '@fortawesome/free-solid-svg-icons';
 import { ParticleType } from '../world/ParticleTypes';
 import { ParticleTypeRanges } from '../world/ParticleTypeConstants';
@@ -39,11 +42,11 @@ import type { RenderConfig } from '../types/RenderConfig';
 import { RenderEffectType } from '../types/RenderConfig';
 import { loadLevelIndex } from '../utils/LevelLoader';
 import type { Level } from '../types/Level';
+import type { ToolMode } from '../hooks/useParticleDrawing';
+import { BuildableType, BuildableDefinitions, getBuildablesByCategory } from '../buildables';
 
 const MIN_LEFT_WIDTH = 160;
 const MAX_LEFT_WIDTH = 320;
-
-type ToolMode = 'inspect' | 'add' | 'remove' | 'fill';
 
 interface SideControlsProps {
   particleTypes: { name: string; value: number }[];
@@ -60,6 +63,8 @@ interface SideControlsProps {
   onToolModeChange: (mode: ToolMode) => void;
   brushSize: number;
   onBrushSizeChange: (size: number) => void;
+  selectedBuildable: BuildableType;
+  onBuildableSelect: (buildable: BuildableType) => void;
 }
 
 const particleIcons: Record<string, IconDefinition> = {
@@ -102,6 +107,14 @@ const effectIcons: Record<RenderEffectType, IconDefinition> = {
   [RenderEffectType.GLOW]: faSun,
 };
 
+// Map buildable icons by name
+const buildableIcons: Record<string, IconDefinition> = {
+  faucet: faFaucet,
+  'circle-down': faCircleDown,
+  fire: faFire,
+  snowflake: faSnowflake,
+};
+
 export function SideControls({
   particleTypes,
   selectedParticle,
@@ -117,6 +130,8 @@ export function SideControls({
   onToolModeChange,
   brushSize,
   onBrushSizeChange,
+  selectedBuildable,
+  onBuildableSelect,
 }: SideControlsProps) {
   const [availableLevels, setAvailableLevels] = useState<Level[]>([]);
   const [selectedLevel, setSelectedLevel] = useState<string>('');
@@ -233,6 +248,14 @@ export function SideControls({
 
   // Show materials panel when Draw or Fill is active
   const shouldShowMaterials = toolMode === 'add' || toolMode === 'fill';
+  // Show buildables panel when Build is active
+  const shouldShowBuildables = toolMode === 'build';
+
+  // Get buildables grouped by category
+  const buildablesByCategory = getBuildablesByCategory();
+
+  // Get selected buildable definition
+  const selectedBuildableDef = BuildableDefinitions.find(b => b.type === selectedBuildable);
 
   const handleEffectToggle = (effectType: RenderEffectType) => {
     const updatedEffects = renderConfig.effects.map((effect) =>
@@ -321,6 +344,14 @@ export function SideControls({
             <span>Draw</span>
           </button>
           <button
+            className={`toolbar-btn ${toolMode === 'build' ? 'active' : ''}`}
+            onClick={() => onToolModeChange('build')}
+            title="Place buildables"
+          >
+            <FontAwesomeIcon icon={faHammer} />
+            <span>Build</span>
+          </button>
+          <button
             className={`toolbar-btn ${toolMode === 'remove' ? 'active' : ''}`}
             onClick={() => onToolModeChange('remove')}
             title="Erase particles"
@@ -391,6 +422,38 @@ export function SideControls({
                 {renderMaterialGrid(particleCategories.gas)}
               </div>
             )}
+          </div>
+        )}
+
+        {/* Current Buildable - shown when Build active */}
+        {shouldShowBuildables && selectedBuildableDef && (
+          <div className="toolbar-section current-material-compact">
+            <FontAwesomeIcon icon={buildableIcons[selectedBuildableDef.icon] || faHammer} />
+            <span>{selectedBuildableDef.name}</span>
+          </div>
+        )}
+
+        {/* Buildables - shown when Build active */}
+        {shouldShowBuildables && (
+          <div className="toolbar-section materials-section">
+            {Array.from(buildablesByCategory.entries()).map(([category, buildables]) => (
+              <div key={category} className="material-category-compact">
+                <div className="category-label-compact">{category}</div>
+                <div className="material-grid-3col">
+                  {buildables.map((buildable) => (
+                    <button
+                      key={buildable.type}
+                      className={`material-btn-compact ${selectedBuildable === buildable.type ? 'selected' : ''}`}
+                      onClick={() => onBuildableSelect(buildable.type)}
+                      title={buildable.description}
+                    >
+                      <FontAwesomeIcon icon={buildableIcons[buildable.icon] || faHammer} />
+                      <span>{buildable.name}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))}
           </div>
         )}
         </div>
