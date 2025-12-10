@@ -1,0 +1,15 @@
+# Dependencies
+node_modules/
+vendor/
+
+# Build artifacts
+dist/
+build/
+
+# Large data files
+data/large-dataset.json
+public/assets/videos/
+
+# Testing resources
+**/__mocks__/
+**/__fixtures__/
