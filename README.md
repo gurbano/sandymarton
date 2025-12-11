@@ -1,67 +1,63 @@
-# Sandy2 - GPU-Accelerated Particle Simulation
+# Sandy2 – GPU-Accelerated Particle Simulation
 
-A real-time particle simulation using Margolus cellular automata running entirely on the GPU via WebGL shaders.
+Sandy2 is a real-time particle environment that implements a Margolus cellular automaton entirely on the GPU. The renderer and solver are built around WebGL fragment shaders, enabling high-density simulations with material-dependent behavior and temperature transport.
 
 ---
 
-## 🎮 **[Try the Live Demo →](https://gurbano.github.io/sandymarton/)**
+## Live Demo
+
+Evaluate the latest build at **[https://gurbano.github.io/sandymarton/](https://gurbano.github.io/sandymarton/)**.
 
 ---
 
 ![Sandy2 Demo](docs/images/screenshot-1.png)
 ![Sandy2 Features](docs/images/screenshot-2.png)
 
-> _Screenshots coming soon_
+## Core Capabilities
 
-## ✨ Features
+- **GPU execution path** – Physics, temperature exchange, and phase transitions are computed in GLSL shaders with no CPU-side stepping.
+- **Material model** – More than twenty materials covering static, solid, liquid, and gas phases, each with tuned density, friction, and thermal properties.
+- **Rendering pipeline** – Post-processed composition with edge blending, emissive glow, animated liquids, and texture-driven variation.
+- **Level IO** – Levels are serialized as PNG textures, enabling deterministic save/load and simple sharing.
+- **Interactive tooling** – Canvas painting tools, material palette, and inspector overlays for debugging the simulation state.
 
-- **GPU-Accelerated Physics** - Entire simulation runs on GPU using GLSL shaders
-- **Multiple Materials** - Sand, water, stone, dirt, gravel, liquids (water, lava, slime, acid), and more
-- **Realistic Dynamics** - Material-specific friction, buoyancy, and liquid flow
-- **Advanced Rendering** - Edge blending, material variation, temperature-aware glow, animated liquids
-- **Level System** - Load and save custom levels as PNG textures
-- **Interactive Drawing** - Paint particles directly onto the canvas
-
-## 🚀 Quick Start
+## Getting Started
 
 ```bash
-# Install dependencies
 npm install
-
-# Start development server
 npm run dev
-
-# Build for production
 npm run build
 ```
 
-## 🎯 Controls
+The development server runs on Vite with hot module replacement. The production build outputs a static bundle suitable for GitHub Pages deployment.
 
-- **Left Click + Drag** - Draw particles
-- **Material Selector** - Choose particle type
-- **Load/Save Levels** - Import and export custom worlds
-- **Rendering Effects** - Toggle edge blending and material variation
+## Runtime Controls
 
-## 📚 Documentation
+- **Pointer draw (left click + drag):** spawn the currently selected material.
+- **Material selector:** cycle through particle types, including thermal materials.
+- **Load / Save:** import PNG levels or export the current world state.
+- **Rendering options:** toggle edge blending, temperature overlays, and post-process filters.
 
-For detailed technical information, see the [documentation](docs/README.md):
+## Documentation
+
+Additional technical detail is available in the [documentation index](docs/README.md):
 
 - [Architecture Overview](docs/architecture.md)
 - [Simulation Pipeline](docs/simulation.md)
 - [Rendering System](docs/rendering.md)
 - [Level System](docs/levels.md)
 
-## 🛠️ Tech Stack
+## Technology Stack
 
-- **React 19** + **TypeScript**
-- **Three.js** + **React Three Fiber**
-- **WebGL** + **GLSL Shaders**
-- **Vite**
+- **React 19** with **TypeScript**
+- **Three.js** and **React Three Fiber** for scene management
+- **WebGL** with custom **GLSL** shader programs
+- **Vite** for tooling and bundling
 
-## 📝 License
+## License
 
-MIT
+Distributed under the MIT License. See `LICENSE` for details.
 
-## 🙏 Credits
+## Acknowledgements
 
-Built with inspiration from GPU-based cellular automata and falling sand simulations.
+References concepts from prior GPU-based cellular automata research and classic falling-sand simulations.
