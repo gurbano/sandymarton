@@ -33,14 +33,16 @@ This appendix captures the particle materials currently available in Sandy2, gro
 | Acid Crystal  | Acid      | 1400    | 0.70     | 18 °C        | 0.40             | 0.35                 | Melts → Acid            |
 | Coolant Ice   | Coolant   | 950     | 0.30     | −40 °C       | 0.75             | 0.40                 | Melts → Coolant         |
 | Nitrogen Ice  | Nitrogen  | 1030    | 0.50     | −210 °C      | 0.25             | 0.30                 | Melts → Liquid Nitrogen |
+| Basalt        | Lava      | 3000    | 0.85     | 400 °C       | 0.65             | 0.35                 | Melts → Lava            |
+| Obsidian      | Lava      | 2600    | 0.55     | 380 °C       | 0.50             | 0.18                 | Melts → Lava            |
 
 ## Liquid Particles
 
 | Material        | Family   | Density | Viscosity | Friction | Default Temp | Thermal Capacity | Thermal Conductivity | Transitions                                  |
 | --------------- | -------- | ------- | --------- | -------- | ------------ | ---------------- | -------------------- | -------------------------------------------- |
 | Water           | Water    | 1000    | 5         | 0.02     | 20 °C        | 1.00             | 0.60                 | Freezes → Ice, Boils → Steam                 |
-| Lava            | Lava     | 3100    | 2000      | 0.20     | 1000 °C      | 0.90             | 0.20                 | Solidifies → Stone, Boils → Smoke            |
-| Slime           | Slime    | 1100    | 800       | 0.40     | 0 °C         | 0.70             | 0.20                 | Freezes → Slime Crystal, Boils → Slime Vapor |
+| Lava            | Lava     | 3100    | 2000      | 0.20     | 1500 °C      | 0.90             | 0.20                 | Solidifies → Basalt, Boils → Smoke           |
+| Slime           | Slime    | 1100    | 800       | 0.40     | 20 °C        | 0.70             | 0.20                 | Freezes → Slime Crystal, Boils → Slime Vapor |
 | Acid            | Acid     | 1200    | 10        | 0.03     | 20 °C        | 0.70             | 0.60                 | Freezes → Acid Crystal, Boils → Acid Vapor   |
 | Oil             | Oil      | 900     | 50        | 0.05     | 20 °C        | 0.60             | 0.10                 | Freezes → Oil Sludge, Boils → Oil Vapor      |
 | Coolant         | Coolant  | 1100    | 20        | 0.03     | −20 °C       | 0.30             | 0.95                 | Freezes → Coolant Ice, Boils → Coolant Vapor |
@@ -51,7 +53,7 @@ This appendix captures the particle materials currently available in Sandy2, gro
 | Material      | Family     | Density | Friction | Default Temp | Thermal Capacity | Thermal Conductivity | Condenses         |
 | ------------- | ---------- | ------- | -------- | ------------ | ---------------- | -------------------- | ----------------- |
 | Steam         | Water      | 0.60    | 0.01     | 100 °C       | 0.20             | 0.10                 | → Water           |
-| Smoke         | Combustion | 0.80    | 0.02     | 200 °C       | 0.20             | 0.10                 | —                 |
+| Smoke         | Combustion | 0.90    | 0.02     | 100 °C       | 0.20             | 0.10                 | —                 |
 | Air           | Atmosphere | 1.00    | 0.01     | 25 °C        | 0.20             | 0.02                 | —                 |
 | Nitrogen      | Nitrogen   | 0.80    | 0.01     | −100 °C      | 0.10             | 0.80                 | → Liquid Nitrogen |
 | Oil Vapor     | Oil        | 0.70    | 0.02     | 180 °C       | 0.08             | 0.30                 | → Oil             |
@@ -61,14 +63,90 @@ This appendix captures the particle materials currently available in Sandy2, gro
 
 ## Phase Families
 
-| Family   | Solid         | Liquid          | Gas                  |
-| -------- | ------------- | --------------- | -------------------- |
-| Water    | Ice           | Water           | Steam                |
-| Oil      | Oil Sludge    | Oil             | Oil Vapor            |
-| Slime    | Slime Crystal | Slime           | Slime Vapor          |
-| Acid     | Acid Crystal  | Acid            | Acid Vapor           |
-| Coolant  | Coolant Ice   | Coolant         | Coolant Vapor        |
-| Nitrogen | Nitrogen Ice  | Liquid Nitrogen | Nitrogen             |
-| Lava     | Stone         | Lava            | Smoke (vaporization) |
+| Family   | Solid             | Liquid          | Gas                  |
+| -------- | ----------------- | --------------- | -------------------- |
+| Water    | Ice               | Water           | Steam                |
+| Oil      | Oil Sludge        | Oil             | Oil Vapor            |
+| Slime    | Slime Crystal     | Slime           | Slime Vapor          |
+| Acid     | Acid Crystal      | Acid            | Acid Vapor           |
+| Coolant  | Coolant Ice       | Coolant         | Coolant Vapor        |
+| Nitrogen | Nitrogen Ice      | Liquid Nitrogen | Nitrogen             |
+| Lava     | Basalt / Obsidian | Lava            | Smoke (vaporization) |
+
+## Phase Change Graph
+
+```mermaid
+flowchart LR
+	subgraph Water
+		ICE["Ice (solid)"]
+		WATER["Water (liquid)"]
+		STEAM["Steam (gas)"]
+	end
+	ICE -- melts --> WATER
+	WATER -- freezes --> ICE
+	WATER -- boils --> STEAM
+	STEAM -- condenses --> WATER
+
+	subgraph Oil
+		OIL_SLUDGE["Oil Sludge (solid)"]
+		OIL["Oil (liquid)"]
+		OIL_VAPOR["Oil Vapor (gas)"]
+	end
+	OIL_SLUDGE -- melts --> OIL
+	OIL -- freezes --> OIL_SLUDGE
+	OIL -- boils --> OIL_VAPOR
+	OIL_VAPOR -- condenses --> OIL
+
+	subgraph Slime
+		SLIME_CRYSTAL["Slime Crystal (solid)"]
+		SLIME["Slime (liquid)"]
+		SLIME_VAPOR["Slime Vapor (gas)"]
+	end
+	SLIME_CRYSTAL -- melts --> SLIME
+	SLIME -- freezes --> SLIME_CRYSTAL
+	SLIME -- boils --> SLIME_VAPOR
+	SLIME_VAPOR -- condenses --> SLIME
+
+	subgraph Acid
+		ACID_CRYSTAL["Acid Crystal (solid)"]
+		ACID["Acid (liquid)"]
+		ACID_VAPOR["Acid Vapor (gas)"]
+	end
+	ACID_CRYSTAL -- melts --> ACID
+	ACID -- freezes --> ACID_CRYSTAL
+	ACID -- boils --> ACID_VAPOR
+	ACID_VAPOR -- condenses --> ACID
+
+	subgraph Coolant
+		COOLANT_ICE["Coolant Ice (solid)"]
+		COOLANT["Coolant (liquid)"]
+		COOLANT_VAPOR["Coolant Vapor (gas)"]
+	end
+	COOLANT_ICE -- melts --> COOLANT
+	COOLANT -- freezes --> COOLANT_ICE
+	COOLANT -- boils --> COOLANT_VAPOR
+	COOLANT_VAPOR -- condenses --> COOLANT
+
+	subgraph Nitrogen
+		NITROGEN_ICE["Nitrogen Ice (solid)"]
+		LIQUID_NITROGEN["Liquid Nitrogen (liquid)"]
+		NITROGEN["Nitrogen (gas)"]
+	end
+	NITROGEN_ICE -- melts --> LIQUID_NITROGEN
+	LIQUID_NITROGEN -- freezes --> NITROGEN_ICE
+	LIQUID_NITROGEN -- boils --> NITROGEN
+	NITROGEN -- condenses --> LIQUID_NITROGEN
+
+	subgraph Lava
+		BASALT["Basalt (solid)"]
+		OBSIDIAN["Obsidian (solid)"]
+		LAVA["Lava (liquid)"]
+		SMOKE["Smoke (gas)"]
+	end
+	BASALT -- melts --> LAVA
+	OBSIDIAN -- melts --> LAVA
+	LAVA -- solidifies --> BASALT
+	LAVA -- vaporizes --> SMOKE
+```
 
 > **Tip:** The side toolbar automatically groups materials into Static, Solid, Liquid, and Gas categories based on their numeric ranges (`ParticleTypeRanges`). New materials added in code appear there without additional wiring.

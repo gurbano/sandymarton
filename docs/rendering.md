@@ -26,13 +26,13 @@ The base color pass lives inside `TextureRenderer` and renders material colours 
 
 ### Palette Overview
 
-| Material | RGB | Notes |
-| --- | --- | --- |
-| Sand | (194, 178, 128) | Warm granular base |
-| Dirt | (139, 90, 43) | Rich, darker soil |
-| Water | (64, 164, 223) | Ocean blue, responds to liquid animation |
-| Lava | (255, 80, 20) | High luminance for glow pass |
-| Slime | (0, 255, 100) | Vivid greens for FX |
+| Material | RGB             | Notes                                    |
+| -------- | --------------- | ---------------------------------------- |
+| Sand     | (194, 178, 128) | Warm granular base                       |
+| Dirt     | (139, 90, 43)   | Rich, darker soil                        |
+| Water    | (64, 164, 223)  | Ocean blue, responds to liquid animation |
+| Lava     | (255, 80, 20)   | High luminance for glow pass             |
+| Slime    | (0, 255, 100)   | Vivid greens for FX                      |
 
 Colours are sourced from `MaterialDefinitions`/`ParticleColors` so rendering stays in sync with simulation metadata.
 
@@ -42,11 +42,11 @@ Colours are sourced from `MaterialDefinitions`/`ParticleColors` so rendering sta
 
 ### Effect Catalogue
 
-| Effect | Shader | Key uniforms | Default | Purpose |
-| --- | --- | --- | --- | --- |
-| Edge blending | `edgeBlendingFragmentShader` | `uBlendStrength` | 0.5 | Softens hard pixel boundaries. |
-| Material variation | `materialVariationFragmentShader` | `uNoiseScale`, `uNoiseStrength` | 4.0 / 0.15 | Adds FBM-driven texture detail. |
-| Glow | `glowFragmentShader` | `uGlowIntensity`, `uGlowRadius` | 0.7 / 2.6 | Creates emissive halos around hot materials. |
+| Effect             | Shader                            | Key uniforms                    | Default    | Purpose                                      |
+| ------------------ | --------------------------------- | ------------------------------- | ---------- | -------------------------------------------- |
+| Edge blending      | `edgeBlendingFragmentShader`      | `uBlendStrength`                | 0.5        | Softens hard pixel boundaries.               |
+| Material variation | `materialVariationFragmentShader` | `uNoiseScale`, `uNoiseStrength` | 4.0 / 0.15 | Adds FBM-driven texture detail.              |
+| Glow               | `glowFragmentShader`              | `uGlowIntensity`, `uGlowRadius` | 0.7 / 2.6  | Creates emissive halos around hot materials. |
 
 Disabled effects skip both render target swaps and draw calls, keeping the pipeline lean on low-end GPUs.
 
@@ -102,26 +102,26 @@ const DEFAULT_RENDER_CONFIG = {
   effects: [
     { type: 'edge-blending', enabled: true },
     { type: 'material-variation', enabled: true },
-    { type: 'glow', enabled: true }
+    { type: 'glow', enabled: true },
   ],
   overlays: [
     { type: 'heat', enabled: false },
     { type: 'ambient-heat', enabled: false },
-    { type: 'force', enabled: false }
+    { type: 'force', enabled: false },
   ],
   edgeBlending: { blendStrength: 0.5 },
   materialVariation: { noiseScale: 4.0, noiseStrength: 0.15 },
-  glow: { intensity: 0.7, radius: 2.6 }
+  glow: { intensity: 0.7, radius: 2.6 },
 };
 ```
 
-| Setting | Range | Impact |
-| --- | --- | --- |
-| `blendStrength` | 0 → 1 | Higher values blur boundaries more aggressively. |
-| `noiseScale` | 0.5 → 10 | Larger numbers create finer FBM detail. |
-| `noiseStrength` | 0 → 1 | Controls contrast of variation patterns. |
-| `glow.intensity` | 0 → 2 | Amplifies emissive halos. |
-| `glow.radius` | 0.5 → 4 | Expands glow sample footprint. |
+| Setting          | Range    | Impact                                           |
+| ---------------- | -------- | ------------------------------------------------ |
+| `blendStrength`  | 0 → 1    | Higher values blur boundaries more aggressively. |
+| `noiseScale`     | 0.5 → 10 | Larger numbers create finer FBM detail.          |
+| `noiseStrength`  | 0 → 1    | Controls contrast of variation patterns.         |
+| `glow.intensity` | 0 → 2    | Amplifies emissive halos.                        |
+| `glow.radius`    | 0.5 → 4  | Expands glow sample footprint.                   |
 
 ## Performance Tips
 
