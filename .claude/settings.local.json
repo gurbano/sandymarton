@@ -4,7 +4,8 @@
       "Bash(npm run lint:fix:*)",
       "Bash(git add:*)",
       "Bash(git commit:*)",
-      "Bash(tree:*)"
+      "Bash(tree:*)",
+      "Bash(npm run build:*)"
     ],
     "deny": [],
     "ask": []
