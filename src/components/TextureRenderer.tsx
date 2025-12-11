@@ -31,6 +31,8 @@ interface TextureRendererProps {
   heatTextureRef: RefObject<Texture | null>;
   pixelSize?: number;
   center?: { x: number; y: number };
+  /** Ref for high-frequency center updates (camera follow) without re-renders */
+  centerRef?: RefObject<{ x: number; y: number }>;
   renderConfig?: RenderConfig; // Optional post-processing config
   backgroundTexture?: Texture | null;
   backgroundPalette?: [number, number, number][];
@@ -43,6 +45,7 @@ function TextureRenderer({
   heatTextureRef,
   pixelSize = 16,
   center = { x: 0, y: 0 },
+  centerRef,
   renderConfig,
   backgroundTexture = null,
   backgroundPalette,
@@ -182,6 +185,11 @@ function TextureRenderer({
     shaderMaterial.uniforms.uPlayerHeadColor.value.set(playerColors.head[0], playerColors.head[1], playerColors.head[2]);
     shaderMaterial.uniforms.uPlayerBodyColor.value.set(playerColors.body[0], playerColors.body[1], playerColors.body[2]);
     shaderMaterial.uniforms.uPlayerLegColor.value.set(playerColors.legs[0], playerColors.legs[1], playerColors.legs[2]);
+
+    // Update center from ref every frame (for smooth camera follow without re-renders)
+    if (centerRef?.current) {
+      shaderMaterial.uniforms.uCenter.value = [centerRef.current.x, centerRef.current.y];
+    }
 
     // Render base colors if resources exist
     if (baseColorResources) {

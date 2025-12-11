@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import type { RefObject } from 'react';
 
 interface UseTextureControlsProps {
   canvasSize: number;
@@ -8,6 +9,7 @@ interface UseTextureControlsProps {
 interface TextureControls {
   pixelSize: number;
   center: { x: number; y: number };
+  centerRef: RefObject<{ x: number; y: number }>;
   isDragging: boolean;
   setCenter: (center: { x: number; y: number }) => void;
 }
@@ -20,6 +22,14 @@ export function useTextureControls({
   const [center, setCenter] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+
+  // Ref for high-frequency updates (camera follow) without triggering re-renders
+  const centerRef = useRef({ x: 0, y: 0 });
+
+  // Keep ref in sync when state changes (manual pan, reset, etc.)
+  useEffect(() => {
+    centerRef.current = center;
+  }, [center]);
 
   // Mouse wheel for zoom
   useEffect(() => {
@@ -95,6 +105,7 @@ export function useTextureControls({
   return {
     pixelSize,
     center,
+    centerRef,
     isDragging,
     setCenter,
   };

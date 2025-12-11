@@ -80,6 +80,7 @@ function Scene({
   heatTextureRef,
   pixelSize,
   center,
+  centerRef,
   renderConfig,
   backgroundPalette,
   backgroundSeed,
@@ -89,6 +90,7 @@ function Scene({
   heatTextureRef: RefObject<Texture | null>;
   pixelSize: number;
   center: { x: number; y: number };
+  centerRef: RefObject<{ x: number; y: number }>;
   renderConfig: RenderConfig;
   backgroundPalette: BackgroundPaletteColor[];
   backgroundSeed: number;
@@ -100,6 +102,7 @@ function Scene({
       heatTextureRef={heatTextureRef}
       pixelSize={pixelSize}
       center={center}
+      centerRef={centerRef}
       renderConfig={renderConfig}
       backgroundPalette={backgroundPalette}
       backgroundSeed={backgroundSeed}
@@ -114,7 +117,7 @@ const particleTypes = Object.entries(ParticleType)
   .map(([key, value]) => ({ name: key, value: value as number }));
 
 function App() {
-  const { pixelSize, center, isDragging, setCenter } = useTextureControls({ canvasSize: 640 });
+  const { pixelSize, center, centerRef, isDragging, setCenter } = useTextureControls({ canvasSize: 640 });
 
   // World generation instance
   const worldGen = useMemo(() => new WorldGeneration(WORLD_SIZE, WORLD_SIZE), []);
@@ -428,6 +431,44 @@ function App() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [togglePlayer]);
 
+  // Camera follows player when enabled (with smooth interpolation)
+  // Uses ref for high-frequency updates, throttled state sync for UI
+  useEffect(() => {
+    if (!playerEnabled) return;
+
+    let animationId: number;
+    let lastStateSync = 0;
+    const smoothing = 0.03; // Lower = smoother/slower, higher = snappier (0.01 - 0.2)
+    const stateSyncInterval = 250; // Sync to React state every 250ms for StatusBar
+
+    const followPlayer = (timestamp: number) => {
+      const manager = getPlayerManager();
+      const pos = manager.position;
+      // Convert player position to center offset (player at 512,512 = center at 0,0)
+      const targetX = pos.x - WORLD_SIZE / 2;
+      const targetY = pos.y - WORLD_SIZE / 2;
+
+      // Lerp towards target position
+      const currentX = centerRef.current.x + (targetX - centerRef.current.x) * smoothing;
+      const currentY = centerRef.current.y + (targetY - centerRef.current.y) * smoothing;
+
+      // Update ref directly (no re-renders, TextureRenderer reads this in useFrame)
+      centerRef.current.x = currentX;
+      centerRef.current.y = currentY;
+
+      // Throttled state sync for StatusBar display
+      if (timestamp - lastStateSync > stateSyncInterval) {
+        setCenter({ x: currentX, y: currentY });
+        lastStateSync = timestamp;
+      }
+
+      animationId = requestAnimationFrame(followPlayer);
+    };
+
+    animationId = requestAnimationFrame(followPlayer);
+    return () => cancelAnimationFrame(animationId);
+  }, [playerEnabled, centerRef, setCenter]);
+
   // Reset world handler
   const handleResetWorld = useCallback(() => {
     // Pause the simulation first
@@ -511,6 +552,7 @@ function App() {
           heatTextureRef={heatRTRef}
           pixelSize={pixelSize}
           center={center}
+          centerRef={centerRef}
           renderConfig={renderConfig}
           backgroundPalette={backgroundParams.palette}
           backgroundSeed={backgroundParams.seed}
