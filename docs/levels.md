@@ -1,6 +1,6 @@
 # Level System
 
-Sandy2 includes a level system for loading and saving custom particle worlds using PNG textures.
+Sandymarton includes a level system for loading and saving custom particle worlds using PNG textures.
 
 ## Overview
 

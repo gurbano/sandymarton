@@ -1,6 +1,6 @@
 ## Architecture Overview
 
-Sandy2 is a TypeScript + WebGL sandbox that keeps the full physics and rendering loop on the GPU while React handles configuration, controls, and orchestration. The updated architecture integrates buildable devices, dual heat pipelines, and post-processing overlays without introducing extra CPU/GPU sync points.
+Sandymarton is a TypeScript + WebGL sandbox that keeps the full physics and rendering loop on the GPU while React handles configuration, controls, and orchestration. The updated architecture integrates buildable devices, dual heat pipelines, and post-processing overlays without introducing extra CPU/GPU sync points.
 
 ## Core Design Pillars
 

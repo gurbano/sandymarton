@@ -1,6 +1,6 @@
-# Sandy2 Documentation
+# Sandymarton Documentation
 
-This directory contains detailed technical documentation for Sandy2.
+This directory contains detailed technical documentation for Sandymarton.
 
 ## Contents
 

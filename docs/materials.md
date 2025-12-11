@@ -1,6 +1,6 @@
 # Material Reference
 
-This appendix captures the particle materials currently available in Sandy2, grouped by their phase families and key physical parameters. Values below come from `src/world/MaterialDefinitions.ts` and are expressed in SI-friendly units where possible.
+This appendix captures the particle materials currently available in Sandymarton, grouped by their phase families and key physical parameters. Values below come from `src/world/MaterialDefinitions.ts` and are expressed in SI-friendly units where possible.
 
 ## Legend
 

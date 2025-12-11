@@ -1,6 +1,6 @@
-# Sandy2 – GPU-Accelerated Particle Simulation
+# Sandymarton – GPU-Accelerated Particle Simulation
 
-Sandy2 is a real-time particle environment that implements a Margolus cellular automaton entirely on the GPU. The renderer and solver are built around WebGL fragment shaders, enabling high-density simulations with material-dependent behavior and temperature transport.
+Sandymarton is a real-time particle environment that implements a Margolus cellular automaton entirely on the GPU. The renderer and solver are built around WebGL fragment shaders, enabling high-density simulations with material-dependent behavior and temperature transport.
 
 ---
 
@@ -10,8 +10,8 @@ Evaluate the latest build at **[https://gurbano.github.io/sandymarton/](https://
 
 ---
 
-![Sandy2 Demo](docs/images/screenshot-1.png)
-![Sandy2 Features](docs/images/screenshot-2.png)
+![Sandymarton Demo](docs/images/screenshot-1.png)
+![Sandymarton Features](docs/images/screenshot-2.png)
 
 ## Core Capabilities
 
