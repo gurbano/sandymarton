@@ -20,6 +20,7 @@ import { useThree, useFrame } from '@react-three/fiber';
 import PostProcessRenderer from './PostProcessRenderer';
 import type { RenderConfig } from '../types/RenderConfig';
 import { WORLD_SIZE } from '../constants/worldConstants';
+import { getPlayerManager } from '../player';
 
 const MAX_BACKGROUND_COLORS = 6;
 
@@ -123,6 +124,20 @@ function TextureRenderer({
             value: [new Vector2(0, 0), new Vector2(0, 0)],
           },
           uTime: { value: 0 },
+          // Player sprite uniforms
+          uPlayerEnabled: { value: 0 },
+          uPlayerPosition: { value: new Vector2(512, 100) },
+          uPlayerWalkPhase: { value: 0 },
+          uPlayerHeight: { value: 60 },
+          uPlayerHeadRadius: { value: 8 },
+          uPlayerBodyWidth: { value: 20 },
+          uPlayerBodyHeight: { value: 25 },
+          uPlayerLegWidth: { value: 8 },
+          uPlayerLegHeight: { value: 25 },
+          uPlayerFootOffset: { value: 6 },
+          uPlayerHeadColor: { value: new Vector3(1.0, 0.85, 0.7) },
+          uPlayerBodyColor: { value: new Vector3(0.2, 0.4, 0.8) },
+          uPlayerLegColor: { value: new Vector3(0.3, 0.3, 0.35) },
         },
         vertexShader,
         fragmentShader,
@@ -147,6 +162,26 @@ function TextureRenderer({
     shaderMaterial.uniforms.uStateTexture.value = texture;
     shaderMaterial.uniforms.uIsColorTexture.value = isColorTexture;
     shaderMaterial.uniforms.uBackgroundTexture.value = backgroundTexture ?? displayTexture;
+
+    // Update player sprite uniforms
+    const playerManager = getPlayerManager();
+    const playerState = playerManager.currentState;
+    const playerDims = playerManager.getDimensions();
+    const playerColors = playerManager.getColors();
+
+    shaderMaterial.uniforms.uPlayerEnabled.value = playerManager.enabled ? 1 : 0;
+    shaderMaterial.uniforms.uPlayerPosition.value.set(playerState.x, playerState.y);
+    shaderMaterial.uniforms.uPlayerWalkPhase.value = playerState.walkPhase;
+    shaderMaterial.uniforms.uPlayerHeight.value = playerDims.height;
+    shaderMaterial.uniforms.uPlayerHeadRadius.value = playerDims.headRadius;
+    shaderMaterial.uniforms.uPlayerBodyWidth.value = playerDims.bodyWidth;
+    shaderMaterial.uniforms.uPlayerBodyHeight.value = playerDims.bodyHeight;
+    shaderMaterial.uniforms.uPlayerLegWidth.value = playerDims.legWidth;
+    shaderMaterial.uniforms.uPlayerLegHeight.value = playerDims.legHeight;
+    shaderMaterial.uniforms.uPlayerFootOffset.value = playerDims.footOffset;
+    shaderMaterial.uniforms.uPlayerHeadColor.value.set(playerColors.head[0], playerColors.head[1], playerColors.head[2]);
+    shaderMaterial.uniforms.uPlayerBodyColor.value.set(playerColors.body[0], playerColors.body[1], playerColors.body[2]);
+    shaderMaterial.uniforms.uPlayerLegColor.value.set(playerColors.legs[0], playerColors.legs[1], playerColors.legs[2]);
 
     // Render base colors if resources exist
     if (baseColorResources) {

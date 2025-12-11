@@ -49,6 +49,9 @@ export const margolusHelperFunctions = `
       return INTERNAL_LIQUID;
     } else if (particleType >= GAS_MIN && particleType <= GAS_MAX) {
       return INTERNAL_GAS;
+    } else if (particleType >= ENTITY_MIN && particleType <= ENTITY_MAX) {
+      // Entity particles (player, NPCs) behave as static - they don't move in physics
+      return INTERNAL_STATIC;
     } else {
       return INTERNAL_EMPTY;
     }
@@ -76,7 +79,14 @@ export const margolusHelperFunctions = `
     if (cellState == INTERNAL_EMPTY) {
       particleType = EMPTY_TYPE;
     } else if (cellState == INTERNAL_STATIC) {
-      particleType = (originalType >= STATIC_MIN && originalType <= STATIC_MAX) ? originalType : STONE_TYPE;
+      // Preserve entity types (player, etc.) as well as static types
+      if (originalType >= ENTITY_MIN && originalType <= ENTITY_MAX) {
+        particleType = originalType;
+      } else if (originalType >= STATIC_MIN && originalType <= STATIC_MAX) {
+        particleType = originalType;
+      } else {
+        particleType = STONE_TYPE;
+      }
     } else if (cellState == INTERNAL_SOLID) {
       particleType = (originalType >= SOLID_MIN && originalType <= SOLID_MAX) ? originalType : SAND_TYPE;
     } else if (cellState == INTERNAL_LIQUID) {

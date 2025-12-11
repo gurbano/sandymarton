@@ -6,8 +6,9 @@ The simulation loop is a configurable sequence of GPU shader passes orchestrated
 
 ```mermaid
 flowchart TD
-  BW[Buildables → World] --> Margolus
-  BW -. no devices .-> Margolus
+  BW[Buildables → World] --> Player[Player Update]
+  BW -. no devices .-> Player
+  Player --> Margolus
   Margolus[Margolus CA] --> Liquid[Liquid Spread]
     Liquid --> Archimedes
     Archimedes --> ParticleHeat[Particle Heat Diffusion]
@@ -36,6 +37,18 @@ flowchart TD
 - Writes heater/cooler contributions into the heat render target pool.
 - Runs only when devices exist, otherwise the pass is skipped to avoid extra GPU work.
 - Shares the same ping-pong targets as ambient diffusion to keep allocations stable.
+
+## Player Update Pass
+
+Executed immediately after buildable passes, the player shader maintains a sprite-like entity without injecting new particles.
+
+- Samples the current world texture to resolve collisions, grounded state, and displacement forces for the articulated player body.
+- Writes the results to a 4×4 floating-point render target that the CPU consumes to update position, velocity, and animation phase.
+- Leaves the particle state untouched—the visible character is rendered as an overlay driven by the sampled physics outputs.
+
+When the player is disabled, the pass short-circuits and avoids both the draw call and the read-back.
+
+With the player step complete (when enabled), the remaining particle passes mutate the world texture using four rotating render targets in the order below.
 
 ## 1. Margolus Cellular Automaton
 
@@ -194,6 +207,7 @@ const DEFAULT_SIMULATION_CONFIG = {
     heatmapCouplingMultiplier: 2,
   },
   steps: [
+    { type: 'player-update', passes: 10, enabled: false },
     { type: 'margolus-ca', passes: 8, enabled: true },
     { type: 'liquid-spread', passes: 4, enabled: true },
     { type: 'archimedes', passes: 2, enabled: true },

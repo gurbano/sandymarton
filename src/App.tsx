@@ -20,6 +20,9 @@ import type { RenderConfig } from './types/RenderConfig';
 import { WORLD_SIZE } from './constants/worldConstants';
 import { loadLevel } from './utils/LevelLoader';
 import { saveLevel } from './utils/LevelSaver';
+import { usePlayerInput } from './hooks/usePlayerInput';
+import { getPlayerManager } from './player';
+import { SimulationStepType } from './types/SimulationConfig';
 
 type BackgroundPaletteColor = [number, number, number];
 
@@ -142,6 +145,20 @@ function App() {
 
   // Brush size state
   const [brushSize, setBrushSize] = useState<number>(3);
+
+  // Player state
+  const [playerEnabled, setPlayerEnabled] = useState(false);
+  const [playerSettings, setPlayerSettings] = useState(() => getPlayerManager().currentSettings);
+
+  // Enable player input capture when player is enabled
+  usePlayerInput({ enabled: playerEnabled });
+
+  // Handler for updating player settings
+  const handlePlayerSettingsChange = useCallback((settings: Partial<typeof playerSettings>) => {
+    const manager = getPlayerManager();
+    manager.setSettings(settings);
+    setPlayerSettings({ ...manager.currentSettings });
+  }, []);
 
   useEffect(() => {
     userToolModeRef.current = userToolMode;
@@ -355,10 +372,83 @@ function App() {
     onBuild: handleBuild,
   });
 
+  // Toggle player spawn
+  const togglePlayer = useCallback(() => {
+    const manager = getPlayerManager();
+
+    if (playerEnabled) {
+      // Despawn player
+      manager.setEnabled(false);
+      setPlayerEnabled(false);
+
+      // Disable player step in simulation config
+      setSimulationConfig(prev => ({
+        ...prev,
+        steps: prev.steps.map(step =>
+          step.type === SimulationStepType.PLAYER_UPDATE
+            ? { ...step, enabled: false }
+            : step
+        ),
+      }));
+    } else {
+      // Spawn player at center of view
+      const spawnX = Math.floor(WORLD_SIZE / 2 + center.x);
+      const spawnY = Math.floor(WORLD_SIZE / 2 + center.y);
+      manager.spawn(spawnX, spawnY);
+      setPlayerEnabled(true);
+
+      // Enable player step in simulation config
+      setSimulationConfig(prev => ({
+        ...prev,
+        steps: prev.steps.map(step =>
+          step.type === SimulationStepType.PLAYER_UPDATE
+            ? { ...step, enabled: true }
+            : step
+        ),
+      }));
+    }
+  }, [playerEnabled, center]);
+
+  // Keyboard shortcut for player toggle (P key)
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key.toLowerCase() === 'p' && !event.repeat) {
+        // Don't toggle if typing in an input
+        if (
+          event.target instanceof HTMLInputElement ||
+          event.target instanceof HTMLTextAreaElement
+        ) {
+          return;
+        }
+        togglePlayer();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [togglePlayer]);
+
   // Reset world handler
   const handleResetWorld = useCallback(() => {
     // Pause the simulation first
     setSimulationEnabled(false);
+
+    // Disable player
+    if (playerEnabled) {
+      const manager = getPlayerManager();
+      manager.setEnabled(false);
+      manager.reset();
+      setPlayerEnabled(false);
+      setSimulationConfig(prev => ({
+        ...prev,
+        steps: prev.steps.map(step =>
+          step.type === SimulationStepType.PLAYER_UPDATE
+            ? { ...step, enabled: false }
+            : step
+        ),
+      }));
+    }
+
     // Create new texture with current init type
     const newTexture = worldGen.initNewWorld({ initType: worldInitType });
     setWorldTexture(newTexture);
@@ -366,7 +456,7 @@ function App() {
     setCenter({ x: 0, y: 0 });
     setResetCount(prev => prev + 1);
     setSimulationEnabled(true);
-  }, [worldGen, setCenter, worldInitType, refreshBackgroundParams]);
+  }, [worldGen, setCenter, worldInitType, refreshBackgroundParams, playerEnabled]);
 
   // Load level handler
   const handleLoadLevel = useCallback(async (levelId: string) => {
@@ -475,6 +565,10 @@ function App() {
         worldTexture={worldTexture}
         simulationConfig={simulationConfig}
         onSimulationConfigChange={setSimulationConfig}
+        playerEnabled={playerEnabled}
+        onTogglePlayer={togglePlayer}
+        playerSettings={playerSettings}
+        onPlayerSettingsChange={handlePlayerSettingsChange}
       />
     </div>
   );

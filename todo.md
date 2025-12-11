@@ -29,13 +29,34 @@ bugs:
 
 todo major:
 
-- materials interaction (mix)
+- new modes (edit/play)
 - dynamic particles
+- particle system (renderer)
+- new material (fire) and materials interaction (mix materials, corrode, burn)
 - rigid bodies
 
 todo minor:
 
+- rewrite claude.md
+- add visual and controls to heater/sources/buildables
 - draw heater/cooler
 - Diagonal and vertical liquid pressure model.
 - background
-- play the level
+
+PLAYER MODE
+done:
+
+- basic movement & controls
+- basic particle2player interaction (particles push player)
+- basic renderer
+
+todo:
+
+- play mode
+  - camera stick to player
+  - better walking mode
+  - ui (spells )
+  - light sources and lighting
+  - events (triggers)
+  - story (popups, choices)
+  - inventory

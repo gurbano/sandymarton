@@ -53,6 +53,12 @@ export enum ParticleType {
   ACID_VAPOR = 148,  // Acidic fumes
   COOLANT_VAPOR = 149, // Chilled coolant mist
 
+  // Entity particles (160-175) - Player body parts
+  PLAYER_HEAD = 160,
+  PLAYER_BODY = 161,
+  PLAYER_ARM = 162,
+  PLAYER_LEG = 163,
+  PLAYER_FOOT = 164,
 }
 
 // Temperature constants
@@ -134,6 +140,12 @@ export const ParticleColors: Record<number, [number, number, number, number]> = 
   [ParticleType.SLIME_VAPOR]: [140, 255, 170, 100], // Greenish mist
   [ParticleType.ACID_VAPOR]: [190, 255, 120, 110],  // Yellow-green vapor
   [ParticleType.COOLANT_VAPOR]: [160, 220, 255, 110], // Chilled mist
+  // Player body parts (stickman colors)
+  [ParticleType.PLAYER_HEAD]: [255, 220, 180, 255],   // Skin tone head
+  [ParticleType.PLAYER_BODY]: [60, 60, 120, 255],     // Dark blue torso
+  [ParticleType.PLAYER_ARM]: [60, 60, 120, 255],      // Dark blue arms
+  [ParticleType.PLAYER_LEG]: [80, 80, 100, 255],      // Dark gray legs
+  [ParticleType.PLAYER_FOOT]: [50, 40, 30, 255],      // Brown shoes
 };
 
 // Note: Velocity functions removed - particle texture now stores temperature in G,B channels
@@ -172,4 +184,18 @@ export function isLiquid(particleType: number): boolean {
  */
 export function isGas(particleType: number): boolean {
   return particleType >= ParticleTypeRanges.GAS_MIN && particleType <= ParticleTypeRanges.GAS_MAX;
+}
+
+/**
+ * Helper to check if a particle type is an entity (player, NPC, etc.)
+ */
+export function isEntity(particleType: number): boolean {
+  return particleType >= ParticleTypeRanges.ENTITY_MIN && particleType <= ParticleTypeRanges.ENTITY_MAX;
+}
+
+/**
+ * Helper to check if a particle type is a player body part
+ */
+export function isPlayerPart(particleType: number): boolean {
+  return particleType >= ParticleType.PLAYER_HEAD && particleType <= ParticleType.PLAYER_FOOT;
 }

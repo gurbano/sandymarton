@@ -7,6 +7,7 @@ import { ParticleType } from '../world/ParticleTypes';
 import { ParticleCounter } from './ParticleCounter';
 import type { SimulationConfig, SimulationStep, AmbientHeatSettings } from '../types/SimulationConfig';
 import { DEFAULT_AMBIENT_HEAT_SETTINGS } from '../types/SimulationConfig';
+import type { PlayerSettings } from '../types/PlayerConfig';
 
 interface StatusBarProps {
   pixelSize: number;
@@ -16,6 +17,10 @@ interface StatusBarProps {
   worldTexture: DataTexture;
   simulationConfig: SimulationConfig;
   onSimulationConfigChange: (config: SimulationConfig) => void;
+  playerEnabled?: boolean;
+  onTogglePlayer?: () => void;
+  playerSettings?: PlayerSettings;
+  onPlayerSettingsChange?: (settings: Partial<PlayerSettings>) => void;
 }
 
 export function StatusBar({
@@ -26,8 +31,13 @@ export function StatusBar({
   worldTexture,
   simulationConfig,
   onSimulationConfigChange,
+  playerEnabled = false,
+  onTogglePlayer,
+  playerSettings,
+  onPlayerSettingsChange,
 }: StatusBarProps) {
   const [showSimSettings, setShowSimSettings] = useState(false);
+  const [showPlayerSettings, setShowPlayerSettings] = useState(false);
   const [showAmbientSettings, setShowAmbientSettings] = useState(true);
   const [showEmissionSettings, setShowEmissionSettings] = useState(true);
   const [showDiffusionSettings, setShowDiffusionSettings] = useState(true);
@@ -77,6 +87,12 @@ export function StatusBar({
     handleAmbientHeatChange('equilibriumInterval', interval);
   };
 
+  const handlePlayerSettingChange = (key: keyof PlayerSettings, value: number) => {
+    if (onPlayerSettingsChange) {
+      onPlayerSettingsChange({ [key]: value });
+    }
+  };
+
   const enabledStepsCount = simulationConfig.steps.filter(s => s.enabled).length;
   const ambientSettings = simulationConfig.ambientHeatSettings ?? DEFAULT_AMBIENT_HEAT_SETTINGS;
   const equilibriumTargetCelsius = ambientSettings.equilibriumTemperature - 273.15;
@@ -97,6 +113,120 @@ export function StatusBar({
         <span className="status-item">Pos: ({center.x.toFixed(0)}, {center.y.toFixed(0)})</span>
         <span className="status-divider">|</span>
         <span className="status-item">{ParticleType[selectedParticle]}</span>
+        <span className="status-divider">|</span>
+        <button
+          type="button"
+          className={`status-player-btn ${playerEnabled ? 'active' : ''}`}
+          onClick={onTogglePlayer}
+          title="Toggle player (P)"
+        >
+          {playerEnabled ? '🏃 Player ON' : '👤 Player OFF'}
+        </button>
+        {playerEnabled && playerSettings && (
+          <div
+            className={`status-toggle ${showPlayerSettings ? 'active' : ''}`}
+            onClick={() => setShowPlayerSettings(!showPlayerSettings)}
+          >
+            <span className="status-toggle-label">⚙️</span>
+
+            {showPlayerSettings && (
+              <div
+                className="status-tooltip"
+                onWheelCapture={handleSettingsWheel}
+                onWheel={handleSettingsWheel}
+              >
+                <div className="tooltip-header">Player Settings</div>
+
+                <div className="sim-setting-group">
+                  <div className="sim-setting-row">
+                    <span className="sim-setting-label">Scale</span>
+                    <span className="sim-setting-value">{playerSettings.scale.toFixed(1)}x</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0.3"
+                    max="3.0"
+                    step="0.1"
+                    value={playerSettings.scale}
+                    onChange={(e) => handlePlayerSettingChange('scale', parseFloat(e.target.value))}
+                    className="sim-slider"
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                </div>
+
+                <div className="sim-setting-group">
+                  <div className="sim-setting-row">
+                    <span className="sim-setting-label">Push-Out Force</span>
+                    <span className="sim-setting-value">{playerSettings.pushOutStrength.toFixed(1)}</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="10"
+                    step="0.1"
+                    value={playerSettings.pushOutStrength}
+                    onChange={(e) => handlePlayerSettingChange('pushOutStrength', parseFloat(e.target.value))}
+                    className="sim-slider"
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                </div>
+
+                <div className="tooltip-divider"></div>
+
+                <div className="sim-setting-group">
+                  <div className="sim-setting-row">
+                    <span className="sim-setting-label">Speed</span>
+                    <span className="sim-setting-value">{playerSettings.speed.toFixed(1)}</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="1"
+                    max="20"
+                    step="0.5"
+                    value={playerSettings.speed}
+                    onChange={(e) => handlePlayerSettingChange('speed', parseFloat(e.target.value))}
+                    className="sim-slider"
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                </div>
+
+                <div className="sim-setting-group">
+                  <div className="sim-setting-row">
+                    <span className="sim-setting-label">Jump Strength</span>
+                    <span className="sim-setting-value">{playerSettings.jumpStrength.toFixed(1)}</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="2"
+                    max="30"
+                    step="0.5"
+                    value={playerSettings.jumpStrength}
+                    onChange={(e) => handlePlayerSettingChange('jumpStrength', parseFloat(e.target.value))}
+                    className="sim-slider"
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                </div>
+
+                <div className="sim-setting-group">
+                  <div className="sim-setting-row">
+                    <span className="sim-setting-label">Gravity</span>
+                    <span className="sim-setting-value">{playerSettings.gravity.toFixed(2)}</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0.05"
+                    max="1.0"
+                    step="0.05"
+                    value={playerSettings.gravity}
+                    onChange={(e) => handlePlayerSettingChange('gravity', parseFloat(e.target.value))}
+                    className="sim-slider"
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Right side - simulation settings */}

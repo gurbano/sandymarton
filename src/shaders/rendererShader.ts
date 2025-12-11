@@ -71,6 +71,22 @@ export const fragmentShader = `
   uniform float uBackgroundSeed;
   uniform vec2 uBackgroundNoiseOffsets[2];
   uniform float uTime;        // Time in seconds for liquid animation
+
+  // Player sprite uniforms
+  uniform float uPlayerEnabled;
+  uniform vec2 uPlayerPosition;
+  uniform float uPlayerWalkPhase;
+  uniform float uPlayerHeight;
+  uniform float uPlayerHeadRadius;
+  uniform float uPlayerBodyWidth;
+  uniform float uPlayerBodyHeight;
+  uniform float uPlayerLegWidth;
+  uniform float uPlayerLegHeight;
+  uniform float uPlayerFootOffset;
+  uniform vec3 uPlayerHeadColor;
+  uniform vec3 uPlayerBodyColor;
+  uniform vec3 uPlayerLegColor;
+
   varying vec2 vUv;
 
   ${generateShaderConstants()}
@@ -96,6 +112,74 @@ export const fragmentShader = `
 
   bool isParticleType(float typeValue, float targetType) {
     return typeValue >= targetType && typeValue < targetType + 1.0;
+  }
+
+  // SDF for rounded rectangle
+  float sdRoundedBox(vec2 p, vec2 b, float r) {
+    vec2 q = abs(p) - b + r;
+    return min(max(q.x, q.y), 0.0) + length(max(q, 0.0)) - r;
+  }
+
+  // SDF for circle
+  float sdCircle(vec2 p, float r) {
+    return length(p) - r;
+  }
+
+  // Render player sprite and return (color, alpha)
+  vec4 renderPlayerSprite(vec2 worldPos) {
+    if (uPlayerEnabled < 0.5) return vec4(0.0);
+
+    // Position relative to player (player pos is bottom-center)
+    vec2 relPos = worldPos - uPlayerPosition;
+
+    // Calculate animated positions
+    float walkSin = sin(uPlayerWalkPhase * 6.28318);
+    float leftFootX = -uPlayerLegWidth * 0.5 + walkSin * uPlayerFootOffset;
+    float rightFootX = uPlayerLegWidth * 0.5 - walkSin * uPlayerFootOffset;
+    float armSwing = abs(walkSin) * 3.0;
+
+    // Accumulate player color and alpha
+    float playerAlpha = 0.0;
+    vec3 playerColor = vec3(0.0);
+
+    // Left leg (starts at playerPos.y so feet touch ground)
+    vec2 leftLegCenter = vec2(leftFootX, uPlayerLegHeight * 0.5);
+    float leftLegDist = sdRoundedBox(relPos - leftLegCenter, vec2(uPlayerLegWidth * 0.3, uPlayerLegHeight * 0.5), 1.0);
+    if (leftLegDist < 1.0) {
+      float a = smoothstep(1.0, -0.5, leftLegDist);
+      playerColor = mix(playerColor, uPlayerLegColor, a);
+      playerAlpha = max(playerAlpha, a);
+    }
+
+    // Right leg (starts at playerPos.y so feet touch ground)
+    vec2 rightLegCenter = vec2(rightFootX, uPlayerLegHeight * 0.5);
+    float rightLegDist = sdRoundedBox(relPos - rightLegCenter, vec2(uPlayerLegWidth * 0.3, uPlayerLegHeight * 0.5), 1.0);
+    if (rightLegDist < 1.0) {
+      float a = smoothstep(1.0, -0.5, rightLegDist);
+      playerColor = mix(playerColor, uPlayerLegColor, a);
+      playerAlpha = max(playerAlpha, a);
+    }
+
+    // Body (with arm swing)
+    vec2 bodyCenter = vec2(0.0, uPlayerLegHeight + uPlayerBodyHeight * 0.5);
+    float bodyHalfW = uPlayerBodyWidth * 0.5 + armSwing;
+    float bodyDist = sdRoundedBox(relPos - bodyCenter, vec2(bodyHalfW, uPlayerBodyHeight * 0.5), 2.0);
+    if (bodyDist < 1.0) {
+      float a = smoothstep(1.0, -0.5, bodyDist);
+      playerColor = mix(playerColor, uPlayerBodyColor, a);
+      playerAlpha = max(playerAlpha, a);
+    }
+
+    // Head
+    vec2 headCenter = vec2(0.0, uPlayerHeight - uPlayerHeadRadius);
+    float headDist = sdCircle(relPos - headCenter, uPlayerHeadRadius);
+    if (headDist < 1.0) {
+      float a = smoothstep(1.0, -0.5, headDist);
+      playerColor = mix(playerColor, uPlayerHeadColor, a);
+      playerAlpha = max(playerAlpha, a);
+    }
+
+    return vec4(playerColor, playerAlpha);
   }
 
   vec3 getBackgroundPaletteColor(int index) {
@@ -342,6 +426,15 @@ ${generateParticleColorCode()}
 
     vec3 finalColor = mix(backgroundSample.rgb, color.rgb, color.a);
     float finalAlpha = clamp(backgroundSample.a + color.a * (1.0 - backgroundSample.a), 0.0, 1.0);
+
+    // Render player sprite on top
+    // Convert view-centered coords to absolute world coords (player position is absolute)
+    vec2 absoluteWorldPos = worldParticleCoord + vec2(${WORLD_SIZE / 2}.0, ${WORLD_SIZE / 2}.0);
+    vec4 playerSprite = renderPlayerSprite(absoluteWorldPos);
+    if (playerSprite.a > 0.0) {
+      finalColor = mix(finalColor, playerSprite.rgb, playerSprite.a);
+      finalAlpha = max(finalAlpha, playerSprite.a);
+    }
 
     gl_FragColor = vec4(clamp(finalColor, 0.0, 1.0), max(finalAlpha, 1e-3));
   }

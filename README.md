@@ -20,6 +20,7 @@ Evaluate the latest build at **[https://gurbano.github.io/sandymarton/](https://
 - **Rendering pipeline** – Post-processed composition with edge blending, emissive glow, animated liquids, and texture-driven variation.
 - **Level IO** – Levels are serialized as PNG textures, enabling deterministic save/load and simple sharing.
 - **Interactive tooling** – Canvas painting tools, material palette, and inspector overlays for debugging the simulation state.
+- **GPU player simulation** – Optional stick-figure avatar driven by a dedicated shader pass and rendered as an overlay sprite.
 
 ## Getting Started
 
@@ -35,6 +36,8 @@ The development server runs on Vite with hot module replacement. The production 
 
 - **Pointer draw (left click + drag):** spawn the currently selected material.
 - **Material selector:** cycle through particle types, including thermal materials.
+- **Player toggle (P or status bar button):** spawn/despawn the GPU-driven avatar and enable the associated simulation step.
+- **Player settings:** adjust scale, movement speed, jump strength, gravity, and push-out force directly from the status bar tooltip when the player is active.
 - **Load / Save:** import PNG levels or export the current world state.
 - **Rendering options:** toggle edge blending, temperature overlays, and post-process filters.
 

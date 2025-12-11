@@ -24,6 +24,10 @@ export const ParticleTypeRanges = {
   // Gas particles: 112-159
   GAS_MIN: 112,
   GAS_MAX: 159,
+
+  // Entity particles: 160-175 (player, NPCs, etc.)
+  ENTITY_MIN: 160,
+  ENTITY_MAX: 175,
 } as const;
 
 /**
@@ -68,6 +72,12 @@ export const ParticleTypeConstants = {
   SLIME_VAPOR: 147,
   ACID_VAPOR: 148,
   COOLANT_VAPOR: 149,
+  // Entity (player body parts)
+  PLAYER_HEAD: 160,
+  PLAYER_BODY: 161,
+  PLAYER_ARM: 162,
+  PLAYER_LEG: 163,
+  PLAYER_FOOT: 164,
 } as const;
 
 /**
@@ -87,6 +97,8 @@ const float LIQUID_MIN = ${ParticleTypeRanges.LIQUID_MIN}.0;
 const float LIQUID_MAX = ${ParticleTypeRanges.LIQUID_MAX}.0;
 const float GAS_MIN = ${ParticleTypeRanges.GAS_MIN}.0;
 const float GAS_MAX = ${ParticleTypeRanges.GAS_MAX}.0;
+const float ENTITY_MIN = ${ParticleTypeRanges.ENTITY_MIN}.0;
+const float ENTITY_MAX = ${ParticleTypeRanges.ENTITY_MAX}.0;
 
 // Individual particle types
 const float EMPTY_TYPE = ${ParticleTypeConstants.EMPTY}.0;
@@ -117,6 +129,13 @@ const float OIL_VAPOR_TYPE = ${ParticleTypeConstants.OIL_VAPOR}.0;
 const float SLIME_VAPOR_TYPE = ${ParticleTypeConstants.SLIME_VAPOR}.0;
 const float ACID_VAPOR_TYPE = ${ParticleTypeConstants.ACID_VAPOR}.0;
 const float COOLANT_VAPOR_TYPE = ${ParticleTypeConstants.COOLANT_VAPOR}.0;
+
+// Entity types (player body parts)
+const float PLAYER_HEAD_TYPE = ${ParticleTypeConstants.PLAYER_HEAD}.0;
+const float PLAYER_BODY_TYPE = ${ParticleTypeConstants.PLAYER_BODY}.0;
+const float PLAYER_ARM_TYPE = ${ParticleTypeConstants.PLAYER_ARM}.0;
+const float PLAYER_LEG_TYPE = ${ParticleTypeConstants.PLAYER_LEG}.0;
+const float PLAYER_FOOT_TYPE = ${ParticleTypeConstants.PLAYER_FOOT}.0;
 
 // Internal behavior states for Margolus CA
 // These represent how particles behave, not what they are

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef } from 'react';
 import type { RefObject } from 'react';
 import {
   DataTexture,
+  FloatType,
   Mesh,
   NearestFilter,
   OrthographicCamera,
@@ -41,6 +42,10 @@ import {
   buildablesToWorldFragmentShader,
   buildablesToWorldVertexShader,
 } from '../shaders/buildablesToWorldShader';
+import {
+  playerUpdateVertexShader,
+  playerOutputFragmentShader,
+} from '../shaders/playerUpdateShaders';
 import { useFrame, useThree } from '@react-three/fiber';
 import type { SimulationConfig } from '../types/SimulationConfig';
 import { SimulationStepType, DEFAULT_AMBIENT_HEAT_SETTINGS } from '../types/SimulationConfig';
@@ -51,6 +56,7 @@ import {
   BUILDABLES_TEXTURE_WIDTH,
   BUILDABLES_TEXTURE_HEIGHT,
 } from '../buildables';
+import { getPlayerManager, PLAYER_OUTPUT_SIZE } from '../player';
 
 interface MainSimulationProps {
   worldTexture: DataTexture;
@@ -150,6 +156,18 @@ function MainSimulation({
     return [generateRenderTarget(textureSize), generateRenderTarget(textureSize)];
   }, [textureSize]);
 
+  // Small render target for player output (4x4) - needs FloatType to store position values
+  const playerOutputRT = useMemo(() => {
+    return new WebGLRenderTarget(PLAYER_OUTPUT_SIZE, PLAYER_OUTPUT_SIZE, {
+      type: FloatType,
+      format: RGBAFormat,
+      minFilter: NearestFilter,
+      magFilter: NearestFilter,
+      depthBuffer: false,
+      stencilBuffer: false,
+    });
+  }, []);
+
   const margolusSceneRef = useRef<SimulationResources | null>(null);
   const liquidSpreadSceneRef = useRef<SimulationResources | null>(null);
   const archimedesSceneRef = useRef<SimulationResources | null>(null);
@@ -159,6 +177,7 @@ function MainSimulation({
   const forceTransferSceneRef = useRef<SimulationResources | null>(null);
   const buildablesToHeatSceneRef = useRef<SimulationResources | null>(null);
   const buildablesToWorldSceneRef = useRef<SimulationResources | null>(null);
+  const playerOutputSceneRef = useRef<SimulationResources | null>(null);
   const margolusIterationRef = useRef(0);
   const liquidSpreadIterationRef = useRef(0);
   const archimedesIterationRef = useRef(0);
@@ -307,6 +326,38 @@ function MainSimulation({
     buildablesToWorldResources.material.uniforms.uTime = { value: 0 };
     buildablesToWorldResources.material.uniforms.uFrameCount = { value: 0 };
 
+    // Create player output resources (renders to small 4x4 texture for CPU readback)
+    // Player no longer modifies world texture - only calculates physics
+    const playerManager = getPlayerManager();
+    const playerDims = playerManager.getDimensions();
+    const playerOutputResources = createSimulationResources(PLAYER_OUTPUT_SIZE, worldTexture, {
+      vertexShader: playerUpdateVertexShader,
+      fragmentShader: playerOutputFragmentShader,
+    });
+    playerOutputResources.material.uniforms.uOutputSize = { value: new Vector2(PLAYER_OUTPUT_SIZE, PLAYER_OUTPUT_SIZE) };
+    playerOutputResources.material.uniforms.uPlayerEnabled = { value: 0.0 };
+    playerOutputResources.material.uniforms.uPlayerPosition = { value: new Vector2(512, 100) };
+    playerOutputResources.material.uniforms.uPlayerVelocity = { value: new Vector2(0, 0) };
+    playerOutputResources.material.uniforms.uPlayerInput = { value: new Vector2(0, 0) };
+    playerOutputResources.material.uniforms.uPlayerJumping = { value: 0.0 };
+    playerOutputResources.material.uniforms.uWalkPhase = { value: 0.0 };
+    playerOutputResources.material.uniforms.uPlayerSpeed = { value: 4.0 };
+    playerOutputResources.material.uniforms.uPlayerJumpStrength = { value: 8.0 };
+    playerOutputResources.material.uniforms.uPlayerGravity = { value: 0.25 };
+    playerOutputResources.material.uniforms.uPlayerMass = { value: 50.0 };
+    playerOutputResources.material.uniforms.uPlayerFriction = { value: 0.7 };
+    playerOutputResources.material.uniforms.uPlayerAirResistance = { value: 0.02 };
+    playerOutputResources.material.uniforms.uPushOutStrength = { value: 1.0 };
+    // Hitbox dimensions
+    playerOutputResources.material.uniforms.uPlayerWidth = { value: playerDims.width };
+    playerOutputResources.material.uniforms.uPlayerHeight = { value: playerDims.height };
+    playerOutputResources.material.uniforms.uHeadRadius = { value: playerDims.headRadius };
+    playerOutputResources.material.uniforms.uBodyWidth = { value: playerDims.bodyWidth };
+    playerOutputResources.material.uniforms.uBodyHeight = { value: playerDims.bodyHeight };
+    playerOutputResources.material.uniforms.uLegWidth = { value: playerDims.legWidth };
+    playerOutputResources.material.uniforms.uLegHeight = { value: playerDims.legHeight };
+    playerOutputResources.material.uniforms.uFootOffset = { value: playerDims.footOffset };
+
     margolusSceneRef.current = margolusResources;
     liquidSpreadSceneRef.current = liquidSpreadResources;
     archimedesSceneRef.current = archimedesResources;
@@ -316,6 +367,7 @@ function MainSimulation({
     forceTransferSceneRef.current = forceTransferResources;
     buildablesToHeatSceneRef.current = buildablesToHeatResources;
     buildablesToWorldSceneRef.current = buildablesToWorldResources;
+    playerOutputSceneRef.current = playerOutputResources;
 
     // Initialize render targets
     renderTargets.forEach((rt) => {
@@ -349,6 +401,7 @@ function MainSimulation({
         forceTransferResources,
         buildablesToHeatResources,
         buildablesToWorldResources,
+        playerOutputResources,
       ].forEach((resources) => {
         resources.scene.remove(resources.mesh);
         resources.geometry.dispose();
@@ -356,6 +409,7 @@ function MainSimulation({
       });
       renderTargets.forEach((rt) => rt.dispose());
       heatRenderTargets.forEach((rt) => rt.dispose());
+      playerOutputRT.dispose();
       heatForceTexture.dispose();
     };
   }, [textureSize, worldTexture, resetCount, gl, renderTargets, heatRenderTargets]);
@@ -425,15 +479,68 @@ function MainSimulation({
       rtIndex++;
     }
 
+    // Execute player physics (read-only - doesn't modify world texture)
+    // Player is rendered as a sprite overlay, not as particles
+    const playerStep = config.steps.find((s) => s.type === SimulationStepType.PLAYER_UPDATE);
+    const playerManager = getPlayerManager();
+    if (playerStep?.enabled && playerManager.enabled && playerOutputSceneRef.current) {
+      const playerOutput = playerOutputSceneRef.current;
+      const playerState = playerManager.currentState;
+      const playerSettings = playerManager.currentSettings;
+      const playerDims = playerManager.getDimensions();
+
+      // Update uniforms for physics calculation
+      playerOutput.material.uniforms.uCurrentState.value = currentSource;
+      playerOutput.material.uniforms.uTextureSize.value.set(textureSize, textureSize);
+      playerOutput.material.uniforms.uPlayerEnabled.value = 1.0;
+      playerOutput.material.uniforms.uPlayerPosition.value.set(playerState.x, playerState.y);
+      playerOutput.material.uniforms.uPlayerVelocity.value.set(playerState.velocityX, playerState.velocityY);
+      playerOutput.material.uniforms.uPlayerInput.value.set(playerState.inputX, playerState.inputY);
+      playerOutput.material.uniforms.uPlayerJumping.value = playerState.jumping ? 1.0 : 0.0;
+      playerOutput.material.uniforms.uWalkPhase.value = playerState.walkPhase;
+      playerOutput.material.uniforms.uPlayerSpeed.value = playerSettings.speed;
+      playerOutput.material.uniforms.uPlayerJumpStrength.value = playerSettings.jumpStrength;
+      playerOutput.material.uniforms.uPlayerGravity.value = playerSettings.gravity;
+      playerOutput.material.uniforms.uPlayerMass.value = playerSettings.mass;
+      playerOutput.material.uniforms.uPlayerFriction.value = playerSettings.friction;
+      playerOutput.material.uniforms.uPlayerAirResistance.value = playerSettings.airResistance;
+      playerOutput.material.uniforms.uPushOutStrength.value = playerSettings.pushOutStrength;
+      // Hitbox dimensions
+      playerOutput.material.uniforms.uPlayerWidth.value = playerDims.width;
+      playerOutput.material.uniforms.uPlayerHeight.value = playerDims.height;
+      playerOutput.material.uniforms.uHeadRadius.value = playerDims.headRadius;
+      playerOutput.material.uniforms.uBodyWidth.value = playerDims.bodyWidth;
+      playerOutput.material.uniforms.uBodyHeight.value = playerDims.bodyHeight;
+      playerOutput.material.uniforms.uLegWidth.value = playerDims.legWidth;
+      playerOutput.material.uniforms.uLegHeight.value = playerDims.legHeight;
+      playerOutput.material.uniforms.uFootOffset.value = playerDims.footOffset;
+      playerOutput.camera.position.z = 1;
+      playerOutput.camera.updateProjectionMatrix();
+
+      // Render to player output texture (4x4)
+      gl.setRenderTarget(playerOutputRT);
+      gl.render(playerOutput.scene, playerOutput.camera);
+      gl.setRenderTarget(null);
+
+      // Read back player physics output
+      const outputPixels = new Float32Array(PLAYER_OUTPUT_SIZE * PLAYER_OUTPUT_SIZE * 4);
+      gl.readRenderTargetPixels(playerOutputRT, 0, 0, PLAYER_OUTPUT_SIZE, PLAYER_OUTPUT_SIZE, outputPixels);
+
+      // Update player state from GPU output
+      playerManager.readOutputFromGPU(outputPixels);
+    }
+
     // Execute particle state steps (non-heat/force steps)
     for (const step of config.steps) {
       if (!step.enabled || step.passes <= 0) continue;
 
       // Skip heat/force transfer - handled separately below
+      // Skip player update - handled above
       if (
         step.type === SimulationStepType.HEAT_TRANSFER ||
         step.type === SimulationStepType.PARTICLE_ONLY_HEAT ||
-        step.type === SimulationStepType.FORCE_TRANSFER
+        step.type === SimulationStepType.FORCE_TRANSFER ||
+        step.type === SimulationStepType.PLAYER_UPDATE
       ) {
         continue;
       }

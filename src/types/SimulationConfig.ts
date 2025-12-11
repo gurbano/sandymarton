@@ -4,6 +4,7 @@
  */
 
 export enum SimulationStepType {
+  PLAYER_UPDATE = 'player-update',
   MARGOLUS_CA = 'margolus-ca',
   LIQUID_SPREAD = 'liquid-spread',
   ARCHIMEDES = 'archimedes',
@@ -51,6 +52,13 @@ export const DEFAULT_SIMULATION_CONFIG: SimulationConfig = {
   frictionAmplifier: 1.3,
   ambientHeatSettings: { ...DEFAULT_AMBIENT_HEAT_SETTINGS },
   steps: [
+    {
+      type: SimulationStepType.PLAYER_UPDATE,
+      enabled: false,  // Disabled by default, enable when player spawns
+      passes: 10,
+      name: 'Player Update',
+      description: 'Player physics, collision, and particle displacement',
+    },
     {
       type: SimulationStepType.MARGOLUS_CA,
       enabled: true,

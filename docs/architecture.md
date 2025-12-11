@@ -28,9 +28,16 @@ Two dedicated passes run before the configurable particle pipeline whenever buil
 
 The buildables manager keeps position/data textures and exposes a `syncToGPU()` method that uploads edits triggered by UI interactions or scripts just before the frame executes.
 
+### Player Simulation Stage
+
+- `PlayerManager` owns the articulated character, storing position, velocity, walk phase, and runtime-adjustable settings (speed, gravity, push-out force).
+- `MainSimulation` executes a dedicated `player-update` shader right after the buildable passes. The shader samples the current world state, resolves collisions, and writes results into a 4×4 floating-point render target for CPU consumption.
+- The world texture remains untouched; the renderer draws the player as an overlay sprite using live uniforms sourced from `PlayerManager`.
+- When the player is disabled the pass short-circuits, keeping the pipeline cost identical to pre-player builds.
+
 ### Particle Pipeline
 
-Particle-focused passes mutate the world texture using four rotating render targets. The default ordering is:
+Particle-focused passes mutate the world texture using four rotating render targets. After buildables and (optionally) the player logic run, the default ordering is:
 
 1. **Margolus Cellular Automaton** – Granular settling and friction-controlled randomness.
 2. **Liquid Spread** – Directional liquid leveling with stochastic variance.
@@ -59,6 +66,7 @@ flowchart TD
       BH[Buildables → Heat]
     end
     subgraph Particle Passes
+      Player[Player Update]
       M[Margolus CA]
       L[Liquid Spread]
       A[Archimedes]
@@ -69,7 +77,7 @@ flowchart TD
     subgraph Heat Passes
       Ambient[Ambient Heat Transfer]
     end
-    BW --> M
+  BW --> Player --> M
     M --> L --> A --> PHeat --> PT --> FT
     BH --> Ambient
     PT --> Ambient
@@ -107,6 +115,8 @@ When `renderConfig` enables post-processing, a dedicated base color render targe
 - **`SimulationControls.tsx`** – Adjusts pass counts, friction amplifier, and pause/reset behavior.
 - **`useParticleDrawing`** – Mirrors shader math to convert screen coordinates to world coordinates, performs circular brush edits directly on the CPU-side texture, and surfaces inspection data that merges particle and ambient temperatures.
 - **`ParticleCounter.tsx`** – Uses a reusable typed-array accumulator to produce aggregate counts on a throttled timer.
+- **`StatusBar.tsx`** – Displays FPS, current material, and exposes simulation toggles including the player enable switch and per-player tuning sliders.
+- **`usePlayerInput`** – Captures keyboard state (movement, jump, crouch placeholders) and streams it into the GPU player update stage when enabled.
 - **Buildables Manager** – Stores up to `BUILDABLES_TEXTURE_WIDTH × BUILDABLES_TEXTURE_HEIGHT` device slots and exposes sync hooks for both CPU edits and GPU consumption.
 
 ## Data Flow
@@ -116,8 +126,11 @@ flowchart LR
     UI[UI & Tools] -->|config updates| SimConfig[SimulationConfig]
     UI -->|draw/build| CPUTexture[(CPU DataTexture)]
     UI -->|place devices| BuildablesMgr[Buildables Manager]
+    UI -->|player toggles| PlayerMgr[Player Manager]
     SimConfig -->|uniforms| MainSim
     BuildablesMgr -->|syncToGPU| MainSim
+    PlayerMgr -->|settings & enablement| MainSim
+    PlayerMgr -->|overlay state| Renderer
     CPUTexture -->|uploaded once| GPUState[(GPU State Texture)]
   MainSim["MainSimulation<br/>(passes + buildables)"] -->|ping-pong| GPUState
     MainSim --> HeatRTs[(Heat/Force RTs)]

@@ -83,6 +83,14 @@ The final shader (`rendererShader`) draws either the base state or the fully pro
 
 Liquids (particle IDs 64–111) receive a dual-layer noise modulation driven by `uTime` to create gentle shimmer. Brightness varies by ±8%, and a small colour shift keeps motion visible without overpowering the materials.
 
+### Player Overlay
+
+`TextureRenderer` reads player state directly from `PlayerManager` each frame and feeds it into the display shader via uniforms such as `uPlayerPosition`, `uPlayerWalkPhase`, and body dimension parameters.
+
+- The sprite is procedural: head, torso, legs, and feet are drawn from simple geometric primitives in the fragment shader.
+- Colours are authored in TypeScript and sent down as linear RGB vectors so palette swaps remain trivial.
+- When the player is disabled the shader simply skips the overlay, avoiding extra draw calls or depth layers.
+
 ### Out-of-bounds Guard
 
 Pixels outside the world texture fall back to a dark checkered pattern so players can identify view limits while panning.
