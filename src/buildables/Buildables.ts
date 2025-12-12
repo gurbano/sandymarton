@@ -8,6 +8,7 @@ export enum BuildableType {
   MATERIAL_SINK = 'material_sink',
   HEAT_SOURCE = 'heat_source',
   COLD_SOURCE = 'cold_source',
+  FORCE_SOURCE = 'force_source',
 
   // Future: gravity wells, props, etc.
   // GRAVITY_WELL = 'gravity_well',

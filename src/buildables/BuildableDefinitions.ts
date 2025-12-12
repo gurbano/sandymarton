@@ -10,6 +10,8 @@ import {
   GPU_BUILDABLE_TYPE,
   LIFETIME_PERMANENT,
   DEFAULT_HEAT_INTENSITY,
+  DEFAULT_FORCE_INTENSITY,
+  IMPULSE_DURATION,
 } from './BuildablesConstants';
 import { getBuildablesManager } from './BuildablesTextureManager';
 import { ParticleType } from '../world/ParticleTypes';
@@ -104,6 +106,28 @@ export const BuildableDefinitions: BuildableDefinition[] = [
       });
       if (slot !== null) {
         console.log('Cold Source placed at', context.worldX, context.worldY, 'slot:', slot);
+      }
+    },
+  },
+  {
+    type: BuildableType.FORCE_SOURCE,
+    name: 'Force Impulse',
+    description: 'Applies a brief upward force impulse to eject particles (dies after a few frames)',
+    category: BuildableCategory.SOURCES,
+    icon: 'burst',
+    onPlace: (context: BuildableClickContext) => {
+      const manager = getBuildablesManager();
+      const slot = manager.addBuildable({
+        type: GPU_BUILDABLE_TYPE.FORCE_SOURCE,
+        x: context.worldX,
+        y: context.worldY,
+        subtype: DEFAULT_FORCE_INTENSITY / 10, // Force intensity (scaled down, shader scales up)
+        radius: context.brushSize * 2, // Force has larger radius than brush
+        lifetime: IMPULSE_DURATION, // Dies after a few frames
+        rate: 1.0, // Full force application rate
+      });
+      if (slot !== null) {
+        console.log('Force Impulse placed at', context.worldX, context.worldY, 'slot:', slot);
       }
     },
   },

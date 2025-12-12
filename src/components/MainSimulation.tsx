@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react';
 import type { RefObject } from 'react';
 import {
+  Color,
   DataTexture,
   FloatType,
   Mesh,
@@ -46,6 +47,16 @@ import {
   playerUpdateVertexShader,
   playerOutputFragmentShader,
 } from '../shaders/playerUpdateShaders';
+import {
+  dynamicVertexShader,
+  dynamicExtractWorldFragmentShader,
+  dynamicExtractBufferFragmentShader,
+  dynamicExtractAuxFragmentShader,
+  dynamicSimulateFragmentShader,
+  dynamicCollisionFragmentShader,
+  dynamicReintegrateWorldFragmentShader,
+  dynamicReintegrateAuxFragmentShader,
+} from '../shaders/dynamicParticlesShaders';
 import { useFrame, useThree } from '@react-three/fiber';
 import type { SimulationConfig } from '../types/SimulationConfig';
 import { SimulationStepType, DEFAULT_AMBIENT_HEAT_SETTINGS } from '../types/SimulationConfig';
@@ -57,6 +68,8 @@ import {
   BUILDABLES_TEXTURE_HEIGHT,
 } from '../buildables';
 import { getPlayerManager, PLAYER_OUTPUT_SIZE } from '../player';
+import { getDynamicParticlesManager } from '../particles/DynamicParticlesManager';
+import { DYNAMIC_BUFFER_SIZE, MAX_DYNAMIC_PARTICLES } from '../types/DynamicParticlesConfig';
 
 interface MainSimulationProps {
   worldTexture: DataTexture;
@@ -66,10 +79,15 @@ interface MainSimulationProps {
   onHeatTextureReady?: (texture: DataTexture) => void;
   /** Ref to share heat RT texture directly with rendering (avoids GPU read-back) */
   heatRTRef?: RefObject<Texture | null>;
+  /** Ref to share dynamic particle buffer with rendering */
+  dynamicBufferRef?: RefObject<Texture | null>;
+  /** Ref to share dynamic particle aux buffer with rendering */
+  dynamicAuxBufferRef?: RefObject<Texture | null>;
   enabled?: boolean;
   config: SimulationConfig;
   resetCount?: number;
   onFpsUpdate?: (fps: number) => void;
+  onDynamicParticleCountUpdate?: (count: number) => void;
   shouldCaptureHeatLayer?: boolean;
 }
 
@@ -133,10 +151,13 @@ function MainSimulation({
   textureSize,
   onHeatTextureReady,
   heatRTRef,
+  dynamicBufferRef,
+  dynamicAuxBufferRef,
   enabled = true,
   config,
   resetCount = 0,
   onFpsUpdate,
+  onDynamicParticleCountUpdate,
   shouldCaptureHeatLayer = false,
 }: MainSimulationProps) {
   const { gl } = useThree();
@@ -168,6 +189,33 @@ function MainSimulation({
     });
   }, []);
 
+  // Dynamic particle render targets (FloatType for position/velocity precision)
+  const dynamicBufferRTs = useMemo(() => {
+    const createDynamicRT = () =>
+      new WebGLRenderTarget(DYNAMIC_BUFFER_SIZE, DYNAMIC_BUFFER_SIZE, {
+        type: FloatType,
+        format: RGBAFormat,
+        minFilter: NearestFilter,
+        magFilter: NearestFilter,
+        depthBuffer: false,
+        stencilBuffer: false,
+      });
+    return [createDynamicRT(), createDynamicRT()]; // Ping-pong pair
+  }, []);
+
+  const dynamicAuxBufferRTs = useMemo(() => {
+    const createDynamicRT = () =>
+      new WebGLRenderTarget(DYNAMIC_BUFFER_SIZE, DYNAMIC_BUFFER_SIZE, {
+        type: FloatType,
+        format: RGBAFormat,
+        minFilter: NearestFilter,
+        magFilter: NearestFilter,
+        depthBuffer: false,
+        stencilBuffer: false,
+      });
+    return [createDynamicRT(), createDynamicRT()]; // Ping-pong pair
+  }, []);
+
   const margolusSceneRef = useRef<SimulationResources | null>(null);
   const liquidSpreadSceneRef = useRef<SimulationResources | null>(null);
   const archimedesSceneRef = useRef<SimulationResources | null>(null);
@@ -178,6 +226,16 @@ function MainSimulation({
   const buildablesToHeatSceneRef = useRef<SimulationResources | null>(null);
   const buildablesToWorldSceneRef = useRef<SimulationResources | null>(null);
   const playerOutputSceneRef = useRef<SimulationResources | null>(null);
+  // Dynamic particles scene refs
+  const dynamicExtractWorldSceneRef = useRef<SimulationResources | null>(null);
+  const dynamicExtractBufferSceneRef = useRef<SimulationResources | null>(null);
+  const dynamicExtractAuxSceneRef = useRef<SimulationResources | null>(null);
+  const dynamicSimulateSceneRef = useRef<SimulationResources | null>(null);
+  const dynamicCollisionSceneRef = useRef<SimulationResources | null>(null);
+  const dynamicReintegrateWorldSceneRef = useRef<SimulationResources | null>(null);
+  const dynamicReintegrateAuxSceneRef = useRef<SimulationResources | null>(null);
+  const dynamicBufferIndexRef = useRef(0);
+  const dynamicAuxBufferIndexRef = useRef(0);
   const margolusIterationRef = useRef(0);
   const liquidSpreadIterationRef = useRef(0);
   const archimedesIterationRef = useRef(0);
@@ -202,6 +260,10 @@ function MainSimulation({
   const frameTimeIndexRef = useRef(0);
   const frameTimeCountRef = useRef(0);
   const lastFpsUpdateRef = useRef(0);
+
+  // Dynamic particle count tracking
+  const lastDynamicCountUpdateRef = useRef(0);
+  const dynamicCountPixelsRef = useRef<Float32Array | null>(null);
 
   // Create simulation resources
   useEffect(() => {
@@ -358,6 +420,101 @@ function MainSimulation({
     playerOutputResources.material.uniforms.uLegHeight = { value: playerDims.legHeight };
     playerOutputResources.material.uniforms.uFootOffset = { value: playerDims.footOffset };
 
+    // Create dynamic particle resources
+    const dynamicParticlesManager = getDynamicParticlesManager();
+
+    // Extract pass - world output (removes particles that were actually captured)
+    // MUST run AFTER Extract Buffer and Extract Aux passes
+    const dynamicExtractWorldResources = createSimulationResources(textureSize, worldTexture, {
+      vertexShader: dynamicVertexShader,
+      fragmentShader: dynamicExtractWorldFragmentShader,
+    });
+    dynamicExtractWorldResources.material.uniforms.uNewDynamicBuffer = { value: dynamicParticlesManager.positionBuffer };
+    dynamicExtractWorldResources.material.uniforms.uNewDynamicAuxBuffer = { value: dynamicParticlesManager.auxBuffer };
+    dynamicExtractWorldResources.material.uniforms.uDynamicBufferSize = { value: DYNAMIC_BUFFER_SIZE };
+    dynamicExtractWorldResources.material.uniforms.uMaxDynamicParticles = { value: MAX_DYNAMIC_PARTICLES };
+    dynamicExtractWorldResources.material.uniforms.uDynamicEnabled = { value: 0 };
+
+    // Extract pass - buffer output (writes new dynamics)
+    const dynamicExtractBufferResources = createSimulationResources(DYNAMIC_BUFFER_SIZE, dynamicParticlesManager.positionBuffer, {
+      vertexShader: dynamicVertexShader,
+      fragmentShader: dynamicExtractBufferFragmentShader,
+    });
+    dynamicExtractBufferResources.material.uniforms.uHeatForceLayer = { value: heatForceTexture };
+    dynamicExtractBufferResources.material.uniforms.uDynamicBuffer = { value: dynamicParticlesManager.positionBuffer };
+    dynamicExtractBufferResources.material.uniforms.uDynamicAuxBuffer = { value: dynamicParticlesManager.auxBuffer };
+    dynamicExtractBufferResources.material.uniforms.uDynamicBufferSize = { value: DYNAMIC_BUFFER_SIZE };
+    dynamicExtractBufferResources.material.uniforms.uMaxDynamicParticles = { value: MAX_DYNAMIC_PARTICLES };
+    dynamicExtractBufferResources.material.uniforms.uForceEjectionThreshold = { value: 50 };
+    dynamicExtractBufferResources.material.uniforms.uDynamicEnabled = { value: 0 };
+    dynamicExtractBufferResources.material.uniforms.uRandomSeed = { value: 0 };
+    dynamicExtractBufferResources.material.uniforms.uSpeedMultiplier = { value: 0.2 };
+
+    // Extract pass - aux output (writes type/temp/flags)
+    const dynamicExtractAuxResources = createSimulationResources(DYNAMIC_BUFFER_SIZE, dynamicParticlesManager.auxBuffer, {
+      vertexShader: dynamicVertexShader,
+      fragmentShader: dynamicExtractAuxFragmentShader,
+    });
+    dynamicExtractAuxResources.material.uniforms.uHeatForceLayer = { value: heatForceTexture };
+    dynamicExtractAuxResources.material.uniforms.uDynamicBuffer = { value: dynamicParticlesManager.positionBuffer };
+    dynamicExtractAuxResources.material.uniforms.uDynamicAuxBuffer = { value: dynamicParticlesManager.auxBuffer };
+    dynamicExtractAuxResources.material.uniforms.uDynamicBufferSize = { value: DYNAMIC_BUFFER_SIZE };
+    dynamicExtractAuxResources.material.uniforms.uMaxDynamicParticles = { value: MAX_DYNAMIC_PARTICLES };
+    dynamicExtractAuxResources.material.uniforms.uForceEjectionThreshold = { value: 50 };
+    dynamicExtractAuxResources.material.uniforms.uDynamicEnabled = { value: 0 };
+
+    // Simulate pass - physics update
+    const dynamicSimulateResources = createSimulationResources(DYNAMIC_BUFFER_SIZE, dynamicParticlesManager.positionBuffer, {
+      vertexShader: dynamicVertexShader,
+      fragmentShader: dynamicSimulateFragmentShader,
+    });
+    dynamicSimulateResources.material.uniforms.uDynamicBuffer = { value: dynamicParticlesManager.positionBuffer };
+    dynamicSimulateResources.material.uniforms.uDynamicAuxBuffer = { value: dynamicParticlesManager.auxBuffer };
+    dynamicSimulateResources.material.uniforms.uHeatForceLayer = { value: heatForceTexture };
+    dynamicSimulateResources.material.uniforms.uDynamicBufferSize = { value: DYNAMIC_BUFFER_SIZE };
+    dynamicSimulateResources.material.uniforms.uDynamicGravity = { value: 0.1 };
+    dynamicSimulateResources.material.uniforms.uDynamicFriction = { value: 0.98 };
+    dynamicSimulateResources.material.uniforms.uDynamicEnabled = { value: 0 };
+    dynamicSimulateResources.material.uniforms.uSpeedMultiplier = { value: 0.2 };
+
+    // Collision pass - ray-march and bounce
+    const dynamicCollisionResources = createSimulationResources(DYNAMIC_BUFFER_SIZE, dynamicParticlesManager.positionBuffer, {
+      vertexShader: dynamicVertexShader,
+      fragmentShader: dynamicCollisionFragmentShader,
+    });
+    dynamicCollisionResources.material.uniforms.uDynamicBuffer = { value: dynamicParticlesManager.positionBuffer };
+    dynamicCollisionResources.material.uniforms.uDynamicAuxBuffer = { value: dynamicParticlesManager.auxBuffer };
+    dynamicCollisionResources.material.uniforms.uDynamicBufferSize = { value: DYNAMIC_BUFFER_SIZE };
+    dynamicCollisionResources.material.uniforms.uMaxTraversal = { value: 4 };
+    dynamicCollisionResources.material.uniforms.uVelocityThreshold = { value: 0.5 };
+    dynamicCollisionResources.material.uniforms.uBounceRestitution = { value: 0.6 };
+    dynamicCollisionResources.material.uniforms.uDynamicEnabled = { value: 0 };
+    dynamicCollisionResources.material.uniforms.uRandomSeed = { value: 0 };
+
+    // Reintegrate pass - world output (writes settled particles)
+    const dynamicReintegrateWorldResources = createSimulationResources(textureSize, worldTexture, {
+      vertexShader: dynamicVertexShader,
+      fragmentShader: dynamicReintegrateWorldFragmentShader,
+    });
+    dynamicReintegrateWorldResources.material.uniforms.uDynamicBuffer = { value: dynamicParticlesManager.positionBuffer };
+    dynamicReintegrateWorldResources.material.uniforms.uDynamicAuxBuffer = { value: dynamicParticlesManager.auxBuffer };
+    dynamicReintegrateWorldResources.material.uniforms.uDynamicBufferSize = { value: DYNAMIC_BUFFER_SIZE };
+    dynamicReintegrateWorldResources.material.uniforms.uMaxDynamicParticles = { value: MAX_DYNAMIC_PARTICLES };
+    dynamicReintegrateWorldResources.material.uniforms.uDynamicEnabled = { value: 0 };
+    dynamicReintegrateWorldResources.material.uniforms.uRandomSeed = { value: 0 };
+    dynamicReintegrateWorldResources.material.uniforms.uVelocityThreshold = { value: 0.5 };
+
+    // Reintegrate pass - aux output (clears settled particles)
+    const dynamicReintegrateAuxResources = createSimulationResources(DYNAMIC_BUFFER_SIZE, dynamicParticlesManager.auxBuffer, {
+      vertexShader: dynamicVertexShader,
+      fragmentShader: dynamicReintegrateAuxFragmentShader,
+    });
+    dynamicReintegrateAuxResources.material.uniforms.uDynamicBuffer = { value: dynamicParticlesManager.positionBuffer };
+    dynamicReintegrateAuxResources.material.uniforms.uDynamicAuxBuffer = { value: dynamicParticlesManager.auxBuffer };
+    dynamicReintegrateAuxResources.material.uniforms.uDynamicBufferSize = { value: DYNAMIC_BUFFER_SIZE };
+    dynamicReintegrateAuxResources.material.uniforms.uDynamicEnabled = { value: 0 };
+    dynamicReintegrateAuxResources.material.uniforms.uVelocityThreshold = { value: 0.5 };
+
     margolusSceneRef.current = margolusResources;
     liquidSpreadSceneRef.current = liquidSpreadResources;
     archimedesSceneRef.current = archimedesResources;
@@ -368,6 +525,13 @@ function MainSimulation({
     buildablesToHeatSceneRef.current = buildablesToHeatResources;
     buildablesToWorldSceneRef.current = buildablesToWorldResources;
     playerOutputSceneRef.current = playerOutputResources;
+    dynamicExtractWorldSceneRef.current = dynamicExtractWorldResources;
+    dynamicExtractBufferSceneRef.current = dynamicExtractBufferResources;
+    dynamicExtractAuxSceneRef.current = dynamicExtractAuxResources;
+    dynamicSimulateSceneRef.current = dynamicSimulateResources;
+    dynamicCollisionSceneRef.current = dynamicCollisionResources;
+    dynamicReintegrateWorldSceneRef.current = dynamicReintegrateWorldResources;
+    dynamicReintegrateAuxSceneRef.current = dynamicReintegrateAuxResources;
 
     // Initialize render targets
     renderTargets.forEach((rt) => {
@@ -375,13 +539,35 @@ function MainSimulation({
       gl.setRenderTarget(rt);
       gl.clear();
     });
-    // Initialize heat render targets
+    // Initialize heat render targets with neutral force values (128/255 for BA channels)
+    // gl.clear() uses clearColor which defaults to 0, but force 0 decodes as -1 (strong left/down)
+    // We need BA channels to be 128/255 ≈ 0.502 for neutral force (decodes to ~0)
+    const prevClearColor = gl.getClearColor(new Color());
+    const prevClearAlpha = gl.getClearAlpha();
+    gl.setClearColor(new Color(0, 0, 128 / 255), 128 / 255); // R=0, G=0, B=128/255, A=128/255
     heatRenderTargets.forEach((rt) => {
       gl.initRenderTarget(rt);
       gl.setRenderTarget(rt);
       gl.clear();
     });
+    // Restore previous clear color
+    gl.setClearColor(prevClearColor, prevClearAlpha);
+    // Initialize dynamic particle render targets
+    dynamicBufferRTs.forEach((rt) => {
+      gl.initRenderTarget(rt);
+      gl.setRenderTarget(rt);
+      gl.clear();
+    });
+    dynamicAuxBufferRTs.forEach((rt) => {
+      gl.initRenderTarget(rt);
+      gl.setRenderTarget(rt);
+      gl.clear();
+    });
     gl.setRenderTarget(null);
+
+    // Reset dynamic particle buffer indices
+    dynamicBufferIndexRef.current = 0;
+    dynamicAuxBufferIndexRef.current = 0;
 
     margolusIterationRef.current = 0;
     liquidSpreadIterationRef.current = 0;
@@ -402,6 +588,13 @@ function MainSimulation({
         buildablesToHeatResources,
         buildablesToWorldResources,
         playerOutputResources,
+        dynamicExtractWorldResources,
+        dynamicExtractBufferResources,
+        dynamicExtractAuxResources,
+        dynamicSimulateResources,
+        dynamicCollisionResources,
+        dynamicReintegrateWorldResources,
+        dynamicReintegrateAuxResources,
       ].forEach((resources) => {
         resources.scene.remove(resources.mesh);
         resources.geometry.dispose();
@@ -409,10 +602,12 @@ function MainSimulation({
       });
       renderTargets.forEach((rt) => rt.dispose());
       heatRenderTargets.forEach((rt) => rt.dispose());
+      dynamicBufferRTs.forEach((rt) => rt.dispose());
+      dynamicAuxBufferRTs.forEach((rt) => rt.dispose());
       playerOutputRT.dispose();
       heatForceTexture.dispose();
     };
-  }, [textureSize, worldTexture, resetCount, gl, renderTargets, heatRenderTargets]);
+  }, [textureSize, worldTexture, resetCount, gl, renderTargets, heatRenderTargets, dynamicBufferRTs, dynamicAuxBufferRTs]);
 
   // Run simulation pipeline each frame
   useFrame((state, delta) => {
@@ -451,8 +646,9 @@ function MainSimulation({
     let currentSource: Texture = worldTexture;
     let rtIndex = 0;
 
-    // Sync buildables textures to GPU and process buildables
+    // Update and sync buildables textures to GPU
     const buildablesManager = getBuildablesManager();
+    buildablesManager.update(); // Decrement lifetimes, remove expired buildables
     buildablesManager.syncToGPU();
     const buildableCount = buildablesManager.count;
 
@@ -477,6 +673,34 @@ function MainSimulation({
 
       currentSource = targetRT.texture;
       rtIndex++;
+    }
+
+    // Process heat/cold/force buildables (apply to heat layer) - MUST run before dynamic extract
+    // NOTE: Always run this pass even with 0 buildables to clear force values from previous frames
+    if (buildablesToHeatSceneRef.current && heatForceLayerRef.current) {
+      const buildablesToHeat = buildablesToHeatSceneRef.current;
+
+      // Get current heat source
+      const heatSource: Texture = currentHeatRTIndexRef.current > 0
+        ? heatRenderTargets[(currentHeatRTIndexRef.current - 1) % heatRenderTargets.length].texture
+        : heatForceLayerRef.current;
+      const targetRT = heatRenderTargets[currentHeatRTIndexRef.current % heatRenderTargets.length];
+
+      // Update uniforms
+      buildablesToHeat.material.uniforms.uHeatTexture.value = heatSource;
+      buildablesToHeat.material.uniforms.uBuildablesPosition.value = buildablesManager.positionTexture;
+      buildablesToHeat.material.uniforms.uBuildablesData.value = buildablesManager.dataTexture;
+      buildablesToHeat.material.uniforms.uMaxBuildables.value = buildableCount;
+      buildablesToHeat.material.uniforms.uTextureSize?.value?.set?.(textureSize, textureSize);
+      buildablesToHeat.camera.position.z = 1;
+      buildablesToHeat.camera.updateProjectionMatrix();
+
+      // Render
+      gl.setRenderTarget(targetRT);
+      gl.render(buildablesToHeat.scene, buildablesToHeat.camera);
+      gl.setRenderTarget(null);
+
+      currentHeatRTIndexRef.current++;
     }
 
     // Execute player physics (read-only - doesn't modify world texture)
@@ -530,17 +754,253 @@ function MainSimulation({
       playerManager.readOutputFromGPU(outputPixels);
     }
 
+    // Execute dynamic particles system (after player, before main physics)
+    const dynamicConfig = config.dynamicParticles;
+    const dynamicExtractStep = config.steps.find((s) => s.type === SimulationStepType.DYNAMIC_EXTRACT);
+    const dynamicSimulateStep = config.steps.find((s) => s.type === SimulationStepType.DYNAMIC_SIMULATE);
+    const dynamicCollisionStep = config.steps.find((s) => s.type === SimulationStepType.DYNAMIC_COLLISION);
+
+    if (dynamicConfig?.enabled && dynamicExtractStep?.enabled) {
+      const dynamicParticlesManager = getDynamicParticlesManager();
+      const heatSource = currentHeatRTIndexRef.current > 0
+        ? heatRenderTargets[(currentHeatRTIndexRef.current - 1) % heatRenderTargets.length].texture
+        : heatForceLayerRef.current;
+
+      // Get current dynamic buffer textures
+      const currentDynamicBuffer = dynamicBufferIndexRef.current > 0
+        ? dynamicBufferRTs[(dynamicBufferIndexRef.current - 1) % dynamicBufferRTs.length].texture
+        : dynamicParticlesManager.positionBuffer;
+      const currentDynamicAux = dynamicAuxBufferIndexRef.current > 0
+        ? dynamicAuxBufferRTs[(dynamicAuxBufferIndexRef.current - 1) % dynamicAuxBufferRTs.length].texture
+        : dynamicParticlesManager.auxBuffer;
+
+      // --- EXTRACT PASS 1: Buffer output (write positions/velocities for new dynamics) ---
+      if (dynamicExtractBufferSceneRef.current) {
+        const extractBuffer = dynamicExtractBufferSceneRef.current;
+        const targetRT = dynamicBufferRTs[dynamicBufferIndexRef.current % dynamicBufferRTs.length];
+
+        extractBuffer.material.uniforms.uCurrentState.value = currentSource;
+        extractBuffer.material.uniforms.uHeatForceLayer.value = heatSource;
+        extractBuffer.material.uniforms.uDynamicBuffer.value = currentDynamicBuffer;
+        extractBuffer.material.uniforms.uDynamicAuxBuffer.value = currentDynamicAux;
+        extractBuffer.material.uniforms.uTextureSize.value.set(textureSize, textureSize);
+        extractBuffer.material.uniforms.uForceEjectionThreshold.value = dynamicConfig.forceEjectionThreshold;
+        extractBuffer.material.uniforms.uSpeedMultiplier.value = dynamicConfig.speedMultiplier;
+        extractBuffer.material.uniforms.uDynamicEnabled.value = 1;
+        extractBuffer.material.uniforms.uRandomSeed.value = state.clock.elapsedTime;
+        extractBuffer.camera.position.z = 1;
+        extractBuffer.camera.updateProjectionMatrix();
+
+        gl.setRenderTarget(targetRT);
+        gl.render(extractBuffer.scene, extractBuffer.camera);
+        gl.setRenderTarget(null);
+
+        dynamicBufferIndexRef.current++;
+      }
+
+      // --- EXTRACT PASS 2: Aux output (write type/temperature/flags for new dynamics) ---
+      if (dynamicExtractAuxSceneRef.current) {
+        const extractAux = dynamicExtractAuxSceneRef.current;
+        const latestDynamicBuffer = dynamicBufferRTs[(dynamicBufferIndexRef.current - 1) % dynamicBufferRTs.length].texture;
+        const targetRT = dynamicAuxBufferRTs[dynamicAuxBufferIndexRef.current % dynamicAuxBufferRTs.length];
+
+        extractAux.material.uniforms.uCurrentState.value = currentSource;
+        extractAux.material.uniforms.uHeatForceLayer.value = heatSource;
+        extractAux.material.uniforms.uDynamicBuffer.value = latestDynamicBuffer;
+        extractAux.material.uniforms.uDynamicAuxBuffer.value = currentDynamicAux;
+        extractAux.material.uniforms.uTextureSize.value.set(textureSize, textureSize);
+        extractAux.material.uniforms.uForceEjectionThreshold.value = dynamicConfig.forceEjectionThreshold;
+        extractAux.material.uniforms.uDynamicEnabled.value = 1;
+        extractAux.camera.position.z = 1;
+        extractAux.camera.updateProjectionMatrix();
+
+        gl.setRenderTarget(targetRT);
+        gl.render(extractAux.scene, extractAux.camera);
+        gl.setRenderTarget(null);
+
+        dynamicAuxBufferIndexRef.current++;
+      }
+
+      // --- EXTRACT PASS 3: World output (remove particles that were actually captured) ---
+      // Uses the NEW dynamic buffers (written by Extract Buffer and Extract Aux above)
+      if (dynamicExtractWorldSceneRef.current) {
+        const extractWorld = dynamicExtractWorldSceneRef.current;
+        // Get the buffers that were JUST written by Extract Buffer and Extract Aux
+        const newDynamicBuffer = dynamicBufferRTs[(dynamicBufferIndexRef.current - 1) % dynamicBufferRTs.length].texture;
+        const newDynamicAux = dynamicAuxBufferRTs[(dynamicAuxBufferIndexRef.current - 1) % dynamicAuxBufferRTs.length].texture;
+        const targetRT = renderTargets[rtIndex % renderTargets.length];
+
+        extractWorld.material.uniforms.uCurrentState.value = currentSource;
+        extractWorld.material.uniforms.uNewDynamicBuffer.value = newDynamicBuffer;
+        extractWorld.material.uniforms.uNewDynamicAuxBuffer.value = newDynamicAux;
+        extractWorld.material.uniforms.uTextureSize.value.set(textureSize, textureSize);
+        extractWorld.material.uniforms.uDynamicEnabled.value = 1;
+        extractWorld.camera.position.z = 1;
+        extractWorld.camera.updateProjectionMatrix();
+
+        gl.setRenderTarget(targetRT);
+        gl.render(extractWorld.scene, extractWorld.camera);
+        gl.setRenderTarget(null);
+
+        currentSource = targetRT.texture;
+        rtIndex++;
+      }
+
+      // Update current buffer references for subsequent passes
+      const latestDynamicBuffer = dynamicBufferRTs[(dynamicBufferIndexRef.current - 1) % dynamicBufferRTs.length].texture;
+      let latestDynamicAux = dynamicAuxBufferRTs[(dynamicAuxBufferIndexRef.current - 1) % dynamicAuxBufferRTs.length].texture;
+
+      // --- SIMULATE PASS: Physics update ---
+      if (dynamicSimulateStep?.enabled && dynamicSimulateSceneRef.current) {
+        const simulate = dynamicSimulateSceneRef.current;
+        const targetRT = dynamicBufferRTs[dynamicBufferIndexRef.current % dynamicBufferRTs.length];
+
+        simulate.material.uniforms.uDynamicBuffer.value = latestDynamicBuffer;
+        simulate.material.uniforms.uDynamicAuxBuffer.value = latestDynamicAux;
+        simulate.material.uniforms.uHeatForceLayer.value = heatSource;
+        simulate.material.uniforms.uTextureSize.value.set(textureSize, textureSize);
+        simulate.material.uniforms.uDynamicGravity.value = dynamicConfig.gravity;
+        simulate.material.uniforms.uDynamicFriction.value = dynamicConfig.friction;
+        simulate.material.uniforms.uSpeedMultiplier.value = dynamicConfig.speedMultiplier;
+        simulate.material.uniforms.uDynamicEnabled.value = 1;
+        simulate.camera.position.z = 1;
+        simulate.camera.updateProjectionMatrix();
+
+        gl.setRenderTarget(targetRT);
+        gl.render(simulate.scene, simulate.camera);
+        gl.setRenderTarget(null);
+
+        dynamicBufferIndexRef.current++;
+      }
+
+      // --- COLLISION PASS: Ray-march and bounce ---
+      if (dynamicCollisionStep?.enabled && dynamicCollisionSceneRef.current) {
+        const collision = dynamicCollisionSceneRef.current;
+        const collisionDynamicBuffer = dynamicBufferRTs[(dynamicBufferIndexRef.current - 1) % dynamicBufferRTs.length].texture;
+        const targetRT = dynamicBufferRTs[dynamicBufferIndexRef.current % dynamicBufferRTs.length];
+
+        collision.material.uniforms.uCurrentState.value = currentSource;
+        collision.material.uniforms.uDynamicBuffer.value = collisionDynamicBuffer;
+        collision.material.uniforms.uDynamicAuxBuffer.value = latestDynamicAux;
+        collision.material.uniforms.uTextureSize.value.set(textureSize, textureSize);
+        collision.material.uniforms.uMaxTraversal.value = dynamicConfig.maxTraversal;
+        collision.material.uniforms.uVelocityThreshold.value = dynamicConfig.velocityThreshold;
+        collision.material.uniforms.uBounceRestitution.value = dynamicConfig.bounceRestitution;
+        collision.material.uniforms.uDynamicEnabled.value = 1;
+        collision.material.uniforms.uRandomSeed.value = state.clock.elapsedTime;
+        collision.camera.position.z = 1;
+        collision.camera.updateProjectionMatrix();
+
+        gl.setRenderTarget(targetRT);
+        gl.render(collision.scene, collision.camera);
+        gl.setRenderTarget(null);
+
+        dynamicBufferIndexRef.current++;
+      }
+
+      // --- REINTEGRATE PASS 1: World output (write settled particles) ---
+      if (dynamicReintegrateWorldSceneRef.current) {
+        const reintegrateWorld = dynamicReintegrateWorldSceneRef.current;
+        const reintegrateDynamicBuffer = dynamicBufferRTs[(dynamicBufferIndexRef.current - 1) % dynamicBufferRTs.length].texture;
+        const targetRT = renderTargets[rtIndex % renderTargets.length];
+
+        reintegrateWorld.material.uniforms.uCurrentState.value = currentSource;
+        reintegrateWorld.material.uniforms.uDynamicBuffer.value = reintegrateDynamicBuffer;
+        reintegrateWorld.material.uniforms.uDynamicAuxBuffer.value = latestDynamicAux;
+        reintegrateWorld.material.uniforms.uTextureSize.value.set(textureSize, textureSize);
+        reintegrateWorld.material.uniforms.uDynamicEnabled.value = 1;
+        reintegrateWorld.material.uniforms.uRandomSeed.value = Math.random();
+        reintegrateWorld.material.uniforms.uVelocityThreshold.value = dynamicConfig.velocityThreshold;
+        reintegrateWorld.camera.position.z = 1;
+        reintegrateWorld.camera.updateProjectionMatrix();
+
+        gl.setRenderTarget(targetRT);
+        gl.render(reintegrateWorld.scene, reintegrateWorld.camera);
+        gl.setRenderTarget(null);
+
+        currentSource = targetRT.texture;
+        rtIndex++;
+      }
+
+      // --- REINTEGRATE PASS 2: Aux output (clear slots of settled particles) ---
+      if (dynamicReintegrateAuxSceneRef.current) {
+        const reintegrateAux = dynamicReintegrateAuxSceneRef.current;
+        const reintegrateDynamicBuffer = dynamicBufferRTs[(dynamicBufferIndexRef.current - 1) % dynamicBufferRTs.length].texture;
+        const targetRT = dynamicAuxBufferRTs[dynamicAuxBufferIndexRef.current % dynamicAuxBufferRTs.length];
+
+        reintegrateAux.material.uniforms.uDynamicBuffer.value = reintegrateDynamicBuffer;
+        reintegrateAux.material.uniforms.uDynamicAuxBuffer.value = latestDynamicAux;
+        reintegrateAux.material.uniforms.uCurrentState.value = currentSource; // World after reintegration
+        reintegrateAux.material.uniforms.uTextureSize.value.set(textureSize, textureSize);
+        reintegrateAux.material.uniforms.uDynamicEnabled.value = 1;
+        reintegrateAux.material.uniforms.uVelocityThreshold.value = dynamicConfig.velocityThreshold;
+        reintegrateAux.camera.position.z = 1;
+        reintegrateAux.camera.updateProjectionMatrix();
+
+        gl.setRenderTarget(targetRT);
+        gl.render(reintegrateAux.scene, reintegrateAux.camera);
+        gl.setRenderTarget(null);
+
+        dynamicAuxBufferIndexRef.current++;
+      }
+
+      // Update latestDynamicAux to point to the newly written aux buffer
+      latestDynamicAux = dynamicAuxBufferRTs[(dynamicAuxBufferIndexRef.current - 1) % dynamicAuxBufferRTs.length].texture;
+
+      // Expose dynamic buffers for rendering
+      if (dynamicBufferRef) {
+        const finalDynamicBuffer = dynamicBufferRTs[(dynamicBufferIndexRef.current - 1) % dynamicBufferRTs.length].texture;
+        (dynamicBufferRef as React.MutableRefObject<Texture | null>).current = finalDynamicBuffer;
+      }
+      if (dynamicAuxBufferRef) {
+        const finalDynamicAux = dynamicAuxBufferRTs[(dynamicAuxBufferIndexRef.current - 1) % dynamicAuxBufferRTs.length].texture;
+        (dynamicAuxBufferRef as React.MutableRefObject<Texture | null>).current = finalDynamicAux;
+      }
+
+      // Count active dynamic particles periodically (every 0.5s) for debug display
+      if (onDynamicParticleCountUpdate) {
+        const now = state.clock.elapsedTime;
+        if (now - lastDynamicCountUpdateRef.current > 0.5) {
+          lastDynamicCountUpdateRef.current = now;
+
+          // Lazily allocate pixel buffer for readback
+          if (!dynamicCountPixelsRef.current) {
+            dynamicCountPixelsRef.current = new Float32Array(DYNAMIC_BUFFER_SIZE * DYNAMIC_BUFFER_SIZE * 4);
+          }
+
+          // Read back the aux buffer to count active particles
+          const auxRT = dynamicAuxBufferRTs[(dynamicAuxBufferIndexRef.current - 1) % dynamicAuxBufferRTs.length];
+          gl.readRenderTargetPixels(auxRT, 0, 0, DYNAMIC_BUFFER_SIZE, DYNAMIC_BUFFER_SIZE, dynamicCountPixelsRef.current);
+
+          // Count particles with ACTIVE flag (bit 0 of flags in B channel)
+          let activeCount = 0;
+          const pixels = dynamicCountPixelsRef.current;
+          for (let i = 0; i < MAX_DYNAMIC_PARTICLES; i++) {
+            const flags = pixels[i * 4 + 2]; // B channel = flags
+            if ((Math.floor(flags) & 1) !== 0) { // Check ACTIVE flag (bit 0)
+              activeCount++;
+            }
+          }
+          onDynamicParticleCountUpdate(activeCount);
+        }
+      }
+    }
+
     // Execute particle state steps (non-heat/force steps)
     for (const step of config.steps) {
       if (!step.enabled || step.passes <= 0) continue;
 
       // Skip heat/force transfer - handled separately below
       // Skip player update - handled above
+      // Skip dynamic particles - handled above
       if (
         step.type === SimulationStepType.HEAT_TRANSFER ||
         step.type === SimulationStepType.PARTICLE_ONLY_HEAT ||
         step.type === SimulationStepType.FORCE_TRANSFER ||
-        step.type === SimulationStepType.PLAYER_UPDATE
+        step.type === SimulationStepType.PLAYER_UPDATE ||
+        step.type === SimulationStepType.DYNAMIC_EXTRACT ||
+        step.type === SimulationStepType.DYNAMIC_SIMULATE ||
+        step.type === SimulationStepType.DYNAMIC_COLLISION
       ) {
         continue;
       }
@@ -678,33 +1138,6 @@ function MainSimulation({
       const worldData = worldTexture.image.data as Uint8Array;
       worldData.set(pixels);
       worldTexture.needsUpdate = true;
-    }
-
-    // Process heat/cold buildables (apply heat to heat layer)
-    if (buildableCount > 0 && buildablesToHeatSceneRef.current && heatForceLayerRef.current) {
-      const buildablesToHeat = buildablesToHeatSceneRef.current;
-
-      // Get current heat source
-      const heatSource: Texture = currentHeatRTIndexRef.current > 0
-        ? heatRenderTargets[(currentHeatRTIndexRef.current - 1) % heatRenderTargets.length].texture
-        : heatForceLayerRef.current;
-      const targetRT = heatRenderTargets[currentHeatRTIndexRef.current % heatRenderTargets.length];
-
-      // Update uniforms
-      buildablesToHeat.material.uniforms.uHeatTexture.value = heatSource;
-      buildablesToHeat.material.uniforms.uBuildablesPosition.value = buildablesManager.positionTexture;
-      buildablesToHeat.material.uniforms.uBuildablesData.value = buildablesManager.dataTexture;
-      buildablesToHeat.material.uniforms.uMaxBuildables.value = buildableCount;
-      buildablesToHeat.material.uniforms.uTextureSize.value.set(textureSize, textureSize);
-      buildablesToHeat.camera.position.z = 1;
-      buildablesToHeat.camera.updateProjectionMatrix();
-
-      // Render
-      gl.setRenderTarget(targetRT);
-      gl.render(buildablesToHeat.scene, buildablesToHeat.camera);
-      gl.setRenderTarget(null);
-
-      currentHeatRTIndexRef.current++;
     }
 
     // Execute ambient heat transfer (updates heat layer from particle temperatures)

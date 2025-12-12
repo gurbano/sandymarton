@@ -14,6 +14,7 @@ interface StatusBarProps {
   center: { x: number; y: number };
   selectedParticle: ParticleType;
   fps: number;
+  dynamicParticleCount?: number;
   worldTexture: DataTexture;
   simulationConfig: SimulationConfig;
   onSimulationConfigChange: (config: SimulationConfig) => void;
@@ -28,6 +29,7 @@ export function StatusBar({
   center,
   selectedParticle,
   fps,
+  dynamicParticleCount = 0,
   worldTexture,
   simulationConfig,
   onSimulationConfigChange,
@@ -107,6 +109,8 @@ export function StatusBar({
         <span className="status-item">FPS: {fps}</span>
         <span className="status-divider">|</span>
         <ParticleCounter worldTexture={worldTexture} />
+        <span className="status-divider">|</span>
+        <span className="status-item" title="Active dynamic particles">Dyn: {dynamicParticleCount}</span>
         <span className="status-divider">|</span>
         <span className="status-item">Zoom: {pixelSize}</span>
         <span className="status-divider">|</span>

@@ -1,6 +1,11 @@
 /**
- * Shader for applying heat/cold from buildables to the heat layer
- * Iterates through all buildables and modifies heat in their radius
+ * Shader for applying heat/cold/force from buildables to the heat layer
+ * Iterates through all buildables and modifies heat and force in their radius
+ *
+ * Heat texture layout:
+ * - RG: temperature (16-bit encoded)
+ * - B: force X (128 = neutral)
+ * - A: force Y (128 = neutral)
  */
 
 import { BUILDABLES_GLSL_UTILS, BUILDABLES_TEXTURE_WIDTH, BUILDABLES_TEXTURE_HEIGHT } from '../buildables/BuildablesConstants';
@@ -50,11 +55,16 @@ void main() {
   // Decode current ambient temperature (stored in RG)
   float ambientTemp = decodeHeat(currentHeat.rg);
 
+  // Force is NOT accumulated - it's freshly computed each frame
+  // (unlike heat which accumulates over time)
+
   // Current world position (0 to worldSize-1)
   vec2 worldPos = vUv * uWorldSize;
 
   // Accumulate heat changes from all heat/cold sources
   float heatDelta = 0.0;
+  // Accumulate force changes from all force sources
+  vec2 forceDelta = vec2(0.0);
 
   // Iterate through buildables texture
   // Note: This is O(buildables) per pixel - could optimize with spatial hashing
@@ -72,8 +82,8 @@ void main() {
 
     float type = unpackType(bData.r);
 
-    // Skip if not a heat source or cold source
-    if (type != BUILDABLE_HEAT_SOURCE && type != BUILDABLE_COLD_SOURCE) {
+    // Skip if not a heat/cold/force source
+    if (type != BUILDABLE_HEAT_SOURCE && type != BUILDABLE_COLD_SOURCE && type != BUILDABLE_FORCE_SOURCE) {
       continue;
     }
 
@@ -90,16 +100,24 @@ void main() {
 
     if (distSq <= radiusSq) {
       // Calculate falloff (stronger at center)
-      float falloff = 1.0 - sqrt(distSq) / radius;
+      float dist = sqrt(distSq);
+      float falloff = 1.0 - dist / radius;
       falloff = falloff * falloff; // Quadratic falloff
 
-      // Subtype contains the temperature intensity (scaled)
+      // Subtype contains the intensity (scaled)
       float intensity = unpackSubtype(bData.r) * 10.0; // Scale up
 
       if (type == BUILDABLE_HEAT_SOURCE) {
         heatDelta += intensity * rate * falloff;
       } else if (type == BUILDABLE_COLD_SOURCE) {
         heatDelta -= intensity * rate * falloff;
+      } else if (type == BUILDABLE_FORCE_SOURCE) {
+        // Force always points up (+Y), spreads left/right based on position relative to center
+        // Coordinate system: gravity does vel.y -= g, so -Y is down, +Y is up
+        float dirX = dist > 0.1 ? dx / dist : 0.0; // Horizontal spread based on position
+        float dirY = 1.0; // Push up (+Y direction)
+        vec2 direction = normalize(vec2(dirX, dirY));
+        forceDelta += direction * intensity * rate * 2.0; // Constant force throughout radius
       }
     }
   }
@@ -107,9 +125,13 @@ void main() {
   // Apply heat delta
   ambientTemp = clamp(ambientTemp + heatDelta, 0.0, 65535.0);
 
+  // Force is computed fresh each frame (not accumulated) - encode directly
+  vec2 newForce = clamp(forceDelta, -1.0, 1.0);
+  vec2 encodedForce = (newForce * 127.0 + 128.0) / 255.0;
+
   // Re-encode and output
   vec2 encodedHeat = encodeHeat(ambientTemp);
-  gl_FragColor = vec4(encodedHeat, currentHeat.ba);
+  gl_FragColor = vec4(encodedHeat, encodedForce);
 }
 `;
 

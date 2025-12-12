@@ -44,6 +44,7 @@ import { loadLevelIndex } from '../utils/LevelLoader';
 import type { Level } from '../types/Level';
 import type { ToolMode } from '../hooks/useParticleDrawing';
 import { BuildableType, BuildableDefinitions, getBuildablesByCategory } from '../buildables';
+import type { DynamicParticlesConfig } from '../types/DynamicParticlesConfig';
 
 const MIN_LEFT_WIDTH = 160;
 const MAX_LEFT_WIDTH = 320;
@@ -65,6 +66,8 @@ interface SideControlsProps {
   onBrushSizeChange: (size: number) => void;
   selectedBuildable: BuildableType;
   onBuildableSelect: (buildable: BuildableType) => void;
+  dynamicParticlesConfig?: DynamicParticlesConfig;
+  onDynamicParticlesConfigChange?: (config: DynamicParticlesConfig) => void;
 }
 
 const particleIcons: Record<string, IconDefinition> = {
@@ -132,6 +135,8 @@ export function SideControls({
   onBrushSizeChange,
   selectedBuildable,
   onBuildableSelect,
+  dynamicParticlesConfig,
+  onDynamicParticlesConfigChange,
 }: SideControlsProps) {
   const [availableLevels, setAvailableLevels] = useState<Level[]>([]);
   const [selectedLevel, setSelectedLevel] = useState<string>('');
@@ -147,6 +152,7 @@ export function SideControls({
   const [showOverlayGroup, setShowOverlayGroup] = useState(true);
   const [showRendererEffectsGroup, setShowRendererEffectsGroup] = useState(false);
   const [showWorldTypeGroup, setShowWorldTypeGroup] = useState(false);
+  const [showDynamicParticlesGroup, setShowDynamicParticlesGroup] = useState(false);
 
   // Load available levels on mount
   useEffect(() => {
@@ -658,6 +664,49 @@ export function SideControls({
                   </div>
                 )}
               </div>
+
+              {/* Dynamic Particles */}
+              {dynamicParticlesConfig && onDynamicParticlesConfigChange && (
+                <div className="settings-group collapsible">
+                  <button
+                    type="button"
+                    className={`settings-group-toggle ${showDynamicParticlesGroup ? 'expanded' : ''}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowDynamicParticlesGroup(prev => !prev);
+                    }}
+                  >
+                    <FontAwesomeIcon icon={showDynamicParticlesGroup ? faChevronDown : faChevronRight} />
+                    <span>Dynamic Particles</span>
+                  </button>
+                  {showDynamicParticlesGroup && (
+                    <div className="settings-group-content">
+                      <label className="effect-control">
+                        <div className="effect-control-header">
+                          <span>Speed</span>
+                          <span className="effect-value">
+                            {(dynamicParticlesConfig.speedMultiplier * 100).toFixed(0)}%
+                          </span>
+                        </div>
+                        <input
+                          type="range"
+                          min="0.05"
+                          max="1"
+                          step="0.05"
+                          value={dynamicParticlesConfig.speedMultiplier}
+                          onChange={(e) =>
+                            onDynamicParticlesConfigChange({
+                              ...dynamicParticlesConfig,
+                              speedMultiplier: parseFloat(e.target.value),
+                            })
+                          }
+                          className="passes-slider"
+                        />
+                      </label>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* World Init Type */}
               <div className="settings-group collapsible">

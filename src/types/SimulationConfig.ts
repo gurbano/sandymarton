@@ -3,8 +3,21 @@
  * Each step can be enabled/disabled and configured with number of passes
  */
 
+import type { DynamicParticlesConfig } from './DynamicParticlesConfig';
+import { DEFAULT_DYNAMIC_PARTICLES_CONFIG } from './DynamicParticlesConfig';
+
+export type { DynamicParticlesConfig };
+export {
+  DEFAULT_DYNAMIC_PARTICLES_CONFIG,
+  DYNAMIC_BUFFER_SIZE,
+  MAX_DYNAMIC_PARTICLES,
+} from './DynamicParticlesConfig';
+
 export enum SimulationStepType {
   PLAYER_UPDATE = 'player-update',
+  DYNAMIC_EXTRACT = 'dynamic-extract',
+  DYNAMIC_SIMULATE = 'dynamic-simulate',
+  DYNAMIC_COLLISION = 'dynamic-collision',
   MARGOLUS_CA = 'margolus-ca',
   LIQUID_SPREAD = 'liquid-spread',
   ARCHIMEDES = 'archimedes',
@@ -36,6 +49,7 @@ export interface SimulationConfig {
   steps: SimulationStep[];
   frictionAmplifier: number; // Exponential friction power (0-10, default 1.3)
   ambientHeatSettings: AmbientHeatSettings;
+  dynamicParticles: DynamicParticlesConfig;
 }
 
 export const DEFAULT_AMBIENT_HEAT_SETTINGS: AmbientHeatSettings = {
@@ -51,13 +65,35 @@ export const DEFAULT_AMBIENT_HEAT_SETTINGS: AmbientHeatSettings = {
 export const DEFAULT_SIMULATION_CONFIG: SimulationConfig = {
   frictionAmplifier: 1.3,
   ambientHeatSettings: { ...DEFAULT_AMBIENT_HEAT_SETTINGS },
+  dynamicParticles: { ...DEFAULT_DYNAMIC_PARTICLES_CONFIG },
   steps: [
     {
       type: SimulationStepType.PLAYER_UPDATE,
-      enabled: false,  // Disabled by default, enable when player spawns
+      enabled: false, // Disabled by default, enable when player spawns
       passes: 10,
       name: 'Player Update',
       description: 'Player physics, collision, and particle displacement',
+    },
+    {
+      type: SimulationStepType.DYNAMIC_EXTRACT,
+      enabled: true, // Disabled by default
+      passes: 10,
+      name: 'Dynamic Extract',
+      description: 'Eject particles from world into dynamic buffer when force exceeds threshold',
+    },
+    {
+      type: SimulationStepType.DYNAMIC_SIMULATE,
+      enabled: true,
+      passes: 10,
+      name: 'Dynamic Simulate',
+      description: 'Physics update for dynamic particles (gravity, forces, drag)',
+    },
+    {
+      type: SimulationStepType.DYNAMIC_COLLISION,
+      enabled: true,
+      passes: 10,
+      name: 'Dynamic Collision',
+      description: 'Ray-march movement, handle collisions, reintegrate settled particles',
     },
     {
       type: SimulationStepType.MARGOLUS_CA,
@@ -103,7 +139,7 @@ export const DEFAULT_SIMULATION_CONFIG: SimulationConfig = {
     },
     {
       type: SimulationStepType.FORCE_TRANSFER,
-      enabled: false,
+      enabled: true,
       passes: 1,
       name: 'Force Transfer',
       description: 'Force propagation through materials',

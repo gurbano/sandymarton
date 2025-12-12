@@ -15,6 +15,7 @@ export const GPU_BUILDABLE_TYPE = {
   MATERIAL_SINK: 2,
   HEAT_SOURCE: 3,
   COLD_SOURCE: 4,
+  FORCE_SOURCE: 5,
 } as const;
 
 export type GpuBuildableType = (typeof GPU_BUILDABLE_TYPE)[keyof typeof GPU_BUILDABLE_TYPE];
@@ -30,11 +31,13 @@ export const BUILDABLE_FLAGS = {
 
 // Lifetime constants
 export const LIFETIME_PERMANENT = -1;
+export const IMPULSE_DURATION = 3;  // Frames for impulse-type buildables (force source)
 
 // Default values
 export const DEFAULT_EMISSION_RATE = 1.0;    // Particles per frame
 export const DEFAULT_RADIUS = 3.0;           // World units
 export const DEFAULT_HEAT_INTENSITY = 500;   // Temperature units to add/remove
+export const DEFAULT_FORCE_INTENSITY = 100;  // Force intensity (scaled, used for dynamic particles)
 
 /**
  * CPU-side buildable instance data
@@ -142,6 +145,7 @@ const float BUILDABLE_MATERIAL_SOURCE = 1.0;
 const float BUILDABLE_MATERIAL_SINK = 2.0;
 const float BUILDABLE_HEAT_SOURCE = 3.0;
 const float BUILDABLE_COLD_SOURCE = 4.0;
+const float BUILDABLE_FORCE_SOURCE = 5.0;
 
 // Flag constants
 const float FLAG_ACTIVE = 1.0;

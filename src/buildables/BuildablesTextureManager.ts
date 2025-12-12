@@ -251,6 +251,36 @@ export class BuildablesTextureManager {
   }
 
   /**
+   * Update buildables each frame - decrements lifetimes and removes expired ones
+   * Should be called once per simulation frame
+   */
+  update(): void {
+    const toRemove: number[] = [];
+
+    for (const [slot, instance] of this.buildables) {
+      // Skip permanent buildables
+      if (instance.lifetime === LIFETIME_PERMANENT) continue;
+
+      // Decrement lifetime
+      instance.lifetime--;
+
+      // Mark for removal if expired
+      if (instance.lifetime <= 0) {
+        toRemove.push(slot);
+      } else {
+        // Update texture with new lifetime
+        this.writeToTextures(slot, instance);
+        this.dirtySlots.add(slot);
+      }
+    }
+
+    // Remove expired buildables
+    for (const slot of toRemove) {
+      this.removeBuildable(slot);
+    }
+  }
+
+  /**
    * Sync textures to GPU (call after adding/removing buildables)
    */
   syncToGPU(): void {
