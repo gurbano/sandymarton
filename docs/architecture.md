@@ -33,6 +33,7 @@ The buildables manager keeps position/data textures and exposes a `syncToGPU()` 
 - `PlayerManager` owns the articulated character, storing position, velocity, walk phase, and runtime-adjustable settings (speed, gravity, push-out force).
 - `MainSimulation` executes a dedicated `player-update` shader right after the buildable passes. The shader samples the current world state, resolves collisions, and writes results into a 4×4 floating-point render target for CPU consumption.
 - The world texture remains untouched; the renderer draws the player as an overlay sprite using live uniforms sourced from `PlayerManager`.
+- The shader separates solid push-out displacement from fluid buoyancy so dense liquids can pin the avatar while lighter gases provide lift, and blends vertical input into swim acceleration with built-in drag caps.
 - When the player is disabled the pass short-circuits, keeping the pipeline cost identical to pre-player builds.
 
 ### Particle Pipeline

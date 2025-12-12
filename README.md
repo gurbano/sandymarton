@@ -39,6 +39,7 @@ The development server runs on Vite with hot module replacement. The production 
 - **Camera controls:** scroll to zoom, right-click drag to pan, and when the player is active the view smoothly recenters on them.
 - **Player toggle (P or status bar button):** spawn/despawn the GPU-driven avatar and enable the associated simulation step.
 - **Player settings:** adjust scale, movement speed, jump strength, gravity, and push-out force directly from the status bar tooltip when the player is active.
+- **Swimming controls:** when submerged, use `W`/`S`, the arrow keys, or jump to climb or dive—buoyancy and drag cap the maximum swim speed for each fluid.
 - **Load / Save:** import PNG levels or export the current world state.
 - **Rendering options:** toggle edge blending, temperature overlays, and post-process filters.
 
