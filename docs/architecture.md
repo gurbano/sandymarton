@@ -113,6 +113,7 @@ When `renderConfig` enables post-processing, a dedicated base color render targe
 
 - **`SideControls.tsx`** – Central hub for particle selection, buildable placement, render toggles, and heat tuning.
 - **`SimulationControls.tsx`** – Adjusts pass counts, friction amplifier, and pause/reset behavior.
+- **`useTextureControls`** – Handles scroll-wheel zoom, right-click panning, and exposes a `centerRef` so the player follow loop can steer the camera without incurring React re-renders.
 - **`useParticleDrawing`** – Mirrors shader math to convert screen coordinates to world coordinates, performs circular brush edits directly on the CPU-side texture, and surfaces inspection data that merges particle and ambient temperatures.
 - **`ParticleCounter.tsx`** – Uses a reusable typed-array accumulator to produce aggregate counts on a throttled timer.
 - **`StatusBar.tsx`** – Displays FPS, current material, and exposes simulation toggles including the player enable switch and per-player tuning sliders.

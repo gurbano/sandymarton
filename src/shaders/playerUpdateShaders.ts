@@ -78,6 +78,10 @@ export const playerOutputFragmentShader = `
     return particleType >= LIQUID_MIN && particleType <= LIQUID_MAX;
   }
 
+  bool isGas(float particleType) {
+    return particleType >= GAS_MIN && particleType <= GAS_MAX;
+  }
+
   // Sample world at a position
   vec4 sampleWorld(vec2 pos) {
     if (pos.x < 0.0 || pos.x >= uTextureSize.x ||
@@ -230,14 +234,18 @@ export const playerOutputFragmentShader = `
     return (leftSolid || rightSolid) ? 1.0 : 0.0;
   }
 
-  // Calculate push-out force from overlapping particles
-  // Samples inside the player's hitbox and calculates a force vector
-  // that pushes the player away from solid particles
-  vec2 calculatePushOutForce(vec2 playerPos) {
-    if (uPushOutStrength <= 0.0) return vec2(0.0);
+  // Calculate push-out displacement and fluid buoyancy from overlapping particles
+  // Returns: xy = solid displacement (position offset), z = buoyancy force (velocity)
+  vec3 calculatePushOutAndBuoyancy(vec2 playerPos) {
+    vec2 solidDisplacement = vec2(0.0);
+    float buoyancyForce = 0.0;
+
+    if (uPushOutStrength <= 0.0) return vec3(0.0);
 
     vec2 forceSum = vec2(0.0);
-    float particleCount = 0.0;
+    float solidCount = 0.0;
+    float fluidDensitySum = 0.0;
+    float fluidCount = 0.0;
 
     // Center of mass is roughly at the center of the body
     vec2 centerOfMass = playerPos + vec2(0.0, uLegHeight + uBodyHeight * 0.5);
@@ -265,8 +273,14 @@ export const playerOutputFragmentShader = `
             // Weight by inverse distance (closer = stronger push)
             float weight = 1.0 / max(dist * 0.1, 0.1);
             forceSum += pushDir * weight;
-            particleCount += 1.0;
+            solidCount += 1.0;
           }
+        }
+        // Liquids and gases apply buoyancy based on density
+        else if (isLiquid(ptype) || isGas(ptype)) {
+          float density = getMaterialDensity(ptype);
+          fluidDensitySum += density;
+          fluidCount += 1.0;
         }
       }
     }
@@ -286,19 +300,32 @@ export const playerOutputFragmentShader = `
           pushDir = normalize(pushDir);
           float weight = 20.0 / max(dist * 0.1, 0.1);  // Stronger weight for feet
           forceSum += pushDir * weight;
-          particleCount += 1.0;
+          solidCount += 1.0;
         }
       }
     }
 
-    if (particleCount > 0.0) {
-      // Normalize by particle count and scale by strength
-      // More particles = more push, but capped
-      float forceMagnitude = 0.01 * min(particleCount * 0.1, 5.0) * uPushOutStrength;
-      return normalize(forceSum) * forceMagnitude;
+    // Calculate solid displacement
+    if (solidCount > 0.0) {
+      float forceMagnitude = 0.01 * min(solidCount * 0.1, 5.0) * uPushOutStrength;
+      solidDisplacement = normalize(forceSum) * forceMagnitude;
     }
 
-    return vec2(0.0);
+    // Calculate buoyancy force from fluids
+    // Buoyancy = (fluid density - player density) proportional force
+    if (fluidCount > 0.0) {
+      float avgFluidDensity = fluidDensitySum / fluidCount;
+      // Player effective density ~1000 (similar to water)
+      float playerDensity = uPlayerMass * 12.5;  // mass 80 -> density 1000
+      float densityDiff = avgFluidDensity - playerDensity;
+      // Normalize: water (1000) = neutral, oil (810) = sink, lava (3100) = float
+      float normalizedBuoyancy = clamp(densityDiff / 1000.0, -0.5, 1.0);
+      float submersion = min(fluidCount / 20.0, 1.0);
+      // Scale to counteract reduced gravity (0.15) when in dense fluids
+      buoyancyForce = normalizedBuoyancy * submersion * 0.2;
+    }
+
+    return vec3(solidDisplacement, buoyancyForce);
   }
 
   void main() {
@@ -317,42 +344,66 @@ export const playerOutputFragmentShader = `
     float liquidDensity = collisionData.y;
     float damageFlags = collisionData.z;
 
-    // Calculate push-out force from overlapping particles
-    vec2 pushOutForce = calculatePushOutForce(uPlayerPosition);
+    // Calculate push-out displacement (solids) and buoyancy (fluids) from overlapping particles
+    vec3 pushOutAndBuoyancy = calculatePushOutAndBuoyancy(uPlayerPosition);
+    vec2 solidDisplacement = pushOutAndBuoyancy.xy;
+    float fluidBuoyancy = pushOutAndBuoyancy.z;
 
     // Calculate new velocity
     vec2 newVelocity = uPlayerVelocity;
 
-    // Apply push-out force first (collision response)
-    newVelocity += pushOutForce;
+    // Apply fluid buoyancy force to velocity
+    newVelocity.y += fluidBuoyancy;
 
     // Apply input
     float targetVx = uPlayerInput.x * uPlayerSpeed;
     float accel = grounded > 0.5 ? uPlayerFriction : (1.0 - uPlayerAirResistance);
     newVelocity.x += (targetVx - newVelocity.x) * accel;
 
-    // Jump
-    if (uPlayerJumping > 0.5 && grounded > 0.5) {
+    // Determine if in liquid (from collision check)
+    float inLiquid = liquidDensity > 0.0 ? 1.0 : 0.0;
+
+    // Jump (only when grounded on land)
+    if (uPlayerJumping > 0.5 && grounded > 0.5 && inLiquid < 0.5) {
       newVelocity.y = uPlayerJumpStrength;
     }
 
-    // Gravity
-    if (grounded < 0.5) {
-      newVelocity.y -= uPlayerGravity;
-    } else if (newVelocity.y < 0.0) {
-      newVelocity.y = 0.0;
-    }
-
-    // Liquid physics
-    float inLiquid = liquidDensity > 0.0 ? 1.0 : 0.0;
+    // Swimming controls when in liquid
     if (inLiquid > 0.5) {
-      float buoyancy = liquidDensity * 0.0005;
-      newVelocity.y += buoyancy;
+      float maxSwimSpeed = uPlayerSpeed * 0.8;  // Cap swim speed
+
+      // Swim vertically with up/down keys (W/S or arrows)
+      float targetSwimY = uPlayerInput.y * maxSwimSpeed;
+      // Also allow jump button for swim up
+      if (uPlayerJumping > 0.5) {
+        targetSwimY = max(targetSwimY, maxSwimSpeed);
+      }
+
+      // Smooth acceleration toward target (not instant)
+      newVelocity.y += (targetSwimY - newVelocity.y) * 0.15;
+
+      // Reduced gravity when swimming
+      newVelocity.y -= uPlayerGravity * 0.3;
+
+      // Clamp swim velocity
+      newVelocity.y = clamp(newVelocity.y, -maxSwimSpeed, maxSwimSpeed);
+
+      // Water resistance / drag (also slows horizontal)
       newVelocity *= 0.92;
+    } else {
+      // Normal gravity when not in liquid
+      if (grounded < 0.5) {
+        newVelocity.y -= uPlayerGravity;
+      } else if (newVelocity.y < 0.0) {
+        newVelocity.y = 0.0;
+      }
     }
 
     // Calculate new position
     vec2 newPosition = uPlayerPosition + newVelocity;
+
+    // Apply solid displacement directly (move player out of overlapping solid particles)
+    newPosition += solidDisplacement * 10.0;  // Scale up since this is now direct displacement
 
     // Clamp to world bounds
     float margin = uPlayerWidth * 0.5;

@@ -70,6 +70,7 @@ The final shader (`rendererShader`) draws either the base state or the fully pro
 - `uPixelSize` controls zoom (1.0 = 1 pixel per particle).
 - `uCenter` stores the world-space focal point, updated by `useTextureControls` to enable click-and-drag panning.
 - Coordinate conversion mirrors the CPU drawing hook to keep interaction maths consistent.
+- When the player is active, `App.tsx` lerps `centerRef` toward their position each frame so the shader receives a smooth follow target without triggering React re-renders.
 
 ### Procedural Backgrounds
 

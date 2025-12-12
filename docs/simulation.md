@@ -45,6 +45,7 @@ Executed immediately after buildable passes, the player shader maintains a sprit
 - Samples the current world texture to resolve collisions, grounded state, and displacement forces for the articulated player body.
 - Writes the results to a 4×4 floating-point render target that the CPU consumes to update position, velocity, and animation phase.
 - Leaves the particle state untouched—the visible character is rendered as an overlay driven by the sampled physics outputs.
+- Splits collision handling into solid displacement (direct positional offsets) and fluid buoyancy (velocity impulse) so liquids and gases can lift or sink the avatar based on material density and the configurable `pushOutStrength`.
 
 When the player is disabled, the pass short-circuits and avoids both the draw call and the read-back.
 
