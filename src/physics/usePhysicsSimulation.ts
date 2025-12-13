@@ -52,6 +52,8 @@ interface UsePhysicsSimulationProps {
   enabled: boolean;
   config?: Partial<PhysicsConfig>;
   onParticleCountUpdate?: (count: number) => void;
+  /** Force overlay enabled - triggers more frequent collision rebuilds for visualization */
+  forceOverlayEnabled?: boolean;
 }
 
 interface PhysicsSimulationResult {
@@ -113,6 +115,7 @@ export function usePhysicsSimulation({
   enabled,
   config = {},
   onParticleCountUpdate,
+  forceOverlayEnabled = false,
 }: UsePhysicsSimulationProps): PhysicsSimulationResult {
   const physicsManager = getPhysicsManager();
   const initializedRef = useRef(false);
@@ -482,7 +485,7 @@ export function usePhysicsSimulation({
 
       // 5. Rebuild collision grid if needed
       const now = performance.now();
-      if (physicsManager.shouldRebuildColliders(now)) {
+      if (physicsManager.shouldRebuildColliders(now, forceOverlayEnabled)) {
         const worldData = worldTexture.image.data as Uint8Array;
         physicsManager.rebuildWorldColliders(worldData, textureSize, textureSize);
         lastCollisionRebuildRef.current = now;

@@ -13,6 +13,7 @@ import {
   PlaneGeometry,
   Vector2,
   Vector3,
+  Color,
 } from 'three';
 import { vertexShader, fragmentShader } from '../shaders/rendererShader';
 import { baseColorVertexShader, baseColorFragmentShader } from '../shaders/baseColorShader';
@@ -83,13 +84,26 @@ function TextureRenderer({
     return { physicsRenderer, renderTarget };
   }, []);
 
-  // Cleanup physics resources on unmount
+  // Initialize and cleanup physics resources
   useEffect(() => {
+    // Save current clear color
+    const prevClearColor = gl.getClearColor(new Color());
+    const prevClearAlpha = gl.getClearAlpha();
+
+    // Initialize physics render target to transparent black
+    gl.setRenderTarget(physicsResources.renderTarget);
+    gl.setClearColor(0x000000, 0);
+    gl.clear(true, false, false);
+    gl.setRenderTarget(null);
+
+    // Restore previous clear color
+    gl.setClearColor(prevClearColor, prevClearAlpha);
+
     return () => {
       physicsResources.physicsRenderer.dispose();
       physicsResources.renderTarget.dispose();
     };
-  }, [physicsResources]);
+  }, [physicsResources, gl]);
 
   // Base color rendering resources (only created if renderConfig is provided)
   // Created once, textures updated in useFrame
@@ -224,6 +238,14 @@ function TextureRenderer({
       shaderMaterial.uniforms.uCenter.value = [centerRef.current.x, centerRef.current.y];
     }
 
+    // Render base colors FIRST (before physics to avoid state pollution)
+    if (baseColorResources) {
+      baseColorResources.material.uniforms.uStateTexture.value = texture;
+      gl.setRenderTarget(baseColorResources.renderTarget);
+      gl.render(baseColorResources.scene, baseColorResources.camera);
+      gl.setRenderTarget(null);
+    }
+
     // Update physics particles rendering
     const physicsManager = getPhysicsManager();
 
@@ -232,36 +254,29 @@ function TextureRenderer({
     physicsResources.physicsRenderer.setShowCollisionRects(forceOverlayEnabled);
 
     // Determine if we need to render the physics scene
-    // Render if: has particles OR force overlay is enabled (to show collision rects)
+    // Render if: has particles OR has rigid bodies OR force overlay is enabled (to show collision rects)
+    // Use actualRigidBodyCount for immediate count (rigidBodyCount only updates after step())
     const hasParticles = physicsEnabled && physicsManager.isInitialized && physicsManager.particleCount > 0;
-    const shouldRenderPhysics = hasParticles || (forceOverlayEnabled && physicsManager.isInitialized);
+    const hasRigidBodies = physicsEnabled && physicsManager.isInitialized && physicsManager.actualRigidBodyCount > 0;
+    const shouldRenderPhysics = hasParticles || hasRigidBodies || (forceOverlayEnabled && physicsManager.isInitialized);
 
     if (shouldRenderPhysics) {
-      // Update physics renderer with current particle data
       physicsResources.physicsRenderer.update(physicsManager);
-
-      // Clear physics render target with transparent background
+      const prevAutoClear = gl.autoClear;
+      const prevClearColor = gl.getClearColor(new Color());
+      const prevClearAlpha = gl.getClearAlpha();
+      gl.autoClear = false;
       gl.setRenderTarget(physicsResources.renderTarget);
       gl.setClearColor(0x000000, 0);
-      gl.clear();
-
-      // Render physics particles to the render target
+      gl.clear(true, false, false);
       gl.render(physicsResources.physicsRenderer.scene, physicsResources.physicsRenderer.camera);
       gl.setRenderTarget(null);
-
-      // Update shader uniforms for physics overlay
+      gl.autoClear = prevAutoClear;
+      gl.setClearColor(prevClearColor, prevClearAlpha);
       shaderMaterial.uniforms.uPhysicsTexture.value = physicsResources.renderTarget.texture;
       shaderMaterial.uniforms.uPhysicsEnabled.value = 1;
     } else {
       shaderMaterial.uniforms.uPhysicsEnabled.value = 0;
-    }
-
-    // Render base colors if resources exist
-    if (baseColorResources) {
-      baseColorResources.material.uniforms.uStateTexture.value = texture;
-      gl.setRenderTarget(baseColorResources.renderTarget);
-      gl.render(baseColorResources.scene, baseColorResources.camera);
-      gl.setRenderTarget(null);
     }
   });
 

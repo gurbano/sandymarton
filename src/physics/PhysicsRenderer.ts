@@ -77,9 +77,6 @@ export class PhysicsRenderer {
   private tempQuaternion: Quaternion;
   private tempScale: Vector3;
 
-  // World height for Y coordinate conversion (Rapier Y-up to screen Y-down)
-  private worldHeight: number;
-
   constructor(worldWidth: number, worldHeight: number) {
     this.tempMatrix = new Matrix4();
     this.tempPosition = new Vector3();
@@ -89,10 +86,7 @@ export class PhysicsRenderer {
     // Create scene
     this.scene = new Scene();
 
-    // Store world height for Y coordinate conversion
-    this.worldHeight = worldHeight;
-
-    // Create orthographic camera in standard Three.js orientation
+    // Create orthographic camera in standard Three.js orientation (Y-up, matching Rapier)
     this.camera = new OrthographicCamera(
       0,          // left
       worldWidth, // right
@@ -122,12 +116,15 @@ export class PhysicsRenderer {
     });
 
     this.particlePoints = new Points(this.particleGeometry, this.particleMaterial);
+    this.particlePoints.frustumCulled = false; // Disable culling - count changes dynamically
     this.scene.add(this.particlePoints);
 
     // Initialize box rigid body rendering
     this.boxGeometry = new PlaneGeometry(1, 1);
     this.boxMaterial = new MeshBasicMaterial({
-      color: 0x8b4513, // Saddle brown
+      color: 0xffffff, // White for visibility during debugging
+      opacity: 1.0,
+      transparent: true, // Must be true to write alpha to render target
     });
     this.boxMesh = new InstancedMesh(
       this.boxGeometry,
@@ -135,12 +132,15 @@ export class PhysicsRenderer {
       MAX_RIGID_BODIES
     );
     this.boxMesh.count = 0;
+    this.boxMesh.frustumCulled = false; // Disable culling - count changes dynamically
     this.scene.add(this.boxMesh);
 
     // Initialize circle rigid body rendering
     this.circleGeometry = new CircleGeometry(1, 16);
     this.circleMaterial = new MeshBasicMaterial({
-      color: 0x654321, // Dark brown
+      color: 0xffffff, // White for visibility during debugging
+      opacity: 1.0,
+      transparent: true, // Must be true to write alpha to render target
     });
     this.circleMesh = new InstancedMesh(
       this.circleGeometry,
@@ -148,6 +148,7 @@ export class PhysicsRenderer {
       MAX_RIGID_BODIES
     );
     this.circleMesh.count = 0;
+    this.circleMesh.frustumCulled = false; // Disable culling - count changes dynamically
     this.scene.add(this.circleMesh);
 
     // Initialize collision rect debug rendering
@@ -164,6 +165,7 @@ export class PhysicsRenderer {
       MAX_COLLISION_RECTS
     );
     this.collisionRectMesh.count = 0;
+    this.collisionRectMesh.frustumCulled = false; // Disable culling - count changes dynamically
     this.collisionRectMesh.renderOrder = -1; // Render behind particles
     this.scene.add(this.collisionRectMesh);
   }
@@ -176,7 +178,6 @@ export class PhysicsRenderer {
     this.camera.right = worldWidth;
     this.camera.top = worldHeight;
     this.camera.bottom = 0;
-    this.worldHeight = worldHeight;
     this.camera.updateProjectionMatrix();
   }
 
@@ -195,9 +196,9 @@ export class PhysicsRenderer {
       const type = physicsManager.particleTypes[i];
 
       // Position (add 0.5 to center on pixel)
-      // Flip Y: convert Rapier Y-up to screen Y-down for texture overlay
+      // Use Rapier Y directly - the camera uses Y-up matching Rapier's coordinate system
       positions[i * 3] = x + 0.5;
-      positions[i * 3 + 1] = this.worldHeight - y + 0.5;
+      positions[i * 3 + 1] = y + 0.5;
       positions[i * 3 + 2] = 0;
 
       // Color from particle type
@@ -227,24 +228,23 @@ export class PhysicsRenderer {
       const rotation = physicsManager.rigidBodyRotations[i];
       const width = physicsManager.rigidBodySizes[i * 2];
       const height = physicsManager.rigidBodySizes[i * 2 + 1];
+      const shape = physicsManager.rigidBodyShapes[i]; // 0 = box, 1 = circle
 
-      // Flip Y: convert Rapier Y-up to screen Y-down for texture overlay
-      const screenY = this.worldHeight - y;
-
-      // Determine if box or circle (circle has equal width/height from radius*2)
-      const isCircle = Math.abs(width - height) < 0.1;
+      // Use Rapier Y directly - the camera uses Y-up matching Rapier's coordinate system
+      // The texture UV sampling in the main shader also expects Y-up (texUV.y=0 at bottom)
+      const isCircle = shape === 1;
 
       if (isCircle) {
-        this.tempPosition.set(x, screenY, 0);
-        this.tempQuaternion.setFromAxisAngle(new Vector3(0, 0, 1), -rotation); // Negate rotation for Y flip
+        this.tempPosition.set(x, y, 0);
+        this.tempQuaternion.setFromAxisAngle(new Vector3(0, 0, 1), rotation);
         this.tempScale.set(width / 2, height / 2, 1); // Radius
 
         this.tempMatrix.compose(this.tempPosition, this.tempQuaternion, this.tempScale);
         this.circleMesh.setMatrixAt(circleCount, this.tempMatrix);
         circleCount++;
       } else {
-        this.tempPosition.set(x, screenY, 0);
-        this.tempQuaternion.setFromAxisAngle(new Vector3(0, 0, 1), -rotation); // Negate rotation for Y flip
+        this.tempPosition.set(x, y, 0);
+        this.tempQuaternion.setFromAxisAngle(new Vector3(0, 0, 1), rotation);
         this.tempScale.set(width, height, 1);
 
         this.tempMatrix.compose(this.tempPosition, this.tempQuaternion, this.tempScale);
@@ -253,14 +253,12 @@ export class PhysicsRenderer {
       }
     }
 
-    if (boxCount > 0) {
-      this.boxMesh.instanceMatrix.needsUpdate = true;
-    }
+    // Always mark instance matrices as needing update to ensure GPU buffer is synced
+    // This is necessary when count changes (especially from 0 to something)
+    this.boxMesh.instanceMatrix.needsUpdate = true;
     this.boxMesh.count = boxCount;
 
-    if (circleCount > 0) {
-      this.circleMesh.instanceMatrix.needsUpdate = true;
-    }
+    this.circleMesh.instanceMatrix.needsUpdate = true;
     this.circleMesh.count = circleCount;
   }
 
@@ -281,12 +279,9 @@ export class PhysicsRenderer {
       const width = physicsManager.collisionRects[i * 4 + 2];
       const height = physicsManager.collisionRects[i * 4 + 3];
 
-      // Flip Y: convert Rapier Y-up to screen Y-down for texture overlay
-      // Rapier Y is bottom of rect, so screen Y of top = worldHeight - (rapierY + height)
-      const screenY = this.worldHeight - y - height;
-
-      // Position at center of rect
-      this.tempPosition.set(x + width / 2, screenY + height / 2, 0);
+      // Use Rapier Y directly - the camera uses Y-up matching Rapier's coordinate system
+      // Rapier Y is bottom of rect, so center Y = y + height/2
+      this.tempPosition.set(x + width / 2, y + height / 2, 0);
       this.tempQuaternion.identity();
       this.tempScale.set(width, height, 1);
 

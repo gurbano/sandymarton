@@ -10,6 +10,10 @@ export enum BuildableType {
   COLD_SOURCE = 'cold_source',
   FORCE_SOURCE = 'force_source',
 
+  // Physics - rigid bodies simulated by Rapier
+  RIGID_BOX = 'rigid_box',
+  RIGID_CIRCLE = 'rigid_circle',
+
   // Future: gravity wells, props, etc.
   // GRAVITY_WELL = 'gravity_well',
   // BLACK_HOLE = 'black_hole',
@@ -20,6 +24,7 @@ export enum BuildableCategory {
   SOURCES = 'Sources',
   GRAVITY = 'Gravity',
   PROPS = 'Props',
+  PHYSICS = 'Physics',
 }
 
 export interface BuildableClickContext {

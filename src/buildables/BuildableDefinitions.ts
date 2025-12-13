@@ -15,6 +15,10 @@ import {
 } from './BuildablesConstants';
 import { getBuildablesManager } from './BuildablesTextureManager';
 import { ParticleType } from '../world/ParticleTypes';
+import { getPhysicsManager } from '../physics/PhysicsManager';
+
+// World size constant (should match WORLD_SIZE in config)
+const WORLD_SIZE = 1024;
 
 /**
  * Registry of all available buildables
@@ -128,6 +132,104 @@ export const BuildableDefinitions: BuildableDefinition[] = [
       });
       if (slot !== null) {
         console.log('Force Impulse placed at', context.worldX, context.worldY, 'slot:', slot);
+      }
+    },
+  },
+
+  // === PHYSICS ===
+  {
+    type: BuildableType.RIGID_BOX,
+    name: 'Rigid Box',
+    description: 'A physics-simulated box that pushes particles as it moves',
+    category: BuildableCategory.PHYSICS,
+    icon: 'square',
+    onPlace: (context: BuildableClickContext) => {
+      const manager = getBuildablesManager();
+      const physicsManager = getPhysicsManager();
+
+      // Box dimensions based on brush size
+      const width = context.brushSize * 2;
+      const height = context.brushSize;
+
+      // Add to buildables manager
+      const slot = manager.addBuildable({
+        type: GPU_BUILDABLE_TYPE.RIGID_BOX,
+        x: context.worldX,
+        y: context.worldY,
+        subtype: 0, // Could encode color/variant
+        radius: Math.max(width, height) / 2,
+        lifetime: LIFETIME_PERMANENT,
+        rate: 0,
+      });
+
+      if (slot !== null) {
+        // Convert from screen coords (Y=0 at top) to Rapier coords (Y=0 at bottom)
+        const rapierY = WORLD_SIZE - context.worldY;
+
+        // Spawn rigid body in physics
+        const rigidBodyId = physicsManager.spawnBoxFromBuildable(
+          slot,
+          context.worldX,
+          rapierY,
+          width,
+          height
+        );
+
+        if (rigidBodyId !== null) {
+          manager.setRigidBodyId(slot, rigidBodyId);
+          console.log('Rigid Box placed at', context.worldX, context.worldY, 'slot:', slot, 'rigidBodyId:', rigidBodyId);
+        } else {
+          // Failed to create rigid body, remove the buildable
+          manager.removeBuildable(slot);
+          console.warn('Failed to create Rigid Box - physics capacity reached');
+        }
+      }
+    },
+  },
+  {
+    type: BuildableType.RIGID_CIRCLE,
+    name: 'Rigid Ball',
+    description: 'A physics-simulated ball that pushes particles as it moves',
+    category: BuildableCategory.PHYSICS,
+    icon: 'circle',
+    onPlace: (context: BuildableClickContext) => {
+      const manager = getBuildablesManager();
+      const physicsManager = getPhysicsManager();
+
+      // Circle radius based on brush size
+      const radius = context.brushSize;
+
+      // Add to buildables manager
+      const slot = manager.addBuildable({
+        type: GPU_BUILDABLE_TYPE.RIGID_CIRCLE,
+        x: context.worldX,
+        y: context.worldY,
+        subtype: 0, // Could encode color/variant
+        radius: radius,
+        lifetime: LIFETIME_PERMANENT,
+        rate: 0,
+      });
+
+      if (slot !== null) {
+        // Convert from screen coords (Y=0 at top) to Rapier coords (Y=0 at bottom)
+        const rapierY = WORLD_SIZE - context.worldY;
+
+        // Spawn rigid body in physics
+        const rigidBodyId = physicsManager.spawnCircleFromBuildable(
+          slot,
+          context.worldX,
+          rapierY,
+          radius
+        );
+
+        if (rigidBodyId !== null) {
+          manager.setRigidBodyId(slot, rigidBodyId);
+          console.log('Rigid Ball placed at', context.worldX, context.worldY, 'slot:', slot, 'rigidBodyId:', rigidBodyId);
+        } else {
+          // Failed to create rigid body, remove the buildable
+          manager.removeBuildable(slot);
+          console.warn('Failed to create Rigid Ball - physics capacity reached');
+        }
       }
     },
   },

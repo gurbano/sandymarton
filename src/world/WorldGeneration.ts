@@ -197,7 +197,7 @@ export class WorldGeneration {
     } else if (initType === WorldInitType.PLATFORMS) {
       // Create random horizontal platforms
       const platformCount = 5 + Math.floor(Math.random() * 5); // 5-10 platforms
-      const boundaryThickness = 5;
+      const boundaryThickness = 15;
 
       for (let i = 0; i < platformCount; i++) {
         // Random Y position (avoiding boundaries)
@@ -212,7 +212,7 @@ export class WorldGeneration {
         const startX = boundaryThickness + Math.floor(Math.random() * (maxStartX - boundaryThickness));
 
         // Draw platform (2 pixels thick)
-        for (let thickness = 0; thickness < 2; thickness++) {
+        for (let thickness = 0; thickness < 10; thickness++) {
           const platformY = y + thickness;
           if (platformY >= height) continue;
 

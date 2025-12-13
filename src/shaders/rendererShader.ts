@@ -433,7 +433,8 @@ ${generateParticleColorCode()}
 
     // Render physics particles overlay (before player so particles appear behind player)
     if (uPhysicsEnabled > 0.5) {
-      vec4 physicsPixel = texture2D(uPhysicsTexture, texUV);
+      vec2 physicsUV = vec2(texUV.x, 1.0 - texUV.y);
+      vec4 physicsPixel = texture2D(uPhysicsTexture, physicsUV);
       if (physicsPixel.a > 0.01) {
         finalColor = mix(finalColor, physicsPixel.rgb, physicsPixel.a);
         finalAlpha = max(finalAlpha, physicsPixel.a);

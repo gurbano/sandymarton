@@ -49,6 +49,7 @@ import {
 } from '../shaders/playerUpdateShaders';
 import { useFrame, useThree } from '@react-three/fiber';
 import { usePhysicsSimulation } from '../physics';
+import { useRigidBodyShaders } from '../physics/useRigidBodyShaders';
 import type { SimulationConfig } from '../types/SimulationConfig';
 import { SimulationStepType, DEFAULT_AMBIENT_HEAT_SETTINGS } from '../types/SimulationConfig';
 import { MaterialDefinitions, getDefaultBaseAttributes } from '../world/MaterialDefinitions';
@@ -75,6 +76,8 @@ interface MainSimulationProps {
   /** Callback for physics particle count updates */
   onPhysicsParticleCountUpdate?: (count: number) => void;
   shouldCaptureHeatLayer?: boolean;
+  /** Force overlay enabled - triggers collision rebuild for visualization */
+  forceOverlayEnabled?: boolean;
 }
 
 const generateRenderTarget = (size: number) =>
@@ -143,6 +146,7 @@ function MainSimulation({
   onFpsUpdate,
   onPhysicsParticleCountUpdate,
   shouldCaptureHeatLayer = false,
+  forceOverlayEnabled = false,
 }: MainSimulationProps) {
   const { gl } = useThree();
 
@@ -217,6 +221,14 @@ function MainSimulation({
     enabled: config.physics?.enabled,
     config: config.physics,
     onParticleCountUpdate: onPhysicsParticleCountUpdate,
+    forceOverlayEnabled,
+  });
+
+  // Rigid body shader passes (mask generation and force injection)
+  const rigidBodyShaders = useRigidBodyShaders({
+    gl,
+    textureSize,
+    enabled: config.physics?.enabled ?? false,
   });
 
   // Create simulation resources
@@ -264,12 +276,14 @@ function MainSimulation({
       fragmentShader: margolusFragmentShader,
     });
     margolusResources.material.uniforms.uHeatForceLayer = { value: heatForceTexture };
+    margolusResources.material.uniforms.uRigidBodyMask = { value: null }; // Set each frame
 
     const liquidSpreadResources = createSimulationResources(textureSize, worldTexture, {
       vertexShader: liquidSpreadVertexShader,
       fragmentShader: liquidSpreadFragmentShader,
     });
     liquidSpreadResources.material.uniforms.uHeatForceLayer = { value: heatForceTexture };
+    liquidSpreadResources.material.uniforms.uRigidBodyMask = { value: null }; // Set each frame
 
     const archimedesResources = createSimulationResources(textureSize, worldTexture, {
       vertexShader: archimedesVertexShader,
@@ -480,6 +494,20 @@ function MainSimulation({
     buildablesManager.syncToGPU();
     const buildableCount = buildablesManager.count;
 
+    // Update rigid body data textures from PhysicsManager and generate mask
+    if (config.physics?.enabled) {
+      rigidBodyShaders.updateDataTextures();
+      rigidBodyShaders.runMaskPass();
+    }
+
+    // Update mask texture uniform for shaders that need it
+    if (margolusSceneRef.current) {
+      margolusSceneRef.current.material.uniforms.uRigidBodyMask.value = rigidBodyShaders.maskTexture;
+    }
+    if (liquidSpreadSceneRef.current) {
+      liquidSpreadSceneRef.current.material.uniforms.uRigidBodyMask.value = rigidBodyShaders.maskTexture;
+    }
+
     // Process material sources/sinks (spawn/delete particles)
     if (buildableCount > 0 && buildablesToWorldSceneRef.current) {
       const buildablesToWorld = buildablesToWorldSceneRef.current;
@@ -529,6 +557,21 @@ function MainSimulation({
       gl.setRenderTarget(null);
 
       currentHeatRTIndexRef.current++;
+    }
+
+    // Inject force from rigid body velocities into heat/force texture
+    if (config.physics?.enabled && rigidBodyShaders.hasRigidBodies && heatForceLayerRef.current) {
+      const heatSource: Texture = currentHeatRTIndexRef.current > 0
+        ? heatRenderTargets[(currentHeatRTIndexRef.current - 1) % heatRenderTargets.length].texture
+        : heatForceLayerRef.current;
+
+      const result = rigidBodyShaders.runForcePass(
+        heatSource,
+        heatRenderTargets,
+        currentHeatRTIndexRef.current
+      );
+
+      currentHeatRTIndexRef.current = result.newRtIndex;
     }
 
     // Execute player physics (read-only - doesn't modify world texture)

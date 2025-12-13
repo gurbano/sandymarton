@@ -209,6 +209,16 @@ export const margolusBlockSetup = `
     return;
   }
 
+  // Don't modify blocks overlapping with rigid bodies
+  // Check all 4 corners of the block
+  if (isRigidBodyAt(blockStart) ||
+      isRigidBodyAt(blockStart + vec2(1.0, 0.0)) ||
+      isRigidBodyAt(blockStart + vec2(0.0, 1.0)) ||
+      isRigidBodyAt(blockStart + vec2(1.0, 1.0))) {
+    gl_FragColor = texture2D(uCurrentState, vUv);
+    return;
+  }
+
   // Apply Margolus transitions
   // Track state, original particle type, and temperature
   float tl_new = tl;
@@ -267,6 +277,7 @@ export function createMargolusFragmentShader(transitionLogic: string): string {
   return `
   uniform sampler2D uCurrentState;
   uniform sampler2D uHeatForceLayer; // Heat texture for temperature-aware transitions
+  uniform sampler2D uRigidBodyMask; // Mask texture: R=1 where rigid bodies are, 0 elsewhere
   uniform vec2 uTextureSize;
   uniform float uIteration; // 0, 1, 2, or 3 for the 4-iteration cycle
   uniform float uRandomSeed; // For pseudo-random number generation
@@ -275,6 +286,16 @@ export function createMargolusFragmentShader(transitionLogic: string): string {
   varying vec2 vUv;
 
   ${margolusHelperFunctions}
+
+  // Check if a position is occupied by a rigid body
+  // Note: pixelCoord is in screen space (Y=0 at top), but mask is in Rapier space (Y=0 at bottom)
+  bool isRigidBodyAt(vec2 pixelCoord) {
+    vec2 pixelSize = 1.0 / uTextureSize;
+    // Flip Y coordinate: screen Y=0 at top -> Rapier Y=textureSize at top
+    vec2 rapierCoord = vec2(pixelCoord.x, uTextureSize.y - 1.0 - pixelCoord.y);
+    vec2 sampleUV = (rapierCoord + 0.5) * pixelSize;
+    return texture2D(uRigidBodyMask, sampleUV).r > 0.5;
+  }
 
   void main() {
     ${margolusBlockSetup}

@@ -15,7 +15,7 @@ import { WorldGeneration, WorldInitType } from './world/WorldGeneration';
 import { ParticleType } from './world/ParticleTypes';
 import { DEFAULT_SIMULATION_CONFIG } from './types/SimulationConfig';
 import type { SimulationConfig } from './types/SimulationConfig';
-import { DEFAULT_RENDER_CONFIG } from './types/RenderConfig';
+import { DEFAULT_RENDER_CONFIG, OverlayType } from './types/RenderConfig';
 import type { RenderConfig } from './types/RenderConfig';
 import { WORLD_SIZE } from './constants/worldConstants';
 import { loadLevel } from './utils/LevelLoader';
@@ -552,6 +552,7 @@ function App() {
           onFpsUpdate={setFps}
           onPhysicsParticleCountUpdate={setDynamicParticleCount}
           shouldCaptureHeatLayer={toolMode === 'inspect'}
+          forceOverlayEnabled={renderConfig.overlays.find(o => o.type === OverlayType.FORCE)?.enabled ?? false}
         />
         <Scene
           textureRef={worldTextureRef}

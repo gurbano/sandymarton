@@ -39,6 +39,9 @@ export class BuildablesTextureManager {
   private freeSlots: number[] = [];
   private nextId = 0;
 
+  // Rigid body tracking: slot -> Rapier rigid body ID
+  private rigidBodyIds: Map<number, number> = new Map();
+
   // Dirty tracking for partial updates
   private dirtySlots: Set<number> = new Set();
   private needsFullUpdate = true;
@@ -144,18 +147,24 @@ export class BuildablesTextureManager {
 
   /**
    * Remove a buildable by its slot index
+   * Note: If this is a rigid body buildable, caller should also remove the Rapier body
+   * @returns The rigid body ID if one was associated, or undefined
    */
-  removeBuildable(slot: number): boolean {
+  removeBuildable(slot: number): { removed: boolean; rigidBodyId?: number } {
     if (!this.buildables.has(slot)) {
-      return false;
+      return { removed: false };
     }
+
+    // Get rigid body ID before clearing (so caller can remove it from PhysicsManager)
+    const rigidBodyId = this.rigidBodyIds.get(slot);
+    this.rigidBodyIds.delete(slot);
 
     this.buildables.delete(slot);
     this.clearSlot(slot);
     this.freeSlots.push(slot);
     this.dirtySlots.add(slot);
 
-    return true;
+    return { removed: true, rigidBodyId };
   }
 
   /**
@@ -163,6 +172,34 @@ export class BuildablesTextureManager {
    */
   getBuildable(slot: number): BuildableInstance | undefined {
     return this.buildables.get(slot);
+  }
+
+  /**
+   * Set the Rapier rigid body ID associated with a buildable slot
+   */
+  setRigidBodyId(slot: number, rigidBodyId: number): void {
+    this.rigidBodyIds.set(slot, rigidBodyId);
+  }
+
+  /**
+   * Get the Rapier rigid body ID associated with a buildable slot
+   */
+  getRigidBodyId(slot: number): number | undefined {
+    return this.rigidBodyIds.get(slot);
+  }
+
+  /**
+   * Clear the Rapier rigid body ID for a slot
+   */
+  clearRigidBodyId(slot: number): void {
+    this.rigidBodyIds.delete(slot);
+  }
+
+  /**
+   * Check if a slot has an associated rigid body
+   */
+  hasRigidBody(slot: number): boolean {
+    return this.rigidBodyIds.has(slot);
   }
 
   /**
@@ -181,33 +218,46 @@ export class BuildablesTextureManager {
 
   /**
    * Remove all buildables in a radius around a position
+   * @returns Object with count of removed buildables and array of rigid body IDs that need to be removed
    */
-  removeBuildablesInRadius(x: number, y: number, radius: number): number {
+  removeBuildablesInRadius(x: number, y: number, radius: number): { removed: number; rigidBodyIds: number[] } {
     let removed = 0;
+    const rigidBodyIds: number[] = [];
     const radiusSq = radius * radius;
 
     for (const [slot, instance] of this.buildables) {
       const dx = instance.x - x;
       const dy = instance.y - y;
       if (dx * dx + dy * dy <= radiusSq) {
-        this.removeBuildable(slot);
-        removed++;
+        const result = this.removeBuildable(slot);
+        if (result.removed) {
+          removed++;
+          if (result.rigidBodyId !== undefined) {
+            rigidBodyIds.push(result.rigidBodyId);
+          }
+        }
       }
     }
 
-    return removed;
+    return { removed, rigidBodyIds };
   }
 
   /**
    * Clear all buildables
+   * @returns Array of rigid body IDs that need to be removed from PhysicsManager
    */
-  clear(): void {
+  clear(): number[] {
+    const rigidBodyIds = Array.from(this.rigidBodyIds.values());
+
     for (const slot of this.buildables.keys()) {
       this.clearSlot(slot);
       this.freeSlots.push(slot);
     }
     this.buildables.clear();
+    this.rigidBodyIds.clear();
     this.needsFullUpdate = true;
+
+    return rigidBodyIds;
   }
 
   /**

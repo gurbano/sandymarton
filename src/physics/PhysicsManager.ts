@@ -54,6 +54,10 @@ export class PhysicsManager {
   private rigidBodies: Map<number, RigidBodyObject> = new Map();
   private nextRigidBodyId = 0;
 
+  // Buildable slot <-> Rigid body ID mapping
+  private buildableSlotToRigidBody: Map<number, number> = new Map();
+  private rigidBodyToBuildableSlot: Map<number, number> = new Map();
+
   // World collision geometry
   private worldColliders: RAPIER.Collider[] = [];
   private boundaryColliders: RAPIER.Collider[] = [];
@@ -77,6 +81,8 @@ export class PhysicsManager {
   public rigidBodyPositions: Float32Array;
   public rigidBodyRotations: Float32Array;
   public rigidBodySizes: Float32Array;
+  public rigidBodyVelocities: Float32Array;
+  public rigidBodyShapes: Uint8Array; // 0 = box, 1 = circle
   public rigidBodyCount = 0;
 
   // Settled particles waiting for reintegration
@@ -89,6 +95,8 @@ export class PhysicsManager {
     this.rigidBodyPositions = new Float32Array(MAX_RIGID_BODIES * 2);
     this.rigidBodyRotations = new Float32Array(MAX_RIGID_BODIES);
     this.rigidBodySizes = new Float32Array(MAX_RIGID_BODIES * 2);
+    this.rigidBodyVelocities = new Float32Array(MAX_RIGID_BODIES * 2);
+    this.rigidBodyShapes = new Uint8Array(MAX_RIGID_BODIES);
   }
 
   static getInstance(): PhysicsManager {
@@ -163,6 +171,14 @@ export class PhysicsManager {
    */
   get isInitialized(): boolean {
     return this.initialized && this.world !== null;
+  }
+
+  /**
+   * Get the actual number of rigid bodies (immediate, not waiting for step())
+   * Use this for rendering decisions, as rigidBodyCount is only updated after step()
+   */
+  get actualRigidBodyCount(): number {
+    return this.rigidBodies.size;
   }
 
   /**
@@ -293,6 +309,9 @@ export class PhysicsManager {
     const id = this.nextRigidBodyId++;
     this.rigidBodies.set(id, { body, collider, width, height, shape: 'box' });
 
+    // Update render buffers immediately so the body is visible before next step()
+    this.updateRenderBuffers();
+
     return id;
   }
 
@@ -326,6 +345,9 @@ export class PhysicsManager {
       shape: 'circle',
     });
 
+    // Update render buffers immediately so the body is visible before next step()
+    this.updateRenderBuffers();
+
     return id;
   }
 
@@ -337,7 +359,75 @@ export class PhysicsManager {
     if (rb && this.world) {
       this.world.removeRigidBody(rb.body);
       this.rigidBodies.delete(id);
+
+      // Clean up buildable slot mapping if exists
+      const slot = this.rigidBodyToBuildableSlot.get(id);
+      if (slot !== undefined) {
+        this.buildableSlotToRigidBody.delete(slot);
+        this.rigidBodyToBuildableSlot.delete(id);
+      }
     }
+  }
+
+  /**
+   * Spawn a box rigid body linked to a buildable slot
+   */
+  spawnBoxFromBuildable(
+    slot: number,
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    angle = 0
+  ): number | null {
+    const id = this.spawnBox(x, y, width, height, angle);
+    if (id !== null) {
+      this.buildableSlotToRigidBody.set(slot, id);
+      this.rigidBodyToBuildableSlot.set(id, slot);
+    }
+    return id;
+  }
+
+  /**
+   * Spawn a circle rigid body linked to a buildable slot
+   */
+  spawnCircleFromBuildable(
+    slot: number,
+    x: number,
+    y: number,
+    radius: number
+  ): number | null {
+    const id = this.spawnCircle(x, y, radius);
+    if (id !== null) {
+      this.buildableSlotToRigidBody.set(slot, id);
+      this.rigidBodyToBuildableSlot.set(id, slot);
+    }
+    return id;
+  }
+
+  /**
+   * Remove a rigid body by its buildable slot
+   */
+  removeRigidBodyBySlot(slot: number): boolean {
+    const id = this.buildableSlotToRigidBody.get(slot);
+    if (id === undefined) return false;
+
+    this.removeRigidBody(id);
+    return true;
+  }
+
+  /**
+   * Get rigid body ID for a buildable slot
+   */
+  getRigidBodyIdForSlot(slot: number): number | undefined {
+    return this.buildableSlotToRigidBody.get(slot);
+  }
+
+  /**
+   * Get buildable slot for a rigid body ID
+   */
+  getBuildableSlotForRigidBody(id: number): number | undefined {
+    return this.rigidBodyToBuildableSlot.get(id);
   }
 
   /**
@@ -361,14 +451,21 @@ export class PhysicsManager {
 
   /**
    * Check if collision grid should be rebuilt
+   * @param now Current timestamp
+   * @param forceOverlayEnabled If true, rebuilds more frequently for debug visualization
    */
-  shouldRebuildColliders(now: number): boolean {
+  shouldRebuildColliders(now: number, forceOverlayEnabled = false): boolean {
     // Build colliders if none exist yet (initial build, allows debug overlay without particles)
     const needsInitialBuild = this.worldColliders.length === 0;
-    // Rebuild periodically when we have active particles
-    const needsPeriodicRebuild =
-      this.particles.size > 0 &&
-      now - this.lastCollisionRebuild > this.config.collisionRebuildInterval;
+
+    // Check if enough time has passed since last rebuild
+    const timeElapsed = now - this.lastCollisionRebuild > this.config.collisionRebuildInterval;
+
+    // Rebuild periodically when we have active particles OR rigid bodies
+    // Rigid bodies need up-to-date collision geometry even without active particles
+    // Also rebuild when force overlay is enabled (for debug visualization)
+    const hasPhysicsObjects = this.particles.size > 0 || this.rigidBodies.size > 0;
+    const needsPeriodicRebuild = (hasPhysicsObjects || forceOverlayEnabled) && timeElapsed;
 
     return needsInitialBuild || needsPeriodicRebuild;
   }
@@ -495,12 +592,16 @@ export class PhysicsManager {
 
       const pos = rb.body.translation();
       const rot = rb.body.rotation();
+      const vel = rb.body.linvel();
 
       this.rigidBodyPositions[j * 2] = pos.x;
       this.rigidBodyPositions[j * 2 + 1] = pos.y;
       this.rigidBodyRotations[j] = rot;
       this.rigidBodySizes[j * 2] = rb.width;
       this.rigidBodySizes[j * 2 + 1] = rb.height;
+      this.rigidBodyVelocities[j * 2] = vel.x;
+      this.rigidBodyVelocities[j * 2 + 1] = vel.y;
+      this.rigidBodyShapes[j] = rb.shape === 'box' ? 0 : 1;
       j++;
     }
     this.rigidBodyCount = j;
@@ -532,6 +633,10 @@ export class PhysicsManager {
       this.world.removeRigidBody(rb.body);
     }
     this.rigidBodies.clear();
+
+    // Clear buildable slot mappings
+    this.buildableSlotToRigidBody.clear();
+    this.rigidBodyToBuildableSlot.clear();
 
     // Clear settled queue
     this.settledParticles = [];

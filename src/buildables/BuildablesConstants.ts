@@ -16,6 +16,8 @@ export const GPU_BUILDABLE_TYPE = {
   HEAT_SOURCE: 3,
   COLD_SOURCE: 4,
   FORCE_SOURCE: 5,
+  RIGID_BOX: 6,
+  RIGID_CIRCLE: 7,
 } as const;
 
 export type GpuBuildableType = (typeof GPU_BUILDABLE_TYPE)[keyof typeof GPU_BUILDABLE_TYPE];
@@ -146,6 +148,8 @@ const float BUILDABLE_MATERIAL_SINK = 2.0;
 const float BUILDABLE_HEAT_SOURCE = 3.0;
 const float BUILDABLE_COLD_SOURCE = 4.0;
 const float BUILDABLE_FORCE_SOURCE = 5.0;
+const float BUILDABLE_RIGID_BOX = 6.0;
+const float BUILDABLE_RIGID_CIRCLE = 7.0;
 
 // Flag constants
 const float FLAG_ACTIVE = 1.0;
