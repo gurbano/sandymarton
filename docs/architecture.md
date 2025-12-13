@@ -36,6 +36,13 @@ The buildables manager keeps position/data textures and exposes a `syncToGPU()` 
 - The shader separates solid push-out displacement from fluid buoyancy so dense liquids can pin the avatar while lighter gases provide lift, and blends vertical input into swim acceleration with built-in drag caps.
 - When the player is disabled the pass short-circuits, keeping the pipeline cost identical to pre-player builds.
 
+### Dynamic Particles Stage
+
+- `DynamicParticlesManager` owns twin 32×32 RGBA32F buffers that track ejected particles’ positions, velocities, material identity, and lifecycle flags while they travel outside the grid.
+- `MainSimulation` runs a seven-pass sequence (buffer extract, aux extract, world extract, simulate, collision, reintegrate world, reintegrate aux) when `dynamicParticles.enabled` is true, recycling render targets so the ballistic system stays in lock-step with the cellular passes.
+- Force impulse buildables inject brief vectors into the shared heat/force layer, providing the impulses that kick particles into the dynamic buffer without bespoke CPU code.
+- Final buffers are exposed both to the reintegration passes and to `TextureRenderer`, which composites the projectiles over the base color target before post-processing.
+
 ### Particle Pipeline
 
 Particle-focused passes mutate the world texture using four rotating render targets. After buildables and (optionally) the player logic run, the default ordering is:
@@ -117,9 +124,10 @@ When `renderConfig` enables post-processing, a dedicated base color render targe
 - **`useTextureControls`** – Handles scroll-wheel zoom, right-click panning, and exposes a `centerRef` so the player follow loop can steer the camera without incurring React re-renders.
 - **`useParticleDrawing`** – Mirrors shader math to convert screen coordinates to world coordinates, performs circular brush edits directly on the CPU-side texture, and surfaces inspection data that merges particle and ambient temperatures.
 - **`ParticleCounter.tsx`** – Uses a reusable typed-array accumulator to produce aggregate counts on a throttled timer.
-- **`StatusBar.tsx`** – Displays FPS, current material, and exposes simulation toggles including the player enable switch and per-player tuning sliders.
+- **`StatusBar.tsx`** – Displays FPS, current material, exposes simulation toggles including the player enable switch and per-player tuning sliders, and polls the dynamic particle buffers to surface an active count read-back.
 - **`usePlayerInput`** – Captures keyboard state (movement, jump, crouch placeholders) and streams it into the GPU player update stage when enabled.
 - **Buildables Manager** – Stores up to `BUILDABLES_TEXTURE_WIDTH × BUILDABLES_TEXTURE_HEIGHT` device slots and exposes sync hooks for both CPU edits and GPU consumption.
+- **Dynamic particles controls** – The settings accordion feeds `SimulationConfig.dynamicParticles`, letting the ballistic buffer’s speed multiplier update live without tearing down the pipeline.
 
 ## Data Flow
 
@@ -136,6 +144,7 @@ flowchart LR
     CPUTexture -->|uploaded once| GPUState[(GPU State Texture)]
   MainSim["MainSimulation<br/>(passes + buildables)"] -->|ping-pong| GPUState
     MainSim --> HeatRTs[(Heat/Force RTs)]
+    MainSim --> DynBuffers[(Dynamic Buffers 32×32)]
     HeatRTs --> PostFX[PostProcessRenderer]
     GPUState --> PostFX
     PostFX --> Renderer[TextureRenderer]
@@ -143,17 +152,20 @@ flowchart LR
     MainSim -->|single read-back| CPUTexture
     HeatRTs -->|optional read-back| CPUHeat[(CPU Heat Texture)]
     CPUHeat --> Inspector[Inspect Tooltip]
+    DynBuffers --> MainSim
+    DynBuffers --> Renderer
 ```
 
 ## Texture Inventory
 
-| Texture                        | Format          | Producer                             | Consumers                        | Notes                                                                     |
-| ------------------------------ | --------------- | ------------------------------------ | -------------------------------- | ------------------------------------------------------------------------- |
-| World state (ping-pong×4)      | RGBA8           | Particle passes, buildables → world  | Simulation pipeline, CPU sync    | Stores particle type, 16-bit temperature, metadata.                       |
-| Heat/force RTs (ping-pong×2)   | RGBA8           | Buildables → heat, ambient diffusion | Post-process overlays, inspector | Temperature low/high bytes + force vectors; CPU copy refreshed on demand. |
-| Base color RT                  | RGBA8           | Base color pre-pass                  | Post-processing pipeline         | Only allocated when effects enabled.                                      |
-| Post-process RTs (ping-pong×2) | RGBA8           | Post-process renderer                | TextureRenderer                  | Reused for every effect/overlay to cap allocations.                       |
-| Buildables position/data       | RGBA8 / RGBA32F | Buildables manager                   | Buildables shaders               | Fixed-size texture atlas describing device placement & parameters.        |
+| Texture                        | Format          | Producer                                | Consumers                        | Notes                                                                                                               |
+| ------------------------------ | --------------- | --------------------------------------- | -------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| World state (ping-pong×4)      | RGBA8           | Particle passes, buildables → world     | Simulation pipeline, CPU sync    | Stores particle type, 16-bit temperature, metadata.                                                                 |
+| Heat/force RTs (ping-pong×2)   | RGBA8           | Buildables → heat, ambient diffusion    | Post-process overlays, inspector | Temperature low/high bytes + force vectors; CPU copy refreshed on demand.                                           |
+| Base color RT                  | RGBA8           | Base color pre-pass                     | Post-processing pipeline         | Only allocated when effects enabled.                                                                                |
+| Post-process RTs (ping-pong×2) | RGBA8           | Post-process renderer                   | TextureRenderer                  | Reused for every effect/overlay to cap allocations.                                                                 |
+| Buildables position/data       | RGBA8 / RGBA32F | Buildables manager                      | Buildables shaders               | Fixed-size texture atlas describing device placement & parameters.                                                  |
+| Dynamic particle buffers       | RGBA32F         | DynamicParticlesManager, dynamic passes | MainSimulation, TextureRenderer  | 32×32 ballistic storage containing positions, velocities, types, and flags for reintegration and overlay rendering. |
 
 ## Performance Practices
 

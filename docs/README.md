@@ -9,6 +9,7 @@ This directory contains detailed technical documentation for Sandymarton.
 - **[Rendering System](rendering.md)** - Post-processing effects and visual rendering
 - **[Level System](levels.md)** - Level loading, saving, and texture format
 - **[Material Reference](materials.md)** - Full list of particle materials and properties
+- **[Dynamic Particles](dynamic-particles.md)** - Ballistic ejection buffer and reintegration pipeline
 
 ## Project Structure
 
@@ -89,6 +90,7 @@ Each pixel in the state texture represents one particle:
 - **Target FPS**: 60 fps
 - **GPU Memory**: ~4 MB per state texture (ping-pong + heat layer ≈ 16 MB total)
 - **Simulation Passes per Frame** (defaults):
+  - 3× Dynamic particle passes (extract, simulate, collision) plus reintegration when enabled
   - 8× Margolus iterations
   - 4× Liquid spread passes
   - 2× Archimedes buoyancy passes

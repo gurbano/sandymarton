@@ -6,14 +6,16 @@ The rendering stack converts the GPU-resident particle textures into a stylised 
 
 ```mermaid
 flowchart LR
-    State[(World State<br/>Texture)] --> BaseColor["Base Color<br/>Pre-pass"]
-    BaseColor --> PostFX["PostProcessRenderer<br/>Effects"]
-    PostFX --> Overlays["Overlays<br/>(Heat / Force)"]
-    Overlays --> FinalQuad["TextureRenderer<br/>Display Shader"]
-    FinalQuad --> Canvas[(Canvas)]
-    Heat[(Heat/Force<br/>Render Target)] --> Overlays
-    Heat --> FinalQuad
-    Background["Procedural<br/>Background"] --> FinalQuad
+  State[(World State<br/>Texture)] --> BaseColor["Base Color<br/>Pre-pass"]
+  BaseColor --> DynOverlay["Dynamic Particles<br/>Overlay"]
+  DynOverlay --> PostFX["PostProcessRenderer<br/>Effects"]
+  PostFX --> Overlays["Overlays<br/>(Heat / Force)"]
+  Overlays --> FinalQuad["TextureRenderer<br/>Display Shader"]
+  FinalQuad --> Canvas[(Canvas)]
+  Heat[(Heat/Force<br/>Render Target)] --> Overlays
+  Heat --> FinalQuad
+  Background["Procedural<br/>Background"] --> FinalQuad
+  DynBuffers[(Dynamic Buffers 32×32)] --> DynOverlay
 ```
 
 ## Base Color Pre-pass
@@ -52,7 +54,7 @@ Disabled effects skip both render target swaps and draw calls, keeping the pipel
 
 ## Overlay System
 
-After the core effects, the renderer can composite diagnostic overlays using the latest state and heat textures shared through refs.
+After the dynamic particle overlay and core effects, the renderer can composite diagnostic overlays using the latest state and heat textures shared through refs.
 
 - **Particle heat overlay** – Shades per-particle temperatures.
 - **Ambient heat overlay** – Visualises the shared heat/force map; requires a valid heat texture.
@@ -83,6 +85,14 @@ The final shader (`rendererShader`) draws either the base state or the fully pro
 ### Liquid Animation
 
 Liquids (particle IDs 64–111) receive a dual-layer noise modulation driven by `uTime` to create gentle shimmer. Brightness varies by ±8%, and a small colour shift keeps motion visible without overpowering the materials.
+
+### Dynamic Particles Overlay
+
+Before post-processing, `TextureRenderer` composites a ballistic overlay via `dynamicParticlesOverlayShader`. The shader consumes the 32×32 position/velocity and aux buffers maintained by `DynamicParticlesManager`, decoding slots flagged as active and drawing their material colour atop the base color texture.
+
+- Slots are iterated deterministically (1024 checks per fragment) so every airborne particle renders without needing an acceleration structure; the shared buffer keeps bandwidth tiny compared to the 1024×1024 world texture.
+- Uniforms wire in the latest buffers straight from `MainSimulation`, so the overlay automatically tracks reintegration without CPU copies.
+- When the dynamic system is disabled (`dynamicParticles.enabled = false`) the pass short-circuits and defers directly to the base color render target, adding no overhead.
 
 ### Player Overlay
 

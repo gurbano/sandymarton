@@ -21,6 +21,7 @@ Evaluate the latest build at **[https://gurbano.github.io/sandymarton/](https://
 - **Level IO** – Levels are serialized as PNG textures, enabling deterministic save/load and simple sharing.
 - **Interactive tooling** – Canvas painting tools, material palette, and inspector overlays for debugging the simulation state.
 - **GPU player simulation** – Optional stick-figure avatar driven by a dedicated shader pass and rendered as an overlay sprite.
+- **Dynamic particle ejecta** – Force bursts punt particles out of the grid into a ballistic buffer that replays gravity, drag, and bounces before reintegrating with the main simulation.
 
 ## Getting Started
 
@@ -40,6 +41,7 @@ The development server runs on Vite with hot module replacement. The production 
 - **Player toggle (P or status bar button):** spawn/despawn the GPU-driven avatar and enable the associated simulation step.
 - **Player settings:** adjust scale, movement speed, jump strength, gravity, and push-out force directly from the status bar tooltip when the player is active.
 - **Swimming controls:** when submerged, use `W`/`S`, the arrow keys, or jump to climb or dive—buoyancy and drag cap the maximum swim speed for each fluid.
+- **Dynamic particles:** open the Settings → Dynamic Particles panel to scale ejection speed, watch the "Dyn" counter in the status bar, and trigger bursts with the Force Impulse buildable.
 - **Load / Save:** import PNG levels or export the current world state.
 - **Rendering options:** toggle edge blending, temperature overlays, and post-process filters.
 

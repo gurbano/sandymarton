@@ -8,7 +8,11 @@ The simulation loop is a configurable sequence of GPU shader passes orchestrated
 flowchart TD
   BW[Buildables → World] --> Player[Player Update]
   BW -. no devices .-> Player
-  Player --> Margolus
+  Player --> DynExtract[Dynamic Extract]
+  DynExtract --> DynSim[Dynamic Simulate]
+  DynSim --> DynColl[Dynamic Collision]
+  DynColl --> DynReint[Dynamic Reintegration]
+  DynReint --> Margolus
   Margolus[Margolus CA] --> Liquid[Liquid Spread]
     Liquid --> Archimedes
     Archimedes --> ParticleHeat[Particle Heat Diffusion]
@@ -19,6 +23,7 @@ flowchart TD
     HeatBuildables --> Ambient[Ambient Heat Transfer]
     Phase --> Ambient
   Ambient --> Post[Heat texture shared with rendering]
+    DynColl -. settled .-> DynReint
     Readback --> CPUTexture[(CPU DataTexture)]
 ```
 
@@ -50,7 +55,18 @@ Executed immediately after buildable passes, the player shader maintains a sprit
 
 When the player is disabled, the pass short-circuits and avoids both the draw call and the read-back.
 
-With the player step complete (when enabled), the remaining particle passes mutate the world texture using four rotating render targets in the order below.
+## Dynamic Particles Pipeline
+
+When `dynamicParticles.enabled` is true the simulation executes a dedicated ballistic pipeline before touching the grid again. The passes reuse a pair of 32×32 RGBA32F buffers supplied by `DynamicParticlesManager` and can be tuned live from the side-panel speed slider.
+
+- **Extraction (3 passes):** Samples the heat/force layer for impulses above `forceEjectionThreshold`, deterministically assigns slots, records position/velocity plus type/temperature/flags, and erases successfully captured pixels from the world texture.
+- **Simulation:** Advances every active slot with gravity, drag, and the latest force field, respecting the global `speedMultiplier` and per-frame spawn cap.
+- **Collision:** Ray-marches along the updated velocity, bounces off static geometry with configurable restitution, transfers momentum to moveable materials, and marks particles for reintegration when their speed drops below `velocityThreshold`.
+- **Reintegration (2 passes):** Writes settled particles back into the world texture, clears aux flags, and exposes the refreshed buffers so `TextureRenderer` can draw an overlay of airborne debris.
+
+Force impulse buildables feed this system by injecting short-lived vectors into the shared heat/force texture, letting players trigger ejections without bespoke scripting. See `docs/dynamic-particles.md` for a deep dive into buffer formats and shader specifics.
+
+After the player and dynamic stages resolve (or are skipped), the remaining particle passes mutate the world texture using four rotating render targets in the order below.
 
 ## 1. Margolus Cellular Automaton
 
