@@ -8,11 +8,11 @@ The simulation loop is a configurable sequence of GPU shader passes orchestrated
 flowchart TD
   BW[Buildables → World] --> Player[Player Update]
   BW -. no devices .-> Player
-  Player --> DynExtract[Dynamic Extract]
-  DynExtract --> DynSim[Dynamic Simulate]
-  DynSim --> DynColl[Dynamic Collision]
-  DynColl --> DynReint[Dynamic Reintegration]
-  DynReint --> Margolus
+  Player --> Extract[Force Extraction (GPU)]
+  Extract --> Removal[Removal Pass (GPU)]
+  Removal --> Rapier[Rapier Step (CPU)]
+  Rapier --> Reintegration[Reintegration Pass (GPU)]
+  Reintegration --> Margolus
   Margolus[Margolus CA] --> Liquid[Liquid Spread]
     Liquid --> Archimedes
     Archimedes --> ParticleHeat[Particle Heat Diffusion]
@@ -23,7 +23,7 @@ flowchart TD
     HeatBuildables --> Ambient[Ambient Heat Transfer]
     Phase --> Ambient
   Ambient --> Post[Heat texture shared with rendering]
-    DynColl -. settled .-> DynReint
+    Rapier -. settled debris .-> Reintegration
     Readback --> CPUTexture[(CPU DataTexture)]
 ```
 
@@ -55,18 +55,40 @@ Executed immediately after buildable passes, the player shader maintains a sprit
 
 When the player is disabled, the pass short-circuits and avoids both the draw call and the read-back.
 
-## Dynamic Particles Pipeline
+## CPU Physics Pipeline (Rapier)
 
-When `dynamicParticles.enabled` is true the simulation executes a dedicated ballistic pipeline before touching the grid again. The passes reuse a pair of 32×32 RGBA32F buffers supplied by `DynamicParticlesManager` and can be tuned live from the side-panel speed slider.
+When `simulationConfig.physics.enabled` is true the simulation inserts a GPU↔CPU bridge that extracts energized pixels, simulates them with Rapier.js, and writes settled debris back into the grid before the standard particle passes begin.
 
-- **Extraction (3 passes):** Samples the heat/force layer for impulses above `forceEjectionThreshold`, deterministically assigns slots, records position/velocity plus type/temperature/flags, and erases successfully captured pixels from the world texture.
-- **Simulation:** Advances every active slot with gravity, drag, and the latest force field, respecting the global `speedMultiplier` and per-frame spawn cap.
-- **Collision:** Ray-marches along the updated velocity, bounces off static geometry with configurable restitution, transfers momentum to moveable materials, and marks particles for reintegration when their speed drops below `velocityThreshold`.
-- **Reintegration (2 passes):** Writes settled particles back into the world texture, clears aux flags, and exposes the refreshed buffers so `TextureRenderer` can draw an overlay of airborne debris.
+### 1. Force Extraction (GPU)
 
-Force impulse buildables feed this system by injecting short-lived vectors into the shared heat/force texture, letting players trigger ejections without bespoke scripting. See `docs/dynamic-particles.md` for a deep dive into buffer formats and shader specifics.
+- `forceExtractionShader` distributes the world texture across `EXTRACTION_BUFFER_SIZE` stripes (256 by default), comparing the decoded force vector from the heat texture against `forceEjectionThreshold`.
+- Up to 256 slots per frame are written into an RGBA32F target (`x`, `y`, `velX`, `velY`). Empty slots are encoded as `(-1, -1, 0, 0)`.
+- A rotating Y offset ensures full coverage over four frames while keeping the shader cheap enough to run every tick.
 
-After the player and dynamic stages resolve (or are skipped), the remaining particle passes mutate the world texture using four rotating render targets in the order below.
+### 2. Spawn & Removal (CPU + GPU)
+
+- The hook reads each extracted slot, pulls particle type + temperature from the CPU-visible `worldTexture`, and calls `PhysicsManager.spawnParticle` with configurable radius, restitution, and gravity.
+- If the physics pool reaches `MAX_PHYSICS_PARTICLES` the slot is skipped to avoid over-allocating Rapier bodies.
+- `particleRemovalShader` clears the corresponding cells in the GPU world texture so duplicate particles do not remain in the cellular pipeline.
+
+### 3. Rapier Step (CPU)
+
+- `PhysicsManager.step` advances the Rapier world, applying gravity and damping from the physics config.
+- Velocities below `settleThreshold` mark particles for reintegration; high-speed contacts keep them in flight.
+- `CollisionGridBuilder` rebuilds static colliders lazily using dirty-region tracking so sand piles only regenerate geometry when the grid actually changes.
+
+### 4. Reintegration (GPU)
+
+- Settled particles are written into a 256×1 reintegration texture containing world position, material type, and temperature.
+- `particleReintegrationShader` checks for empty cells and restores the material/temperature pair into the main world texture, one slot at a time.
+- Throughput is capped per frame to prevent stuttering; unsettled particles remain in Rapier until thresholds are met.
+
+### 5. Telemetry & Visualisation
+
+- `onParticleCountUpdate` reports active debris counts back to the UI at a throttled cadence for HUD display.
+- `PhysicsRenderer` mirrors particle positions and optional collider rectangles into a dedicated render target so `TextureRenderer` can composite debris sprites without involving React state updates.
+
+After the player and physics stages resolve (or are skipped), the remaining particle passes mutate the world texture using four rotating render targets in the order below.
 
 ## 1. Margolus Cellular Automaton
 
@@ -200,6 +222,9 @@ When the inspector is open (`shouldCaptureHeatLayer = true`), the latest heat re
 - **Particle ping-pong ×4** – Keeps the particle state on the GPU through all simulation stages.
 - **Heat ping-pong ×2** – Alternates ambient diffusion outputs without reallocating textures.
 - **Buildables atlases** – Fixed-size textures describing device positions, parameters, and counts.
+- **Physics extraction target** – RGBA32F texture (`EXTRACTION_BUFFER_SIZE` × 1, default 256) that stages ejection slots for CPU read-back.
+- **Removal & reintegration textures** – Float32 `DataTexture`s mirroring the extraction buffer so GPU passes can erase or restore particles in-place.
+- **Physics overlay render target** – World-sized RGBA8 buffer rendered by `PhysicsRenderer` for debris sprites and collider visualization.
 - **CPU-visible DataTextures** – `worldTexture` and `heatForceLayerRef` receive read-backs when required.
 
 ## CPU Sync & Tooling Hooks
@@ -224,6 +249,7 @@ const DEFAULT_SIMULATION_CONFIG = {
     equilibriumInterval: 1,
     heatmapCouplingMultiplier: 2,
   },
+  physics: { ...DEFAULT_PHYSICS_CONFIG },
   steps: [
     { type: 'player-update', passes: 10, enabled: false },
     { type: 'margolus-ca', passes: 8, enabled: true },
@@ -232,10 +258,30 @@ const DEFAULT_SIMULATION_CONFIG = {
     { type: 'heat-transfer', passes: 2, enabled: true },
     { type: 'particle-only-heat', passes: 2, enabled: true },
     { type: 'phase-transition', passes: 1, enabled: true },
-    { type: 'force-transfer', passes: 1, enabled: false },
+    { type: 'force-transfer', passes: 1, enabled: true },
   ],
 };
 ```
+
+### Physics Configuration
+
+`DEFAULT_PHYSICS_CONFIG` exposes the key Rapier tuning knobs surfaced in the UI:
+
+| Setting                      | Default  | Purpose                                                                                    |
+| ---------------------------- | -------- | ------------------------------------------------------------------------------------------ |
+| `enabled`                    | `true`   | Master toggle for the physics bridge.                                                      |
+| `gravity`                    | `-50`    | Downward acceleration applied to all Rapier bodies (pixels/frame²).                        |
+| `particleRadius`             | `0.5`    | Collision radius used when spawning particles.                                             |
+| `particleDamping`            | `0.01`   | Linear damping applied each step (air resistance).                                         |
+| `particleRestitution`        | `0.1`    | Bounce coefficient for debris impacts.                                                     |
+| `particleFriction`           | `0.9`    | Surface friction when particles scrape along the terrain.                                  |
+| `forceEjectionThreshold`     | `0.3`    | Minimum normalized force magnitude (from the heat texture) required to extract a particle. |
+| `settleThreshold`            | `30`     | Velocity magnitude below which particles reintegrate into the world.                       |
+| `maxExtractionsPerFrame`     | `256`    | Hard cap on particles pulled from the grid each tick.                                      |
+| `maxReintegrationsPerFrame`  | `256`    | Limits how many settled particles can be written back per frame.                           |
+| `collisionCellSize`          | `4`      | Resolution of the collision grid generated from the sand texture.                          |
+| `ejectionVelocityMultiplier` | `160`    | Scales the initial launch velocity sampled from the force vector.                          |
+| `collisionRebuildInterval`   | `500` ms | Minimum spacing between collision grid rebuilds.                                           |
 
 ### Adjustable Parameters
 
@@ -248,6 +294,8 @@ const DEFAULT_SIMULATION_CONFIG = {
 - Margolus operates on one quarter of the pixels per iteration (2×2 blocks), so 8 passes roughly equal 2 full screen sweeps.
 - Liquid, Archimedes, heat, and phase passes are O(n); the GPU’s fragment parallelism keeps them within the 16 ms frame budget at 1024×1024 on mid-range hardware.
 - Buildable passes short-circuit when no devices exist, keeping empty worlds lightweight.
+- Physics extraction reads back at most 256 slots per frame (≈4 KB), so the CPU bridge adds negligible bandwidth overhead compared to the full world read-back.
+- Collision grid rebuilds piggyback on dirty-region tracking, preventing unnecessary Rapier collider churn when the terrain is stable.
 
 ## Known Limitations
 

@@ -1,14 +1,14 @@
 ## Architecture Overview
 
-Sandymarton is a TypeScript + WebGL sandbox that keeps the full physics and rendering loop on the GPU while React handles configuration, controls, and orchestration. The updated architecture integrates buildable devices, dual heat pipelines, and post-processing overlays without introducing extra CPU/GPU sync points.
+Sandymarton is a TypeScript + WebGL sandbox that now blends GPU cellular automata with a Rapier.js physics world. Shaders still drive the dense particle grid, heat diffusion, and rendering, while the CPU captures high-energy ejecta, simulates them as rigid bodies, and hands them back to the GPU without stalling the frame loop. React orchestrates configuration, UI, and lifecycle wiring around these systems.
 
 ## Core Design Pillars
 
-- **GPU-first workloads** – Every simulation rule, heat exchange, and post-effect runs inside GLSL shaders invoked through Three.js.
-- **Ping-pong buffers everywhere** – Particle, heat, buildable, and render pipelines share pairs of reusable render targets to prevent read-modify-write hazards.
-- **Config-driven orchestration** – `SimulationConfig` defines pass ordering, enabling or disabling steps without recompiling shaders.
-- **Single read-back loop** – The world state returns to CPU memory once per frame only after all particle passes finish; optional heat read-backs occur on demand for inspection tools.
-- **Buildables as first-class citizens** – The buildables manager streams texture data into two GPU passes that can spawn particles or inject heat before the core physics steps run.
+- **Hybrid GPU + CPU workloads** – Core sand, liquid, and heat rules remain in GLSL, but a dedicated Rapier pipeline manages ballistic debris and rigid bodies with minimal GPU sync points.
+- **Ping-pong buffers everywhere** – Particle, heat, buildable, and physics extraction pipelines reuse render targets to prevent read-modify-write hazards.
+- **Config-driven orchestration** – `SimulationConfig` defines pass ordering and physics toggles, enabling or disabling steps without recompiling shaders.
+- **Single world read-back** – The world state returns to CPU memory once per frame after all particle passes finish; additional buffers (heat, physics staging) stay GPU-resident unless debugging tools request them.
+- **Buildables as first-class citizens** – The buildables manager streams texture data into GPU passes and the physics system so devices can spawn particles, push forces, or inject heat before the core physics steps run.
 
 ## Simulation Layer
 
@@ -36,12 +36,15 @@ The buildables manager keeps position/data textures and exposes a `syncToGPU()` 
 - The shader separates solid push-out displacement from fluid buoyancy so dense liquids can pin the avatar while lighter gases provide lift, and blends vertical input into swim acceleration with built-in drag caps.
 - When the player is disabled the pass short-circuits, keeping the pipeline cost identical to pre-player builds.
 
-### Dynamic Particles Stage
+### Rapier Physics Stage
 
-- `DynamicParticlesManager` owns twin 32×32 RGBA32F buffers that track ejected particles’ positions, velocities, material identity, and lifecycle flags while they travel outside the grid.
-- `MainSimulation` runs a seven-pass sequence (buffer extract, aux extract, world extract, simulate, collision, reintegrate world, reintegrate aux) when `dynamicParticles.enabled` is true, recycling render targets so the ballistic system stays in lock-step with the cellular passes.
-- Force impulse buildables inject brief vectors into the shared heat/force layer, providing the impulses that kick particles into the dynamic buffer without bespoke CPU code.
-- Final buffers are exposed both to the reintegration passes and to `TextureRenderer`, which composites the projectiles over the base color target before post-processing.
+- `usePhysicsSimulation` bridges the GPU world texture and a singleton `PhysicsManager` powered by Rapier.js. It owns three GPU shaders—`forceExtraction`, `particleRemoval`, and `particleReintegration`—plus 256×1 staging textures for CPU read-backs.
+- **Extraction (GPU):** Every frame, the extraction shader scans force vectors in the heat texture, selecting up to 256 high-energy pixels. Slots encode world position and a launch velocity derived from the force magnitude.
+- **Spawn (CPU):** The hook reads particle type + temperature from the GPU world texture, then calls `PhysicsManager.spawnParticle` to create Rapier dynamic bodies with configurable radius, restitution, and gravity.
+- **Removal (GPU):** Extracted pixels are cleared out of the world texture via the removal shader so the particle pipeline no longer sees duplicates.
+- **Simulation (CPU):** `PhysicsManager.step` advances the Rapier world, tracks settled bodies, and rebuilds static colliders on demand using `CollisionGridBuilder` whenever the sand grid changes enough to mark regions dirty.
+- **Reintegration (GPU):** Settled particles funnel into the reintegration shader, restoring material ID and temperature back into the grid. Throughput is capped per frame to avoid starving the main pipeline.
+- **Telemetry (CPU → GPU):** `PhysicsRenderer` mirrors active particle positions into a render target so `TextureRenderer` can draw debris and optional collision rects without additional draw calls from React.
 
 ### Particle Pipeline
 
@@ -73,8 +76,14 @@ flowchart TD
       BW[Buildables → World]
       BH[Buildables → Heat]
     end
-    subgraph Particle Passes
+    subgraph Physics
       Player[Player Update]
+      Extract[Force Extraction (GPU)]
+      Removal[Removal (GPU)]
+      RapierStep[Rapier Step (CPU)]
+      Reintegration[Reintegration (GPU)]
+    end
+    subgraph Particle Passes
       M[Margolus CA]
       L[Liquid Spread]
       A[Archimedes]
@@ -85,9 +94,10 @@ flowchart TD
     subgraph Heat Passes
       Ambient[Ambient Heat Transfer]
     end
-  BW --> Player --> M
+  BW --> Player --> Extract --> Removal --> RapierStep --> Reintegration --> M
     M --> L --> A --> PHeat --> PT --> FT
     BH --> Ambient
+    BH -.force vectors.-> Extract
     PT --> Ambient
     Ambient -->|Heat RT ref| Rendering
     PT -->|Read-back once| CPUState[(CPU DataTexture)]
@@ -100,6 +110,7 @@ flowchart TD
 - Projects either the raw particle state or the post-processed color texture to a screen-filling quad.
 - Supplies uniforms for pixel size, camera center, and background metadata while animating liquids via a time uniform.
 - Seeds procedural backgrounds with random palette + noise offsets (`createBackgroundParams`) whenever worlds reset or new levels load.
+- When physics is enabled, samples an additional render target from `PhysicsRenderer` to composite Rapier-simulated debris and optional collider rectangles over the main scene.
 
 ### Base Color Pre-pass
 
@@ -124,10 +135,10 @@ When `renderConfig` enables post-processing, a dedicated base color render targe
 - **`useTextureControls`** – Handles scroll-wheel zoom, right-click panning, and exposes a `centerRef` so the player follow loop can steer the camera without incurring React re-renders.
 - **`useParticleDrawing`** – Mirrors shader math to convert screen coordinates to world coordinates, performs circular brush edits directly on the CPU-side texture, and surfaces inspection data that merges particle and ambient temperatures.
 - **`ParticleCounter.tsx`** – Uses a reusable typed-array accumulator to produce aggregate counts on a throttled timer.
-- **`StatusBar.tsx`** – Displays FPS, current material, exposes simulation toggles including the player enable switch and per-player tuning sliders, and polls the dynamic particle buffers to surface an active count read-back.
+- **`StatusBar.tsx`** – Displays FPS, current material, exposes simulation toggles including the player enable switch and per-player tuning sliders, and polls the physics manager to surface an active debris count.
 - **`usePlayerInput`** – Captures keyboard state (movement, jump, crouch placeholders) and streams it into the GPU player update stage when enabled.
 - **Buildables Manager** – Stores up to `BUILDABLES_TEXTURE_WIDTH × BUILDABLES_TEXTURE_HEIGHT` device slots and exposes sync hooks for both CPU edits and GPU consumption.
-- **Dynamic particles controls** – The settings accordion feeds `SimulationConfig.dynamicParticles`, letting the ballistic buffer’s speed multiplier update live without tearing down the pipeline.
+- **Physics controls** – The physics panel toggles Rapier integration, adjusts gravity, force ejection thresholds, particle radius, and restitution, and relays active particle counts back into the status bar.
 
 ## Data Flow
 
@@ -144,28 +155,32 @@ flowchart LR
     CPUTexture -->|uploaded once| GPUState[(GPU State Texture)]
   MainSim["MainSimulation<br/>(passes + buildables)"] -->|ping-pong| GPUState
     MainSim --> HeatRTs[(Heat/Force RTs)]
-    MainSim --> DynBuffers[(Dynamic Buffers 32×32)]
+    MainSim --> PhysicsBridge[Extraction / Removal Shaders]
+    PhysicsBridge --> PhysicsMgr[Rapier PhysicsManager]
+    PhysicsMgr -->|settled debris| PhysicsBridge
+    PhysicsMgr --> PhysicsRT[(Physics Overlay RT)]
     HeatRTs --> PostFX[PostProcessRenderer]
     GPUState --> PostFX
-    PostFX --> Renderer[TextureRenderer]
+    PhysicsRT --> Renderer[TextureRenderer]
+    PostFX --> Renderer
     Renderer --> Canvas[(Canvas)]
     MainSim -->|single read-back| CPUTexture
     HeatRTs -->|optional read-back| CPUHeat[(CPU Heat Texture)]
     CPUHeat --> Inspector[Inspect Tooltip]
-    DynBuffers --> MainSim
-    DynBuffers --> Renderer
+    PhysicsMgr -->|stats| Status[HUD / Status Bar]
 ```
 
 ## Texture Inventory
 
-| Texture                        | Format          | Producer                                | Consumers                        | Notes                                                                                                               |
-| ------------------------------ | --------------- | --------------------------------------- | -------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| World state (ping-pong×4)      | RGBA8           | Particle passes, buildables → world     | Simulation pipeline, CPU sync    | Stores particle type, 16-bit temperature, metadata.                                                                 |
-| Heat/force RTs (ping-pong×2)   | RGBA8           | Buildables → heat, ambient diffusion    | Post-process overlays, inspector | Temperature low/high bytes + force vectors; CPU copy refreshed on demand.                                           |
-| Base color RT                  | RGBA8           | Base color pre-pass                     | Post-processing pipeline         | Only allocated when effects enabled.                                                                                |
-| Post-process RTs (ping-pong×2) | RGBA8           | Post-process renderer                   | TextureRenderer                  | Reused for every effect/overlay to cap allocations.                                                                 |
-| Buildables position/data       | RGBA8 / RGBA32F | Buildables manager                      | Buildables shaders               | Fixed-size texture atlas describing device placement & parameters.                                                  |
-| Dynamic particle buffers       | RGBA32F         | DynamicParticlesManager, dynamic passes | MainSimulation, TextureRenderer  | 32×32 ballistic storage containing positions, velocities, types, and flags for reintegration and overlay rendering. |
+| Texture                        | Format          | Producer                             | Consumers                     | Notes                                                                                           |
+| ------------------------------ | --------------- | ------------------------------------ | ----------------------------- | ----------------------------------------------------------------------------------------------- |
+| World state (ping-pong×4)      | RGBA8           | Particle passes, buildables → world  | Simulation pipeline, CPU sync | Stores particle type, 16-bit temperature, metadata.                                             |
+| Heat/force RTs (ping-pong×2)   | RGBA8           | Buildables → heat, ambient diffusion | Physics extraction, overlays  | Temperature low/high bytes + force vectors; CPU copy refreshed on demand.                       |
+| Base color RT                  | RGBA8           | Base color pre-pass                  | Post-processing pipeline      | Only allocated when effects enabled.                                                            |
+| Post-process RTs (ping-pong×2) | RGBA8           | Post-process renderer                | TextureRenderer               | Reused for every effect/overlay to cap allocations.                                             |
+| Buildables position/data       | RGBA8 / RGBA32F | Buildables manager                   | Buildables shaders            | Fixed-size texture atlas describing device placement & parameters.                              |
+| Physics extraction target      | RGBA32F         | `forceExtractionShader`              | CPU (Rapier), removal shader  | 256×1 staging buffer encodes positions and launch velocities for up to 256 particles per frame. |
+| Physics overlay RT             | RGBA8           | `PhysicsRenderer`                    | TextureRenderer               | World-sized render target containing debris sprites and optional collider rectangles.           |
 
 ## Performance Practices
 
@@ -175,12 +190,14 @@ flowchart LR
 - Glow executes last to reduce overdraw, and disabled effects skip both render target swaps and shader dispatches.
 - All render targets use `NearestFilter` and omit depth/stencil attachments for 2D precision with minimal bandwidth.
 - Friction amplification is exposed through the UI so heavy worlds can be stabilized without touching shader code.
+- Physics extraction scans only a stripe of the world each frame, capping the number of CPU-simulated particles and keeping read-backs to 256 slots.
+- Collision grids rebuild lazily based on dirty-region thresholds so static sand piles do not constantly recreate Rapier colliders.
 
 ## Threading Model
 
-- **Main thread** – React reconciliation, event handling, WebGL command submission, buildables synchronization.
-- **GPU** – Executes shader programs for buildables, particle passes, heat diffusion, and rendering effects in parallel.
-- **No Web Workers** – GPU parallelism handles the heavy lifting; CPU tasks (drawing, analytics) are throttled and vectorized.
+- **Main thread** – React reconciliation, event handling, WebGL command submission, buildables synchronization, and the Rapier physics tick (wasm executes synchronously on the main thread).
+- **GPU** – Executes shader programs for buildables, particle passes, heat diffusion, extraction/removal/reintegration, and rendering effects in parallel.
+- **No Web Workers** – GPU parallelism and the lightweight 256-slot physics bridge avoid dedicated workers; CPU tasks (drawing, analytics) are throttled and vectorized.
 
 ## Browser Compatibility
 

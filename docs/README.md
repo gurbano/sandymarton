@@ -9,18 +9,23 @@ This directory contains detailed technical documentation for Sandymarton.
 - **[Rendering System](rendering.md)** - Post-processing effects and visual rendering
 - **[Level System](levels.md)** - Level loading, saving, and texture format
 - **[Material Reference](materials.md)** - Full list of particle materials and properties
-- **[Dynamic Particles](dynamic-particles.md)** - Ballistic ejection buffer and reintegration pipeline
+- **[CPU Physics System](physics-cpu.md)** - Rapier.js pipeline for extraction, simulation, and reintegration
 
 ## Project Structure
 
 ```
 src/
 ├── components/          # React components
-│   ├── MainSimulation.tsx       # Main simulation orchestrator
+│   ├── MainSimulation.tsx       # Hybrid simulation orchestrator
 │   ├── PostProcessRenderer.tsx  # Post-processing pipeline
-│   ├── TextureRenderer.tsx      # Final rendering with liquid animation
+│   ├── TextureRenderer.tsx      # Final rendering and physics overlay
 │   ├── SideControls.tsx         # UI controls
 │   └── ParticleCounter.tsx      # Statistics display
+├── physics/             # CPU physics integration (Rapier)
+│   ├── PhysicsManager.ts        # Singleton managing Rapier world
+│   ├── usePhysicsSimulation.ts  # Extraction/removal/reintegration loop
+│   ├── PhysicsRenderer.ts       # Debris + collider visualization
+│   └── CollisionGridBuilder.ts  # World texture → collider conversion
 ├── shaders/            # GLSL shaders
 │   ├── margolusShaders.ts       # Margolus CA transitions
 │   ├── liquidSpreadShaders.ts   # Liquid flow mechanics
@@ -39,9 +44,10 @@ src/
 │   ├── SimulationConfig.ts      # Simulation configuration
 │   ├── RenderConfig.ts          # Rendering configuration
 │   └── Level.ts                 # Level metadata
-└── hooks/              # React hooks
-  ├── useParticleDrawing.ts    # Interactive drawing
-  └── useTextureControls.ts    # Pan and zoom with inertia and bounds
+├── hooks/              # React hooks
+│  ├── useParticleDrawing.ts    # Interactive drawing
+│  ├── useTextureControls.ts    # Pan and zoom with inertia and bounds
+│  └── usePlayerInput.ts        # Keyboard capture for player shader
 ```
 
 ## Tech Stack Details
@@ -90,11 +96,6 @@ Each pixel in the state texture represents one particle:
 - **Target FPS**: 60 fps
 - **GPU Memory**: ~4 MB per state texture (ping-pong + heat layer ≈ 16 MB total)
 - **Simulation Passes per Frame** (defaults):
-  - 3× Dynamic particle passes (extract, simulate, collision) plus reintegration when enabled
-  - 8× Margolus iterations
-  - 4× Liquid spread passes
-  - 2× Archimedes buoyancy passes
-  - 2× Ambient heat diffusion passes
-  - 2× Particle heat conduction passes
-  - 1× Phase transition pass
+  - GPU: Buildables → World / Heat, Margolus (8×), Liquid spread (4×), Archimedes (2×), Particle heat (2×), Phase transition (1×), Ambient heat diffusion (2×)
+  - CPU Physics: Extraction (GPU), Rapier step (~1×), Removal/Reintegration (GPU) for up to 64 particles per frame when physics is enabled
 - **Render Resolution**: Independent of world size (adjustable pixel scale)
