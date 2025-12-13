@@ -1,6 +1,6 @@
 {
   "name": "sandymarton",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "type": "module",
   "description": "GPU-accelerated particle simulation using Margolus cellular automata",
   "repository": {
@@ -28,6 +28,7 @@
     "deploy": "npm run build && gh-pages -d dist"
   },
   "dependencies": {
+    "@dimforge/rapier2d-compat": "^0.19.3",
     "@fortawesome/fontawesome-svg-core": "^7.1.0",
     "@fortawesome/free-solid-svg-icons": "^7.1.0",
     "@fortawesome/react-fontawesome": "^3.1.1",

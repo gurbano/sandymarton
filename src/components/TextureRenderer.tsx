@@ -16,17 +16,13 @@ import {
 } from 'three';
 import { vertexShader, fragmentShader } from '../shaders/rendererShader';
 import { baseColorVertexShader, baseColorFragmentShader } from '../shaders/baseColorShader';
-import {
-  dynamicOverlayVertexShader,
-  dynamicOverlayFragmentShader,
-} from '../shaders/dynamicParticlesOverlayShader';
 import { useThree, useFrame } from '@react-three/fiber';
 import PostProcessRenderer from './PostProcessRenderer';
 import type { RenderConfig } from '../types/RenderConfig';
+import { OverlayType } from '../types/RenderConfig';
 import { WORLD_SIZE } from '../constants/worldConstants';
 import { getPlayerManager } from '../player';
-import { getDynamicParticlesManager } from '../particles/DynamicParticlesManager';
-import { DYNAMIC_BUFFER_SIZE } from '../types/DynamicParticlesConfig';
+import { PhysicsRenderer, getPhysicsManager } from '../physics';
 
 const MAX_BACKGROUND_COLORS = 6;
 
@@ -35,10 +31,6 @@ interface TextureRendererProps {
   textureRef: RefObject<Texture | null>;
   /** Ref to heat RT texture (shared from MainSimulation, avoids GPU read-back) */
   heatTextureRef: RefObject<Texture | null>;
-  /** Ref to dynamic particle position/velocity buffer (shared from MainSimulation) */
-  dynamicBufferRef?: RefObject<Texture | null>;
-  /** Ref to dynamic particle aux buffer (type/temp/flags, shared from MainSimulation) */
-  dynamicAuxBufferRef?: RefObject<Texture | null>;
   pixelSize?: number;
   center?: { x: number; y: number };
   /** Ref for high-frequency center updates (camera follow) without re-renders */
@@ -48,13 +40,13 @@ interface TextureRendererProps {
   backgroundPalette?: [number, number, number][];
   backgroundSeed?: number;
   backgroundNoiseOffsets?: [number, number, number, number];
+  /** Enable physics particle overlay rendering */
+  physicsEnabled?: boolean;
 }
 
 function TextureRenderer({
   textureRef,
   heatTextureRef,
-  dynamicBufferRef,
-  dynamicAuxBufferRef,
   pixelSize = 16,
   center = { x: 0, y: 0 },
   centerRef,
@@ -63,6 +55,7 @@ function TextureRenderer({
   backgroundPalette,
   backgroundSeed = 0,
   backgroundNoiseOffsets = [0, 0, 0, 0],
+  physicsEnabled = false,
 }: TextureRendererProps) {
   const meshRef = useRef<Mesh>(null);
   const { size, gl } = useThree();
@@ -72,6 +65,31 @@ function TextureRenderer({
   useEffect(() => {
     setCanvasSize([size.width, size.height]);
   }, [size.width, size.height]);
+
+  // Physics rendering resources
+  const physicsResources = useMemo(() => {
+    const physicsRenderer = new PhysicsRenderer(WORLD_SIZE, WORLD_SIZE);
+
+    // Render target for physics particles (world-sized, RGBA for colored particles)
+    const renderTarget = new WebGLRenderTarget(WORLD_SIZE, WORLD_SIZE, {
+      type: UnsignedByteType,
+      format: RGBAFormat,
+      minFilter: NearestFilter,
+      magFilter: NearestFilter,
+      depthBuffer: false,
+      stencilBuffer: false,
+    });
+
+    return { physicsRenderer, renderTarget };
+  }, []);
+
+  // Cleanup physics resources on unmount
+  useEffect(() => {
+    return () => {
+      physicsResources.physicsRenderer.dispose();
+      physicsResources.renderTarget.dispose();
+    };
+  }, [physicsResources]);
 
   // Base color rendering resources (only created if renderConfig is provided)
   // Created once, textures updated in useFrame
@@ -104,41 +122,6 @@ function TextureRenderer({
     return { renderTarget, scene, camera, material, geometry, mesh };
   }, [renderConfig]);
 
-  // Dynamic particles overlay resources (renders dynamic particles on top of base colors)
-  const dynamicOverlayResources = useMemo(() => {
-    if (!renderConfig) return null;
-
-    const textureSize = WORLD_SIZE;
-    const renderTarget = new WebGLRenderTarget(textureSize, textureSize, {
-      type: UnsignedByteType,
-      format: RGBAFormat,
-      minFilter: NearestFilter,
-      magFilter: NearestFilter,
-      depthBuffer: false,
-      stencilBuffer: false,
-    });
-
-    const scene = new Scene();
-    const camera = new OrthographicCamera(-1, 1, 1, -1, 0, 1);
-    const geometry = new PlaneGeometry(2, 2);
-    const material = new ShaderMaterial({
-      uniforms: {
-        uInputTexture: { value: null }, // Base color texture
-        uDynamicBuffer: { value: null },
-        uDynamicAuxBuffer: { value: null },
-        uDynamicBufferSize: { value: DYNAMIC_BUFFER_SIZE },
-        uTextureSize: { value: new Vector2(WORLD_SIZE, WORLD_SIZE) },
-        uDynamicEnabled: { value: 0.0 },
-      },
-      vertexShader: dynamicOverlayVertexShader,
-      fragmentShader: dynamicOverlayFragmentShader,
-    });
-    const mesh = new Mesh(geometry, material);
-    scene.add(mesh);
-
-    return { renderTarget, scene, camera, material, geometry, mesh };
-  }, [renderConfig]);
-
   // Cleanup base color resources
   useEffect(() => {
     if (!baseColorResources) return;
@@ -150,18 +133,6 @@ function TextureRenderer({
       baseColorResources.material.dispose();
     };
   }, [baseColorResources]);
-
-  // Cleanup dynamic overlay resources
-  useEffect(() => {
-    if (!dynamicOverlayResources) return;
-
-    return () => {
-      dynamicOverlayResources.renderTarget.dispose();
-      dynamicOverlayResources.scene.remove(dynamicOverlayResources.mesh);
-      dynamicOverlayResources.geometry.dispose();
-      dynamicOverlayResources.material.dispose();
-    };
-  }, [dynamicOverlayResources]);
 
   // Shader material created once, uniforms updated in useFrame
   const shaderMaterial = useMemo(
@@ -200,6 +171,9 @@ function TextureRenderer({
           uPlayerHeadColor: { value: new Vector3(1.0, 0.85, 0.7) },
           uPlayerBodyColor: { value: new Vector3(0.2, 0.4, 0.8) },
           uPlayerLegColor: { value: new Vector3(0.3, 0.3, 0.35) },
+          // Physics particle overlay uniforms
+          uPhysicsTexture: { value: null },
+          uPhysicsEnabled: { value: 0 },
         },
         vertexShader,
         fragmentShader,
@@ -250,30 +224,43 @@ function TextureRenderer({
       shaderMaterial.uniforms.uCenter.value = [centerRef.current.x, centerRef.current.y];
     }
 
+    // Update physics particles rendering
+    const physicsManager = getPhysicsManager();
+
+    // Check if FORCE overlay is enabled to control collision rect visibility
+    const forceOverlayEnabled = renderConfig?.overlays.find(o => o.type === OverlayType.FORCE)?.enabled ?? false;
+    physicsResources.physicsRenderer.setShowCollisionRects(forceOverlayEnabled);
+
+    // Determine if we need to render the physics scene
+    // Render if: has particles OR force overlay is enabled (to show collision rects)
+    const hasParticles = physicsEnabled && physicsManager.isInitialized && physicsManager.particleCount > 0;
+    const shouldRenderPhysics = hasParticles || (forceOverlayEnabled && physicsManager.isInitialized);
+
+    if (shouldRenderPhysics) {
+      // Update physics renderer with current particle data
+      physicsResources.physicsRenderer.update(physicsManager);
+
+      // Clear physics render target with transparent background
+      gl.setRenderTarget(physicsResources.renderTarget);
+      gl.setClearColor(0x000000, 0);
+      gl.clear();
+
+      // Render physics particles to the render target
+      gl.render(physicsResources.physicsRenderer.scene, physicsResources.physicsRenderer.camera);
+      gl.setRenderTarget(null);
+
+      // Update shader uniforms for physics overlay
+      shaderMaterial.uniforms.uPhysicsTexture.value = physicsResources.renderTarget.texture;
+      shaderMaterial.uniforms.uPhysicsEnabled.value = 1;
+    } else {
+      shaderMaterial.uniforms.uPhysicsEnabled.value = 0;
+    }
+
     // Render base colors if resources exist
     if (baseColorResources) {
       baseColorResources.material.uniforms.uStateTexture.value = texture;
       gl.setRenderTarget(baseColorResources.renderTarget);
       gl.render(baseColorResources.scene, baseColorResources.camera);
-      gl.setRenderTarget(null);
-    }
-
-    // Render dynamic particles overlay on top of base colors
-    if (dynamicOverlayResources && baseColorResources) {
-      const dynamicManager = getDynamicParticlesManager();
-      // Use ref textures (from MainSimulation render targets) if available,
-      // otherwise fall back to manager's initial DataTextures
-      const dynamicBuffer = dynamicBufferRef?.current ?? dynamicManager.positionBuffer;
-      const dynamicAux = dynamicAuxBufferRef?.current ?? dynamicManager.auxBuffer;
-
-      dynamicOverlayResources.material.uniforms.uInputTexture.value =
-        baseColorResources.renderTarget.texture;
-      dynamicOverlayResources.material.uniforms.uDynamicBuffer.value = dynamicBuffer;
-      dynamicOverlayResources.material.uniforms.uDynamicAuxBuffer.value = dynamicAux;
-      dynamicOverlayResources.material.uniforms.uDynamicEnabled.value =
-        dynamicManager.enabled ? 1.0 : 0.0;
-      gl.setRenderTarget(dynamicOverlayResources.renderTarget);
-      gl.render(dynamicOverlayResources.scene, dynamicOverlayResources.camera);
       gl.setRenderTarget(null);
     }
   });
@@ -321,9 +308,9 @@ function TextureRenderer({
 
   return (
     <>
-      {renderConfig && baseColorResources && dynamicOverlayResources && (
+      {renderConfig && baseColorResources && (
         <PostProcessRenderer
-          colorTexture={dynamicOverlayResources.renderTarget.texture}
+          colorTexture={baseColorResources.renderTarget.texture}
           stateTextureRef={textureRef}
           heatTextureRef={heatTextureRef}
           textureSize={WORLD_SIZE}

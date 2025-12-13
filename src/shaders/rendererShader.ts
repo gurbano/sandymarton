@@ -87,6 +87,10 @@ export const fragmentShader = `
   uniform vec3 uPlayerBodyColor;
   uniform vec3 uPlayerLegColor;
 
+  // Physics particles overlay uniforms
+  uniform sampler2D uPhysicsTexture;
+  uniform float uPhysicsEnabled;
+
   varying vec2 vUv;
 
   ${generateShaderConstants()}
@@ -426,6 +430,15 @@ ${generateParticleColorCode()}
 
     vec3 finalColor = mix(backgroundSample.rgb, color.rgb, color.a);
     float finalAlpha = clamp(backgroundSample.a + color.a * (1.0 - backgroundSample.a), 0.0, 1.0);
+
+    // Render physics particles overlay (before player so particles appear behind player)
+    if (uPhysicsEnabled > 0.5) {
+      vec4 physicsPixel = texture2D(uPhysicsTexture, texUV);
+      if (physicsPixel.a > 0.01) {
+        finalColor = mix(finalColor, physicsPixel.rgb, physicsPixel.a);
+        finalAlpha = max(finalAlpha, physicsPixel.a);
+      }
+    }
 
     // Render player sprite on top
     // Convert view-centered coords to absolute world coords (player position is absolute)

@@ -44,8 +44,7 @@ import { loadLevelIndex } from '../utils/LevelLoader';
 import type { Level } from '../types/Level';
 import type { ToolMode } from '../hooks/useParticleDrawing';
 import { BuildableType, BuildableDefinitions, getBuildablesByCategory } from '../buildables';
-import type { DynamicParticlesConfig } from '../types/DynamicParticlesConfig';
-
+import type { SimulationConfig } from '../types/SimulationConfig';
 const MIN_LEFT_WIDTH = 160;
 const MAX_LEFT_WIDTH = 320;
 
@@ -66,8 +65,8 @@ interface SideControlsProps {
   onBrushSizeChange: (size: number) => void;
   selectedBuildable: BuildableType;
   onBuildableSelect: (buildable: BuildableType) => void;
-  dynamicParticlesConfig?: DynamicParticlesConfig;
-  onDynamicParticlesConfigChange?: (config: DynamicParticlesConfig) => void;
+  simulationConfig: SimulationConfig;
+  onSimulationConfigChange: (config: SimulationConfig) => void;
 }
 
 const particleIcons: Record<string, IconDefinition> = {
@@ -135,8 +134,8 @@ export function SideControls({
   onBrushSizeChange,
   selectedBuildable,
   onBuildableSelect,
-  dynamicParticlesConfig,
-  onDynamicParticlesConfigChange,
+  simulationConfig,
+  onSimulationConfigChange,
 }: SideControlsProps) {
   const [availableLevels, setAvailableLevels] = useState<Level[]>([]);
   const [selectedLevel, setSelectedLevel] = useState<string>('');
@@ -152,7 +151,7 @@ export function SideControls({
   const [showOverlayGroup, setShowOverlayGroup] = useState(true);
   const [showRendererEffectsGroup, setShowRendererEffectsGroup] = useState(false);
   const [showWorldTypeGroup, setShowWorldTypeGroup] = useState(false);
-  const [showDynamicParticlesGroup, setShowDynamicParticlesGroup] = useState(false);
+  const [showPhysicsGroup, setShowPhysicsGroup] = useState(false);
 
   // Load available levels on mount
   useEffect(() => {
@@ -303,6 +302,49 @@ export function SideControls({
     onRenderConfigChange({
       ...renderConfig,
       glow: { ...renderConfig.glow, radius: value },
+    });
+  };
+
+  // Physics config handlers
+  const handlePhysicsEnabledToggle = () => {
+    onSimulationConfigChange({
+      ...simulationConfig,
+      physics: { ...simulationConfig.physics, enabled: !simulationConfig.physics.enabled },
+    });
+  };
+
+  const handlePhysicsGravityChange = (value: number) => {
+    onSimulationConfigChange({
+      ...simulationConfig,
+      physics: { ...simulationConfig.physics, gravity: value },
+    });
+  };
+
+  const handlePhysicsForceThresholdChange = (value: number) => {
+    onSimulationConfigChange({
+      ...simulationConfig,
+      physics: { ...simulationConfig.physics, forceEjectionThreshold: value },
+    });
+  };
+
+  const handlePhysicsSettleThresholdChange = (value: number) => {
+    onSimulationConfigChange({
+      ...simulationConfig,
+      physics: { ...simulationConfig.physics, settleThreshold: value },
+    });
+  };
+
+  const handlePhysicsParticleRadiusChange = (value: number) => {
+    onSimulationConfigChange({
+      ...simulationConfig,
+      physics: { ...simulationConfig.physics, particleRadius: value },
+    });
+  };
+
+  const handlePhysicsRestitutionChange = (value: number) => {
+    onSimulationConfigChange({
+      ...simulationConfig,
+      physics: { ...simulationConfig.physics, particleRestitution: value },
     });
   };
 
@@ -665,49 +707,6 @@ export function SideControls({
                 )}
               </div>
 
-              {/* Dynamic Particles */}
-              {dynamicParticlesConfig && onDynamicParticlesConfigChange && (
-                <div className="settings-group collapsible">
-                  <button
-                    type="button"
-                    className={`settings-group-toggle ${showDynamicParticlesGroup ? 'expanded' : ''}`}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setShowDynamicParticlesGroup(prev => !prev);
-                    }}
-                  >
-                    <FontAwesomeIcon icon={showDynamicParticlesGroup ? faChevronDown : faChevronRight} />
-                    <span>Dynamic Particles</span>
-                  </button>
-                  {showDynamicParticlesGroup && (
-                    <div className="settings-group-content">
-                      <label className="effect-control">
-                        <div className="effect-control-header">
-                          <span>Speed</span>
-                          <span className="effect-value">
-                            {(dynamicParticlesConfig.speedMultiplier * 100).toFixed(0)}%
-                          </span>
-                        </div>
-                        <input
-                          type="range"
-                          min="0.05"
-                          max="1"
-                          step="0.05"
-                          value={dynamicParticlesConfig.speedMultiplier}
-                          onChange={(e) =>
-                            onDynamicParticlesConfigChange({
-                              ...dynamicParticlesConfig,
-                              speedMultiplier: parseFloat(e.target.value),
-                            })
-                          }
-                          className="passes-slider"
-                        />
-                      </label>
-                    </div>
-                  )}
-                </div>
-              )}
-
               {/* World Init Type */}
               <div className="settings-group collapsible">
                 <button
@@ -733,6 +732,123 @@ export function SideControls({
                       <option value={WorldInitType.AXIS}>Axis</option>
                       <option value={WorldInitType.EMPTY}>Empty</option>
                     </select>
+                  </div>
+                )}
+              </div>
+
+              {/* Physics Settings */}
+              <div className="settings-group collapsible">
+                <button
+                  type="button"
+                  className={`settings-group-toggle ${showPhysicsGroup ? 'expanded' : ''}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowPhysicsGroup(prev => !prev);
+                  }}
+                >
+                  <FontAwesomeIcon icon={showPhysicsGroup ? faChevronDown : faChevronRight} />
+                  <span>Physics</span>
+                </button>
+                {showPhysicsGroup && (
+                  <div className="settings-group-content">
+                    {/* Physics Enable Toggle */}
+                    <div className="effect-card">
+                      <button
+                        className={`effect-toggle ${simulationConfig.physics.enabled ? 'active' : ''}`}
+                        onClick={handlePhysicsEnabledToggle}
+                        type="button"
+                      >
+                        <FontAwesomeIcon icon={faWind} />
+                        <div className="effect-details">
+                          <span className="effect-name">Physics Simulation</span>
+                          <span className="effect-description">Rapier-based particles</span>
+                        </div>
+                        <span className="effect-status">{simulationConfig.physics.enabled ? 'On' : 'Off'}</span>
+                      </button>
+
+                      <div className="effect-controls">
+                        <label className="effect-control">
+                          <div className="effect-control-header">
+                            <span>Gravity</span>
+                            <span className="effect-value">{simulationConfig.physics.gravity.toFixed(0)}</span>
+                          </div>
+                          <input
+                            type="range"
+                            min="0"
+                            max="500"
+                            step="10"
+                            value={simulationConfig.physics.gravity}
+                            onChange={(e) => handlePhysicsGravityChange(parseFloat(e.target.value))}
+                            className="passes-slider"
+                            disabled={!simulationConfig.physics.enabled}
+                          />
+                        </label>
+                        <label className="effect-control">
+                          <div className="effect-control-header">
+                            <span>Force Threshold</span>
+                            <span className="effect-value">{simulationConfig.physics.forceEjectionThreshold.toFixed(2)}</span>
+                          </div>
+                          <input
+                            type="range"
+                            min="0.05"
+                            max="1"
+                            step="0.05"
+                            value={simulationConfig.physics.forceEjectionThreshold}
+                            onChange={(e) => handlePhysicsForceThresholdChange(parseFloat(e.target.value))}
+                            className="passes-slider"
+                            disabled={!simulationConfig.physics.enabled}
+                          />
+                        </label>
+                        <label className="effect-control">
+                          <div className="effect-control-header">
+                            <span>Settle Velocity</span>
+                            <span className="effect-value">{simulationConfig.physics.settleThreshold.toFixed(1)}</span>
+                          </div>
+                          <input
+                            type="range"
+                            min="0.5"
+                            max="20"
+                            step="0.5"
+                            value={simulationConfig.physics.settleThreshold}
+                            onChange={(e) => handlePhysicsSettleThresholdChange(parseFloat(e.target.value))}
+                            className="passes-slider"
+                            disabled={!simulationConfig.physics.enabled}
+                          />
+                        </label>
+                        <label className="effect-control">
+                          <div className="effect-control-header">
+                            <span>Particle Radius</span>
+                            <span className="effect-value">{simulationConfig.physics.particleRadius.toFixed(1)}</span>
+                          </div>
+                          <input
+                            type="range"
+                            min="0.3"
+                            max="2"
+                            step="0.1"
+                            value={simulationConfig.physics.particleRadius}
+                            onChange={(e) => handlePhysicsParticleRadiusChange(parseFloat(e.target.value))}
+                            className="passes-slider"
+                            disabled={!simulationConfig.physics.enabled}
+                          />
+                        </label>
+                        <label className="effect-control">
+                          <div className="effect-control-header">
+                            <span>Bounciness</span>
+                            <span className="effect-value">{simulationConfig.physics.particleRestitution.toFixed(2)}</span>
+                          </div>
+                          <input
+                            type="range"
+                            min="0"
+                            max="1"
+                            step="0.05"
+                            value={simulationConfig.physics.particleRestitution}
+                            onChange={(e) => handlePhysicsRestitutionChange(parseFloat(e.target.value))}
+                            className="passes-slider"
+                            disabled={!simulationConfig.physics.enabled}
+                          />
+                        </label>
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>

@@ -78,8 +78,6 @@ const createBackgroundParams = (): BackgroundParams => {
 function Scene({
   textureRef,
   heatTextureRef,
-  dynamicBufferRef,
-  dynamicAuxBufferRef,
   pixelSize,
   center,
   centerRef,
@@ -87,11 +85,10 @@ function Scene({
   backgroundPalette,
   backgroundSeed,
   backgroundNoiseOffsets,
+  physicsEnabled,
 }: {
   textureRef: RefObject<Texture | null>;
   heatTextureRef: RefObject<Texture | null>;
-  dynamicBufferRef: RefObject<Texture | null>;
-  dynamicAuxBufferRef: RefObject<Texture | null>;
   pixelSize: number;
   center: { x: number; y: number };
   centerRef: RefObject<{ x: number; y: number }>;
@@ -99,13 +96,12 @@ function Scene({
   backgroundPalette: BackgroundPaletteColor[];
   backgroundSeed: number;
   backgroundNoiseOffsets: [number, number, number, number];
+  physicsEnabled: boolean;
 }) {
   return (
     <TextureRenderer
       textureRef={textureRef}
       heatTextureRef={heatTextureRef}
-      dynamicBufferRef={dynamicBufferRef}
-      dynamicAuxBufferRef={dynamicAuxBufferRef}
       pixelSize={pixelSize}
       center={center}
       centerRef={centerRef}
@@ -113,6 +109,7 @@ function Scene({
       backgroundPalette={backgroundPalette}
       backgroundSeed={backgroundSeed}
       backgroundNoiseOffsets={backgroundNoiseOffsets}
+      physicsEnabled={physicsEnabled}
     />
   );
 }
@@ -198,10 +195,6 @@ function App() {
   const ambientHeatTextureRef = useRef<DataTexture | null>(null);
   // Ref for world texture (avoids prop drilling and re-renders)
   const worldTextureRef = useRef<DataTexture>(worldTexture);
-  // Refs for dynamic particle buffers (updated by MainSimulation, read by TextureRenderer)
-  const dynamicBufferRef = useRef<Texture | null>(null);
-  const dynamicAuxBufferRef = useRef<Texture | null>(null);
-
   // Keep ref in sync with state (state only changes on reset)
   useEffect(() => {
     worldTextureRef.current = worldTexture;
@@ -553,20 +546,16 @@ function App() {
           textureSize={WORLD_SIZE}
           onHeatTextureReady={(tex) => { ambientHeatTextureRef.current = tex; }}
           heatRTRef={heatRTRef}
-          dynamicBufferRef={dynamicBufferRef}
-          dynamicAuxBufferRef={dynamicAuxBufferRef}
           enabled={simulationEnabled}
           config={simulationConfig}
           resetCount={resetCount}
           onFpsUpdate={setFps}
-          onDynamicParticleCountUpdate={setDynamicParticleCount}
+          onPhysicsParticleCountUpdate={setDynamicParticleCount}
           shouldCaptureHeatLayer={toolMode === 'inspect'}
         />
         <Scene
           textureRef={worldTextureRef}
           heatTextureRef={heatRTRef}
-          dynamicBufferRef={dynamicBufferRef}
-          dynamicAuxBufferRef={dynamicAuxBufferRef}
           pixelSize={pixelSize}
           center={center}
           centerRef={centerRef}
@@ -574,6 +563,7 @@ function App() {
           backgroundPalette={backgroundParams.palette}
           backgroundSeed={backgroundParams.seed}
           backgroundNoiseOffsets={backgroundParams.noiseOffsets}
+          physicsEnabled={simulationConfig.physics.enabled}
         />
       </Canvas>
 
@@ -595,10 +585,8 @@ function App() {
         onBrushSizeChange={setBrushSize}
         selectedBuildable={selectedBuildable}
         onBuildableSelect={setSelectedBuildable}
-        dynamicParticlesConfig={simulationConfig.dynamicParticles}
-        onDynamicParticlesConfigChange={(config) =>
-          setSimulationConfig((prev) => ({ ...prev, dynamicParticles: config }))
-        }
+        simulationConfig={simulationConfig}
+        onSimulationConfigChange={setSimulationConfig}
       />
 
       {/* Brush Cursor - ref-based for performance */}

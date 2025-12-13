@@ -3,21 +3,14 @@
  * Each step can be enabled/disabled and configured with number of passes
  */
 
-import type { DynamicParticlesConfig } from './DynamicParticlesConfig';
-import { DEFAULT_DYNAMIC_PARTICLES_CONFIG } from './DynamicParticlesConfig';
+import type { PhysicsConfig } from './PhysicsConfig';
+import { DEFAULT_PHYSICS_CONFIG } from './PhysicsConfig';
 
-export type { DynamicParticlesConfig };
-export {
-  DEFAULT_DYNAMIC_PARTICLES_CONFIG,
-  DYNAMIC_BUFFER_SIZE,
-  MAX_DYNAMIC_PARTICLES,
-} from './DynamicParticlesConfig';
+export type { PhysicsConfig };
+export { DEFAULT_PHYSICS_CONFIG } from './PhysicsConfig';
 
 export enum SimulationStepType {
   PLAYER_UPDATE = 'player-update',
-  DYNAMIC_EXTRACT = 'dynamic-extract',
-  DYNAMIC_SIMULATE = 'dynamic-simulate',
-  DYNAMIC_COLLISION = 'dynamic-collision',
   MARGOLUS_CA = 'margolus-ca',
   LIQUID_SPREAD = 'liquid-spread',
   ARCHIMEDES = 'archimedes',
@@ -49,7 +42,8 @@ export interface SimulationConfig {
   steps: SimulationStep[];
   frictionAmplifier: number; // Exponential friction power (0-10, default 1.3)
   ambientHeatSettings: AmbientHeatSettings;
-  dynamicParticles: DynamicParticlesConfig;
+  /** Rapier-based physics system for dynamic particles and rigid bodies */
+  physics: PhysicsConfig;
 }
 
 export const DEFAULT_AMBIENT_HEAT_SETTINGS: AmbientHeatSettings = {
@@ -65,7 +59,7 @@ export const DEFAULT_AMBIENT_HEAT_SETTINGS: AmbientHeatSettings = {
 export const DEFAULT_SIMULATION_CONFIG: SimulationConfig = {
   frictionAmplifier: 1.3,
   ambientHeatSettings: { ...DEFAULT_AMBIENT_HEAT_SETTINGS },
-  dynamicParticles: { ...DEFAULT_DYNAMIC_PARTICLES_CONFIG },
+  physics: { ...DEFAULT_PHYSICS_CONFIG },
   steps: [
     {
       type: SimulationStepType.PLAYER_UPDATE,
@@ -73,27 +67,6 @@ export const DEFAULT_SIMULATION_CONFIG: SimulationConfig = {
       passes: 10,
       name: 'Player Update',
       description: 'Player physics, collision, and particle displacement',
-    },
-    {
-      type: SimulationStepType.DYNAMIC_EXTRACT,
-      enabled: true, // Disabled by default
-      passes: 10,
-      name: 'Dynamic Extract',
-      description: 'Eject particles from world into dynamic buffer when force exceeds threshold',
-    },
-    {
-      type: SimulationStepType.DYNAMIC_SIMULATE,
-      enabled: true,
-      passes: 10,
-      name: 'Dynamic Simulate',
-      description: 'Physics update for dynamic particles (gravity, forces, drag)',
-    },
-    {
-      type: SimulationStepType.DYNAMIC_COLLISION,
-      enabled: true,
-      passes: 10,
-      name: 'Dynamic Collision',
-      description: 'Ray-march movement, handle collisions, reintegrate settled particles',
     },
     {
       type: SimulationStepType.MARGOLUS_CA,

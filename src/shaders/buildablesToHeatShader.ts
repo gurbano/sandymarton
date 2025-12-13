@@ -112,10 +112,9 @@ void main() {
       } else if (type == BUILDABLE_COLD_SOURCE) {
         heatDelta -= intensity * rate * falloff;
       } else if (type == BUILDABLE_FORCE_SOURCE) {
-        // Force always points up (+Y), spreads left/right based on position relative to center
-        // Coordinate system: gravity does vel.y -= g, so -Y is down, +Y is up
+        // Force always points up (negative Y in screen coords where Y increases downward)
         float dirX = dist > 0.1 ? dx / dist : 0.0; // Horizontal spread based on position
-        float dirY = 1.0; // Push up (+Y direction)
+        float dirY = 1.0; // Push up (negative Y in screen coordinates)
         vec2 direction = normalize(vec2(dirX, dirY));
         forceDelta += direction * intensity * rate * 2.0; // Constant force throughout radius
       }
