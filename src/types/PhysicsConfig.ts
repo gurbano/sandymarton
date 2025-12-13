@@ -44,6 +44,9 @@ export interface PhysicsConfig {
 
   /** Velocity multiplier for initial ejection */
   ejectionVelocityMultiplier: number;
+
+  /** Force multiplier for rigid body to force field transfer */
+  rigidBodyForceMultiplier: number;
 }
 
 export interface RigidBodyConfig {
@@ -77,6 +80,7 @@ export const DEFAULT_PHYSICS_CONFIG: PhysicsConfig = {
   collisionRebuildInterval: 500,
   collisionCellSize: 4,
   ejectionVelocityMultiplier: 160.0,
+  rigidBodyForceMultiplier: 10.0,
 };
 
 export const DEFAULT_RIGID_BODY_CONFIG: RigidBodyConfig = {

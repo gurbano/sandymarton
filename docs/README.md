@@ -97,5 +97,5 @@ Each pixel in the state texture represents one particle:
 - **GPU Memory**: ~4 MB per state texture (ping-pong + heat layer ≈ 16 MB total)
 - **Simulation Passes per Frame** (defaults):
   - GPU: Buildables → World / Heat, Margolus (8×), Liquid spread (4×), Archimedes (2×), Particle heat (2×), Phase transition (1×), Ambient heat diffusion (2×)
-  - CPU Physics: Extraction (GPU), Rapier step (~1×), Removal/Reintegration (GPU) for up to 64 particles per frame when physics is enabled
+  - CPU Physics: Extraction (GPU), Rapier step (~1×), Removal/Reintegration (GPU) for up to 256 particles per frame when physics is enabled
 - **Render Resolution**: Independent of world size (adjustable pixel scale)

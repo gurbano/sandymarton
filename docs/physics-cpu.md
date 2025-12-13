@@ -11,7 +11,7 @@ This document describes the Rapier.js-based physics system that handles dynamic 
 │                                                                          │
 │  1. EXTRACTION (GPU)                                                     │
 │     forceExtractionShader scans world for particles with force > threshold│
-│     Output: 64x1 RGBA32F texture → CPU readback                          │
+│     Output: 256x1 RGBA32F texture → CPU readback                         │
 │                                                                          │
 │  2. SPAWN (CPU)                                                          │
 │     Parse extracted positions, read type/temp from worldTexture          │
@@ -19,7 +19,7 @@ This document describes the Rapier.js-based physics system that handles dynamic 
 │                                                                          │
 │  3. REMOVAL (GPU)                                                        │
 │     particleRemovalShader clears extracted positions from world          │
-│     Input: 64x1 removal positions texture                                │
+│     Input: 256x1 removal positions texture                               │
 │                                                                          │
 │  4. PHYSICS STEP (CPU)                                                   │
 │     PhysicsManager.step() → RAPIER.World.step()                          │
@@ -32,7 +32,7 @@ This document describes the Rapier.js-based physics system that handles dynamic 
 │                                                                          │
 │  6. REINTEGRATION (GPU)                                                  │
 │     particleReintegrationShader places settled particles in world        │
-│     Input: 64x1 reintegration data texture                               │
+│     Input: 256x1 reintegration data texture                              │
 │                                                                          │
 │  7. RENDERING (GPU)                                                      │
 │     PhysicsRenderer draws point sprites for particles                    │
@@ -45,22 +45,23 @@ This document describes the Rapier.js-based physics system that handles dynamic 
 
 ## Files
 
-| File | Purpose |
-|------|---------|
-| `src/physics/PhysicsManager.ts` | Singleton managing Rapier world, particles, rigid bodies |
-| `src/physics/usePhysicsSimulation.ts` | React hook orchestrating the frame pipeline |
-| `src/physics/PhysicsRenderer.ts` | Three.js point sprites and instanced meshes |
-| `src/physics/CollisionGridBuilder.ts` | World texture → collision geometry |
-| `src/types/PhysicsConfig.ts` | Configuration types and defaults |
-| `src/shaders/forceExtractionShader.ts` | GPU extraction pass |
-| `src/shaders/particleRemovalShader.ts` | GPU removal pass |
-| `src/shaders/particleReintegrationShader.ts` | GPU reintegration pass |
+| File                                         | Purpose                                                  |
+| -------------------------------------------- | -------------------------------------------------------- |
+| `src/physics/PhysicsManager.ts`              | Singleton managing Rapier world, particles, rigid bodies |
+| `src/physics/usePhysicsSimulation.ts`        | React hook orchestrating the frame pipeline              |
+| `src/physics/PhysicsRenderer.ts`             | Three.js point sprites and instanced meshes              |
+| `src/physics/CollisionGridBuilder.ts`        | World texture → collision geometry                       |
+| `src/types/PhysicsConfig.ts`                 | Configuration types and defaults                         |
+| `src/shaders/forceExtractionShader.ts`       | GPU extraction pass                                      |
+| `src/shaders/particleRemovalShader.ts`       | GPU removal pass                                         |
+| `src/shaders/particleReintegrationShader.ts` | GPU reintegration pass                                   |
 
 ---
 
 ## PhysicsManager (Singleton)
 
 ### Purpose
+
 Manages the Rapier physics world, spawns/removes particles and rigid bodies, tracks render buffers.
 
 ### Key Properties
@@ -165,7 +166,7 @@ reset(): void - Clear + reset config to defaults
 ```typescript
 interface PhysicsParticle {
   body: RAPIER.RigidBody;
-  type: number;        // Material type ID (0-255)
+  type: number; // Material type ID (0-255)
   temperature: number; // Kelvin
 }
 
@@ -178,7 +179,7 @@ interface RigidBodyObject {
 }
 
 interface SettledParticle {
-  x: number;          // Floor'd world position
+  x: number; // Floor'd world position
   y: number;
   type: number;
   temperature: number;
@@ -190,6 +191,7 @@ interface SettledParticle {
 ## usePhysicsSimulation (React Hook)
 
 ### Purpose
+
 Orchestrates the per-frame physics pipeline, manages GPU resources for extraction/removal/reintegration.
 
 ### Props
@@ -199,7 +201,7 @@ interface UsePhysicsSimulationProps {
   gl: WebGLRenderer;
   worldTexture: DataTexture;
   textureSize: number;
-  heatForceTexture: Texture | null;  // Heat/force layer (B/A channels = force)
+  heatForceTexture: Texture | null; // Heat/force layer (B/A channels = force)
   enabled: boolean;
   config?: Partial<PhysicsConfig>;
   onParticleCountUpdate?: (count: number) => void;
@@ -210,7 +212,7 @@ interface UsePhysicsSimulationProps {
 
 ```typescript
 interface PhysicsSimulationResult {
-  runPhysicsStep: (currentSource, renderTargets, rtIndex, elapsedTime) => { newSource, newRtIndex };
+  runPhysicsStep: (currentSource, renderTargets, rtIndex, elapsedTime) => { newSource; newRtIndex };
   isReady: boolean;
   particleCount: number;
   rigidBodyCount: number;
@@ -223,22 +225,22 @@ interface PhysicsSimulationResult {
 ### GPU Resources
 
 ```typescript
-// Extraction render target (64x1 RGBA32F)
-extractionRT: WebGLRenderTarget
+// Extraction render target (EXTRACTION_BUFFER_SIZE × 1 RGBA32F)
+extractionRT: WebGLRenderTarget;
 
-// Removal data texture (64x1 RGBA32F) - positions to clear
-removalTexture: DataTexture
+// Removal data texture (EXTRACTION_BUFFER_SIZE × 1 RGBA32F) - positions to clear
+removalTexture: DataTexture;
 
-// Reintegration data texture (64x1 RGBA32F) - particles to place
-reintegrationTexture: DataTexture
+// Reintegration data texture (EXTRACTION_BUFFER_SIZE × 1 RGBA32F) - particles to place
+reintegrationTexture: DataTexture;
 
 // Pixel buffer for extraction readback
-extractionPixels: Float32Array(64 * 4)
+extractionPixels: Float32Array(EXTRACTION_BUFFER_SIZE * 4);
 
 // Shader resources (scene, camera, material, mesh)
-extractionResources: SimulationResources
-removalResources: SimulationResources
-reintegrationResources: SimulationResources
+extractionResources: SimulationResources;
+removalResources: SimulationResources;
+reintegrationResources: SimulationResources;
 ```
 
 ### Main Loop: runPhysicsStep()
@@ -300,6 +302,7 @@ function runPhysicsStep(currentWorldSource, renderTargets, rtIndex, elapsedTime)
 ### forceExtractionShader
 
 **Input:**
+
 - `uWorldTexture` - World state texture (R = particle type)
 - `uHeatForceTexture` - Heat/force layer (B/A = force x/y, 128 = neutral)
 - `uTextureSize` - World dimensions
@@ -307,16 +310,18 @@ function runPhysicsStep(currentWorldSource, renderTargets, rtIndex, elapsedTime)
 - `uEjectionVelocityMultiplier` - Velocity scaling
 - `uTime` - Used for rotating Y offset
 
-**Output:** 64x1 RGBA32F
+**Output:** 256x1 RGBA32F
+
 - R = worldX (or -1 if no particle)
 - G = worldY (or -1 if no particle)
 - B = velocityX
 - A = velocityY
 
 **Logic:**
+
 ```glsl
 slot = floor(gl_FragCoord.x);  // 0-63
-stripeWidth = textureSize.x / 64.0;
+stripeWidth = textureSize.x / float(EXTRACTION_BUFFER_SIZE);
 startX = slot * stripeWidth;
 
 // Rotating Y offset for full coverage over 4 frames
@@ -342,17 +347,19 @@ gl_FragColor = vec4(-1, -1, 0, 0);  // No particle found
 ### particleRemovalShader
 
 **Input:**
+
 - `uCurrentState` - Current world texture
-- `uRemovalTexture` - 64x1 positions to remove (R=x, G=y)
+- `uRemovalTexture` - EXTRACTION_BUFFER_SIZE × 1 positions to remove (R=x, G=y)
 - `uRemovalCount` - Number of valid entries
 
 **Output:** Modified world texture (cleared positions)
 
 **Logic:**
+
 ```glsl
 worldCoord = floor(vUv * textureSize);
 
-for (i = 0; i < 64; i++) {
+for (i = 0; i < EXTRACTION_BUFFER_SIZE; i++) {
   if (i >= uRemovalCount) break;
   removalPos = removalTexture[i].rg;
   if (removalPos.x < 0) continue;
@@ -368,13 +375,15 @@ gl_FragColor = particle;  // No change
 ### particleReintegrationShader
 
 **Input:**
+
 - `uCurrentState` - Current world texture
-- `uReintegrationTexture` - 64x1 particles (R=x, G=y, B=type, A=temp)
+- `uReintegrationTexture` - EXTRACTION_BUFFER_SIZE × 1 particles (R=x, G=y, B=type, A=temp)
 - `uReintegrationCount` - Number of valid entries
 
 **Output:** Modified world texture (placed particles)
 
 **Logic:**
+
 ```glsl
 currentType = current.r * 255.0;
 if (currentType > 0.5) {
@@ -382,7 +391,7 @@ if (currentType > 0.5) {
   return;
 }
 
-for (i = 0; i < 64; i++) {
+for (i = 0; i < EXTRACTION_BUFFER_SIZE; i++) {
   if (i >= uReintegrationCount) break;
   particleData = reintegrationTexture[i];
   pos = particleData.rg;
@@ -403,6 +412,7 @@ gl_FragColor = current;
 ## CollisionGridBuilder
 
 ### Purpose
+
 Converts world texture to static collision geometry for Rapier.
 
 ### Functions
@@ -426,12 +436,12 @@ buildHeightmap(worldData, width, height): Float32Array
 ### Material Ranges
 
 ```typescript
-STATIC_MIN = 16   // Stone, glass, etc.
-STATIC_MAX = 32   // Static materials become collision
-SOLID_MIN = 33    // Moveable solids (sand, dirt)
-SOLID_MAX = 63
-LIQUID_MIN = 64   // Liquids (water, lava)
-LIQUID_MAX = 111
+STATIC_MIN = 16; // Stone, glass, etc.
+STATIC_MAX = 32; // Static materials become collision
+SOLID_MIN = 33; // Moveable solids (sand, dirt)
+SOLID_MAX = 63;
+LIQUID_MIN = 64; // Liquids (water, lava)
+LIQUID_MAX = 111;
 ```
 
 ---
@@ -439,27 +449,28 @@ LIQUID_MAX = 111
 ## PhysicsRenderer
 
 ### Purpose
+
 Renders physics particles as point sprites, rigid bodies as instanced meshes.
 
 ### Components
 
 ```typescript
 // Particle rendering
-particleGeometry: BufferGeometry
-particlePositions: BufferAttribute(Float32Array, 3)  // x, y, z
-particleColors: BufferAttribute(Float32Array, 3)     // r, g, b
-particleMaterial: PointsMaterial({ size: 2, vertexColors: true })
-particlePoints: Points
+particleGeometry: BufferGeometry;
+particlePositions: BufferAttribute(Float32Array, 3); // x, y, z
+particleColors: BufferAttribute(Float32Array, 3); // r, g, b
+particleMaterial: PointsMaterial({ size: 2, vertexColors: true });
+particlePoints: Points;
 
 // Rigid body rendering - boxes
-boxGeometry: PlaneGeometry(1, 1)
-boxMaterial: MeshBasicMaterial({ color: 0x8b4513 })
-boxMesh: InstancedMesh(boxGeometry, boxMaterial, MAX_RIGID_BODIES)
+boxGeometry: PlaneGeometry(1, 1);
+boxMaterial: MeshBasicMaterial({ color: 0x8b4513 });
+boxMesh: InstancedMesh(boxGeometry, boxMaterial, MAX_RIGID_BODIES);
 
 // Rigid body rendering - circles
-circleGeometry: CircleGeometry(1, 16)
-circleMaterial: MeshBasicMaterial({ color: 0x654321 })
-circleMesh: InstancedMesh(circleGeometry, circleMaterial, MAX_RIGID_BODIES)
+circleGeometry: CircleGeometry(1, 16);
+circleMaterial: MeshBasicMaterial({ color: 0x654321 });
+circleMesh: InstancedMesh(circleGeometry, circleMaterial, MAX_RIGID_BODIES);
 ```
 
 ### Update Method
@@ -501,19 +512,19 @@ update(physicsManager: PhysicsManager): void {
 
 ```typescript
 interface PhysicsConfig {
-  enabled: boolean;                    // Default: true
-  gravity: number;                     // Default: 9.8 (pixels/frame²)
-  particleDamping: number;             // Default: 0.1 (air resistance)
-  particleRadius: number;              // Default: 0.5 (collision radius)
-  particleRestitution: number;         // Default: 0.3 (bounciness)
-  particleFriction: number;            // Default: 0.5
-  forceEjectionThreshold: number;      // Default: 0.3 (normalized 0-1)
-  settleThreshold: number;             // Default: 0.5 (velocity)
-  maxExtractionsPerFrame: number;      // Default: 64
-  maxReintegrationsPerFrame: number;   // Default: 64
-  collisionRebuildInterval: number;    // Default: 500 (ms)
-  collisionCellSize: number;           // Default: 8 (pixels)
-  ejectionVelocityMultiplier: number;  // Default: 3.0
+  enabled: boolean; // Default: true
+  gravity: number; // Default: 9.8 (pixels/frame²)
+  particleDamping: number; // Default: 0.1 (air resistance)
+  particleRadius: number; // Default: 0.5 (collision radius)
+  particleRestitution: number; // Default: 0.3 (bounciness)
+  particleFriction: number; // Default: 0.5
+  forceEjectionThreshold: number; // Default: 0.3 (normalized 0-1)
+  settleThreshold: number; // Default: 0.5 (velocity)
+  maxExtractionsPerFrame: number; // Default: 256
+  maxReintegrationsPerFrame: number; // Default: 256
+  collisionRebuildInterval: number; // Default: 500 (ms)
+  collisionCellSize: number; // Default: 8 (pixels)
+  ejectionVelocityMultiplier: number; // Default: 3.0
 }
 ```
 
@@ -521,10 +532,10 @@ interface PhysicsConfig {
 
 ```typescript
 interface RigidBodyConfig {
-  density: number;        // Default: 2.0
-  restitution: number;    // Default: 0.3
-  friction: number;       // Default: 0.6
-  linearDamping: number;  // Default: 0.1
+  density: number; // Default: 2.0
+  restitution: number; // Default: 0.3
+  friction: number; // Default: 0.6
+  linearDamping: number; // Default: 0.1
   angularDamping: number; // Default: 0.1
 }
 ```
@@ -532,9 +543,9 @@ interface RigidBodyConfig {
 ### Constants
 
 ```typescript
-MAX_PHYSICS_PARTICLES = 5000
-MAX_RIGID_BODIES = 100
-EXTRACTION_BUFFER_SIZE = 64  // Particles per frame
+MAX_PHYSICS_PARTICLES = 5000;
+MAX_RIGID_BODIES = 100;
+EXTRACTION_BUFFER_SIZE = 256; // Particles per frame
 ```
 
 ---
@@ -542,12 +553,14 @@ EXTRACTION_BUFFER_SIZE = 64  // Particles per frame
 ## Force Encoding (Heat/Force Texture)
 
 The heat/force texture uses RGBA channels:
+
 - **R**: Temperature low byte
-- **G**: Temperature high byte (16-bit Kelvin = R + G*256)
+- **G**: Temperature high byte (16-bit Kelvin = R + G\*256)
 - **B**: Force X (128 = neutral, 0 = -1.0, 255 = +1.0)
 - **A**: Force Y (128 = neutral, 0 = -1.0, 255 = +1.0)
 
 **Decoding force in shader:**
+
 ```glsl
 vec2 decodeForce(vec4 heatForce) {
   return (heatForce.ba * 255.0 - 128.0) / 127.0;
@@ -584,8 +597,8 @@ if (config.physics?.enabled) {
 
 ## Performance Notes
 
-- **Extraction**: 64 particles max per frame (GPU bound by readback)
-- **Reintegration**: 64 particles max per frame
+- **Extraction**: 256 particles max per frame (GPU bound by readback)
+- **Reintegration**: 256 particles max per frame
 - **Collision rebuild**: Throttled to every 500ms minimum, only when dirty
 - **Physics step**: Rapier runs at frame rate (typically 60Hz)
 - **Render buffers**: Pre-allocated Float32Array, no allocation per frame

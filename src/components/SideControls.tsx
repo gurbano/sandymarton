@@ -348,6 +348,13 @@ export function SideControls({
     });
   };
 
+  const handleRigidBodyForceMultiplierChange = (value: number) => {
+    onSimulationConfigChange({
+      ...simulationConfig,
+      physics: { ...simulationConfig.physics, rigidBodyForceMultiplier: value },
+    });
+  };
+
   // Render material grid (3 items per row)
   const renderMaterialGrid = (materials: typeof particleTypes) => (
     <div className="material-grid-3col">
@@ -843,6 +850,22 @@ export function SideControls({
                             step="0.05"
                             value={simulationConfig.physics.particleRestitution}
                             onChange={(e) => handlePhysicsRestitutionChange(parseFloat(e.target.value))}
+                            className="passes-slider"
+                            disabled={!simulationConfig.physics.enabled}
+                          />
+                        </label>
+                        <label className="effect-control">
+                          <div className="effect-control-header">
+                            <span>Rigid Body Force</span>
+                            <span className="effect-value">{simulationConfig.physics.rigidBodyForceMultiplier.toFixed(1)}</span>
+                          </div>
+                          <input
+                            type="range"
+                            min="1"
+                            max="50"
+                            step="1"
+                            value={simulationConfig.physics.rigidBodyForceMultiplier}
+                            onChange={(e) => handleRigidBodyForceMultiplierChange(parseFloat(e.target.value))}
                             className="passes-slider"
                             disabled={!simulationConfig.physics.enabled}
                           />

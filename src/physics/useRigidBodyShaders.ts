@@ -39,6 +39,8 @@ interface UseRigidBodyShadersProps {
   gl: WebGLRenderer;
   textureSize: number;
   enabled: boolean;
+  /** Force multiplier for rigid body to force field transfer */
+  forceMultiplier: number;
 }
 
 interface RigidBodyShadersResult {
@@ -87,6 +89,7 @@ export function useRigidBodyShaders({
   gl,
   textureSize,
   enabled,
+  forceMultiplier,
 }: UseRigidBodyShadersProps): RigidBodyShadersResult {
   const physicsManager = getPhysicsManager();
 
@@ -168,8 +171,8 @@ export function useRigidBodyShaders({
     mat.uniforms.uRigidBodyShapes = { value: shapesTexture };
     mat.uniforms.uRigidBodyCount = { value: 0 };
     mat.uniforms.uWorldSize = { value: textureSize };
-    mat.uniforms.uForceMultiplier = { value: 1.0 };
-  }, [forceResources, positionsTexture, velocitiesTexture, sizesTexture, shapesTexture, textureSize]);
+    mat.uniforms.uForceMultiplier = { value: forceMultiplier };
+  }, [forceResources, positionsTexture, velocitiesTexture, sizesTexture, shapesTexture, textureSize, forceMultiplier]);
 
   /**
    * Update data textures from PhysicsManager buffers

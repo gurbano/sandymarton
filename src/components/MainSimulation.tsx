@@ -229,6 +229,7 @@ function MainSimulation({
     gl,
     textureSize,
     enabled: config.physics?.enabled ?? false,
+    forceMultiplier: config.physics?.rigidBodyForceMultiplier ?? 10.0,
   });
 
   // Create simulation resources
